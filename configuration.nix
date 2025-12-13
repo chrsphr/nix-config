@@ -27,44 +27,14 @@
     }
   ];
   
-  #enabling hibernate
-  #boot.resumeDevice = "/dev/disk/by-uuid/47db079e-f389-46b3-b26f-bc4a53418b6e";
-  #boot.kernelParams = [ "resume_offset=163835904" ];
-
   powerManagement.enable = true;
 
-  #enabling suspend to hibernate
-
-  #services.power-profiles-daemon.enable = true;
-  # Suspend first then hibernate when closing the lid
-  #services.logind.lidSwitch = "suspend-then-hibernate";
-  # Hibernate on power button pressed
-  #services.logind.powerKey = "hibernate";
-  #services.logind.powerKeyLongPress = "poweroff";
-
-  # Suspend first
-  #boot.kernelParams = ["mem_sleep_default=deep"];
-# boot.kernelParams = [
-#  "resume=/dev/disk/by-uuid/47db079e-f389-46b3-b26f-bc4a53418b6e"
-#  "resume_offset=163835904"
-#  "mem_sleep_default=deep"
-#];
-
-  # Define time delay for hibernation
-  systemd.sleep.extraConfig = ''
-    HibernateDelaySec=30m
-    SuspendState=mem
-  '';
 
   # Enable plymouth
   boot.plymouth.enable = true;
 
   networking.hostName = "chris-framework"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
-
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
   # Enable networking
   networking.networkmanager.enable = true;
@@ -181,12 +151,6 @@
     polkitPolicyOwners = [ "chris" ];
   };
 
-
-
-  #services.fprintd.enable = true;
-  #services.fprintd.tod.enable = true;
-  #services.fprintd.tod.driver = pkgs.libfprint-2-tod1-vfs0090; #(If the vfs0090 Driver does not work, use the following driver)
-  #services.fprintd.tod.driver = pkgs.libfprint-2-tod1-goodix; #(On my device it only worked with this driver)
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.

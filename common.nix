@@ -57,14 +57,12 @@
     isNormalUser = true;
     extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [
-      # REPLACE WITH YOUR ACTUAL SSH PUBLIC KEY
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"
     ];
   };
 
   # Add SSH key to root user too (for initial deployment)
   users.users.root.openssh.authorizedKeys.keys = [
-    # REPLACE WITH YOUR ACTUAL SSH PUBLIC KEY
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"
   ];
 

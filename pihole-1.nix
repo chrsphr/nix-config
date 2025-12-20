@@ -6,7 +6,7 @@
     ./pihole-common.nix
   ];
 
-  networking.hostName = "pihole-1";
+services.pihole-ftl.settings.webserver.domain = "pihole-1.mcneill.fyi";
   
   networking.interfaces.eth0.ipv4.addresses = lib.mkForce [{
     address = "192.168.1.9";

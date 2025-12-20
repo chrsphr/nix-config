@@ -1,11 +1,7 @@
 { config, pkgs, lib, ... }:
 
 {
-  imports = [
-    ./common.nix
-  ];
-
-  # Static IP configuration (override hostname and address in specific configs)
+  # Static IP configuration (override in specific configs)
   networking = {
     useDHCP = false;
     interfaces.eth0.ipv4.addresses = lib.mkDefault [{
@@ -16,34 +12,26 @@
     nameservers = [ "1.1.1.1" ];
   };
 
-  # Open ports for Pi-hole
-  networking.firewall = {
-    allowedTCPPorts = [ 
-      22    # SSH
-      80    # HTTP Web Interface
-      53    # DNS
-    ];
-    allowedUDPPorts = [ 
-      53    # DNS
-    ];
-  };
-
   # Pi-hole FTL service
   services.pihole-ftl = {
     enable = true;
     
-    # Web interface settings
-    webserver = {
-      enable = true;
-      port = 80;
-    };
+    # Open firewall ports
+    openFirewallDNS = true;
+    openFirewallWebserver = true;
     
-    # DNS settings
-    dns = {
-      upstreams = [
-        "1.1.1.1"
-        "1.0.0.1"
-      ];
+    # Settings go in the settings attribute
+    settings = {
+      webserver = {
+        port = 80;
+      };
+      
+      dns = {
+        upstreams = [
+          "1.1.1.1"
+          "1.0.0.1"
+        ];
+      };
     };
   };
 

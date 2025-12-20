@@ -44,12 +44,12 @@
     };
   };
 
-    {
+
     services.pihole-web = {
         enable = true;
         ports = [ 80 ];
     };
-    }
+
 
 
 

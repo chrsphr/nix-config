@@ -1,94 +1,72 @@
 { config, pkgs, lib, ... }:
 
 {
-  # Static IP configuration (override in specific configs)
+  ### Networking (adjust IP as needed)
   networking = {
     useDHCP = false;
-    interfaces.eth0.ipv4.addresses = lib.mkDefault [{
-      address = "192.168.1.9";  # Override this
+    interfaces.eth0.ipv4.addresses = [{
+      address = "192.168.1.9";
       prefixLength = 24;
     }];
-    defaultGateway = {
-      address = "192.168.1.1";
-      interface = "eth0";
-    };
+    defaultGateway = "192.168.1.1";
     nameservers = [ "1.1.1.1" ];
   };
 
-  # Open ports for Pi-hole
-  networking.firewall = {
-    allowedTCPPorts = [ 
-      22    # SSH
-      80    # HTTP Web Interface
-      53    # DNS
-    ];
-    allowedUDPPorts = [ 
-      53    # DNS
-    ];
-  };
+  ### Firewall
+  networking.firewall.allowedTCPPorts = [ 22 80 53 ];
+  networking.firewall.allowedUDPPorts = [ 53 ];
 
-  # Pi-hole FTL service (DNS only, web served by lighttpd)
+  ### Pi-hole DNS only
   services.pihole-ftl = {
     enable = true;
-    
-    # Don't auto-open firewall, we'll do it manually above
     openFirewallDNS = false;
     openFirewallWebserver = false;
-    
-    # Settings
+
     settings = {
-      # Disable built-in webserver, use lighttpd instead
-      webserver = {
-        port = 0;  # Disable
-      };
-      
-      dns = {
-        upstreams = [
-          "1.1.1.1"
-          "1.0.0.1"
-        ];
-      };
+      webserver.port = 0; # disable embedded server
+      dns.upstreams = [ "1.1.1.1" "1.0.0.1" ];
     };
   };
 
-  # Additional packages useful for Pi-hole management
+  ### Packages
   environment.systemPackages = with pkgs; [
     dig
     pihole-web
-    php
   ];
 
-  # Lighttpd web server for Pi-hole web interface
+  ### PHP-FPM (required for UI)
+  services.phpfpm.pools.pihole = {
+    user = "lighttpd";
+    group = "lighttpd";
+    settings = {
+      listen = "/run/php-fpm/pihole.sock";
+      "listen.owner" = "lighttpd";
+      "listen.group" = "lighttpd";
+      "pm" = "dynamic";
+      "pm.max_children" = 5;
+    };
+  };
+
+  ### Lighttpd (Pi-hole UI)
   services.lighttpd = {
     enable = true;
-    document-root = "${pkgs.pihole-web}/share";
     port = 80;
-    enableModules = [ "mod_alias" "mod_fastcgi" ];
+
+    document-root = "${pkgs.pihole-web}/share/pihole/web";
+
+    enableModules = [
+      "mod_alias"
+      "mod_fastcgi"
+      "mod_fastcgi_php"
+      "mod_mime"
+    ];
+
     extraConfig = ''
-      server.indexfiles = ( "index.lp", "index.php", "index.html" )
+      server.indexfiles = ( "index.php", "index.html" )
+
       alias.url += (
-      "/admin" => "${pkgs.pihole-web}/share/pihole/web/admin"      )
-      fastcgi.server = (
-        ".php" => (
-          "php" => (
-            "socket" => "/run/php-fpm/pihole.sock",
-            "broken-scriptfilename" => "enable"
-          )
-        )
+        "/admin" => "${pkgs.pihole-web}/share/pihole/web/admin"
       )
     '';
   };
-
-services.phpfpm.pools.pihole = {
-  user = "lighttpd";
-  group = "lighttpd";
-  settings = {
-    listen = "/run/php-fpm/pihole.sock";
-    "listen.owner" = "lighttpd";
-    "listen.group" = "lighttpd";
-    "pm" = "dynamic";
-    "pm.max_children" = 5;
-  };
-};
-
 }

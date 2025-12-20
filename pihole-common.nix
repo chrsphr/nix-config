@@ -37,26 +37,27 @@
     pihole-web
   ];
 
-    services.lighttpd = {
-    enable = true;
-    port = 80;
+services.lighttpd = {
+  enable = true;
+  port = 80;
 
-    document-root = "${pkgs.pihole-web}/share/pihole/web";
+  document-root = "${pkgs.pihole-web}/share/pihole/web";
 
-    enableModules = [
-        "mod_alias"
-        "mod_fastcgi"
-        "mod_accesslog"
-    ];
+  enableModules = [
+    "mod_alias"
+    "mod_fastcgi"
+    "mod_accesslog"
+  ];
 
-    extraConfig = ''
-        server.indexfiles = ( "index.php", "index.html" )
+  extraConfig = ''
+    server.indexfiles = ( "index.php", "index.html" )
 
-        alias.url += (
-        "/admin" => "${pkgs.pihole-web}/share/pihole/web/admin"
-        )
-    '';
-    };
+    alias.url += (
+      "/admin/" => "${pkgs.pihole-web}/share/pihole/web/admin/"
+    )
+  '';
+};
+
 
 
 }

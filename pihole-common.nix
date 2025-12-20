@@ -15,13 +15,25 @@
     nameservers = [ "1.1.1.1" ];
   };
 
+  # Open ports for Pi-hole
+  networking.firewall = {
+    allowedTCPPorts = [ 
+      22    # SSH
+      80    # HTTP Web Interface
+      53    # DNS
+    ];
+    allowedUDPPorts = [ 
+      53    # DNS
+    ];
+  };
+
   # Pi-hole FTL service
   services.pihole-ftl = {
     enable = true;
     
-    # Open firewall ports
-    openFirewallDNS = true;
-    openFirewallWebserver = true;
+    # Don't auto-open firewall, we'll do it manually above
+    openFirewallDNS = false;
+    openFirewallWebserver = false;
     
     # Settings go in the settings attribute
     settings = {

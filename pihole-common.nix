@@ -16,8 +16,8 @@
   };
 
   ### Firewall
-  #networking.firewall.allowedTCPPorts = [ 22 80 53 443];
-  #networking.firewall.allowedUDPPorts = [ 53 ];
+  networking.firewall.allowedTCPPorts = [ 22 80 53 443];
+  networking.firewall.allowedUDPPorts = [ 53 ];
 
   ### Pi-hole DNS only
   services.pihole-ftl = {

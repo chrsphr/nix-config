@@ -26,7 +26,6 @@
     openFirewallWebserver = false;
 
     settings = {
-      webserver.port = 0; # disable embedded server
       dns.upstreams = [ "1.1.1.1" "1.0.0.1" ];
     };
   };

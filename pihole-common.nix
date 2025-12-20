@@ -27,7 +27,7 @@
     ];
   };
 
-  # Pi-hole FTL service
+  # Pi-hole FTL service (DNS only, web served by lighttpd)
   services.pihole-ftl = {
     enable = true;
     
@@ -35,10 +35,11 @@
     openFirewallDNS = false;
     openFirewallWebserver = false;
     
-    # Settings go in the settings attribute
+    # Settings
     settings = {
+      # Disable built-in webserver, use lighttpd instead
       webserver = {
-        port = 80;
+        port = 0;  # Disable
       };
       
       dns = {
@@ -54,5 +55,38 @@
   environment.systemPackages = with pkgs; [
     dig
     pihole-web
+    php
   ];
+
+  # Lighttpd web server for Pi-hole web interface
+  services.lighttpd = {
+    enable = true;
+    document-root = "${pkgs.pihole-web}/share/pihole/web";
+    port = 80;
+    enableModules = [ "mod_alias" "mod_fastcgi" ];
+    extraConfig = ''
+      server.indexfiles = ( "index.php", "index.html" )
+      alias.url += (
+        "/admin" => "${pkgs.pihole-web}/share/pihole/web/admin"
+      )
+      fastcgi.server = (
+        ".php" => (
+          "php" => (
+            "socket" => "/run/php-fpm/pihole.sock",
+            "broken-scriptfilename" => "enable"
+          )
+        )
+      )
+    '';
+  };
+
+  # PHP-FPM for running PHP
+  services.phpfpm.pools.pihole = {
+    user = "lighttpd";
+    settings = {
+      "listen" = "/run/php-fpm/pihole.sock";
+      "pm" = "dynamic";
+      "pm.max_children" = 5;
+    };
+  };
 }

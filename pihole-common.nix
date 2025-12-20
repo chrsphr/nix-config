@@ -8,7 +8,10 @@
       address = "192.168.1.9";
       prefixLength = 24;
     }];
-    defaultGateway = "192.168.1.1";
+    defaultGateway = {
+    address = "192.168.1.1";
+    interface = "eth0";
+    };
     nameservers = [ "1.1.1.1" ];
   };
 
@@ -34,39 +37,30 @@
     pihole-web
   ];
 
-  ### PHP-FPM (required for UI)
-  services.phpfpm.pools.pihole = {
-    user = "lighttpd";
-    group = "lighttpd";
-    settings = {
-      listen = "/run/php-fpm/pihole.sock";
-      "listen.owner" = "lighttpd";
-      "listen.group" = "lighttpd";
-      "pm" = "dynamic";
-      "pm.max_children" = 5;
-    };
-  };
+services.lighttpd = {
+  enable = true;
+  port = 80;
 
-  ### Lighttpd (Pi-hole UI)
-  services.lighttpd = {
-    enable = true;
-    port = 80;
+  document-root = "${pkgs.pihole-web}/share/pihole/web";
 
-    document-root = "${pkgs.pihole-web}/share/pihole/web";
+  enableModules = [
+    "mod_alias"
+    "mod_fastcgi"
+    "mod_mime"
+    "mod_accesslog"
+  ];
 
-    enableModules = [
-      "mod_alias"
-      "mod_fastcgi"
-      "mod_fastcgi_php"
-      "mod_mime"
-    ];
+  php.enable = true;
 
-    extraConfig = ''
-      server.indexfiles = ( "index.php", "index.html" )
+  extraConfig = ''
+    server.indexfiles = ( "index.php", "index.html" )
 
-      alias.url += (
-        "/admin" => "${pkgs.pihole-web}/share/pihole/web/admin"
-      )
-    '';
-  };
+    alias.url += (
+      "/admin" => "${pkgs.pihole-web}/share/pihole/web/admin"
+    )
+  '';
+};
+
+
+
 }

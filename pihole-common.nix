@@ -61,13 +61,13 @@
   # Lighttpd web server for Pi-hole web interface
   services.lighttpd = {
     enable = true;
-    document-root = "${pkgs.pihole-web}/share/pihole/web";
+    document-root = "${pkgs.pihole-web}/share";
     port = 80;
     enableModules = [ "mod_alias" "mod_fastcgi" ];
     extraConfig = ''
-      server.indexfiles = ( "index.php", "index.html" )
+      server.indexfiles = ( "index.lp", "index.php", "index.html" )
       alias.url += (
-        "/admin" => "${pkgs.pihole-web}/share/pihole/web/admin"
+        "/admin" => "${pkgs.pihole-web}/share"
       )
       fastcgi.server = (
         ".php" => (

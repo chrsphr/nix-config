@@ -46,7 +46,6 @@
     enableModules = [
         "mod_alias"
         "mod_fastcgi"
-        "mod_mime"
         "mod_accesslog"
     ];
 

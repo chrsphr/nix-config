@@ -49,10 +49,10 @@
       };
     };
   };
-  services.resolved.enable = false;
 
   # Additional packages useful for Pi-hole management
   environment.systemPackages = with pkgs; [
     dig
+    pihole-web
   ];
 }

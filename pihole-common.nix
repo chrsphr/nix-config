@@ -31,32 +31,18 @@
     };
   };
 
+  services.pihole-web = {
+  enable = true;
+  ports = [ "80r" ]; # HTTP only
+};
+
+
   ### Packages
   environment.systemPackages = with pkgs; [
     dig
     pihole-web
   ];
 
-services.lighttpd = {
-  enable = true;
-  port = 80;
-
-  document-root = "${pkgs.pihole-web}/share/pihole/web";
-
-  enableModules = [
-    "mod_alias"
-    "mod_fastcgi"
-    "mod_accesslog"
-  ];
-
-  extraConfig = ''
-    server.indexfiles = ( "index.php", "index.html" )
-
-    alias.url += (
-      "/admin/" => "${pkgs.pihole-web}/share/pihole/web/admin/"
-    )
-  '';
-};
 
 
 

@@ -34,6 +34,7 @@
   enable = true;
 };
 
+  services.resolved.enable = false;
 
   ### Packages
   environment.systemPackages = with pkgs; [

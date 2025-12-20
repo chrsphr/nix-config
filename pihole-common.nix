@@ -32,9 +32,9 @@
 
   services.pihole-web = {
   enable = true;
+  ports = [ "80r" "443s" ]; # HTTP only
 };
 
-  services.resolved.enable = false;
 
   ### Packages
   environment.systemPackages = with pkgs; [

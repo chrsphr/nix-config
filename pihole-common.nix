@@ -8,7 +8,10 @@
       address = "192.168.1.9";  # Override this
       prefixLength = 24;
     }];
-    defaultGateway = "192.168.1.1";
+    defaultGateway = {
+      address = "192.168.1.1";
+      interface = "eth0";
+    };
     nameservers = [ "1.1.1.1" ];
   };
 

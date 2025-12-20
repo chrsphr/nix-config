@@ -67,8 +67,7 @@
     extraConfig = ''
       server.indexfiles = ( "index.lp", "index.php", "index.html" )
       alias.url += (
-        "/admin" => "${pkgs.pihole-web}/share"
-      )
+      "/admin" => "${pkgs.pihole-web}/share/pihole/web/admin"      )
       fastcgi.server = (
         ".php" => (
           "php" => (
@@ -80,13 +79,16 @@
     '';
   };
 
-  # PHP-FPM for running PHP
-  services.phpfpm.pools.pihole = {
-    user = "lighttpd";
-    settings = {
-      "listen" = "/run/php-fpm/pihole.sock";
-      "pm" = "dynamic";
-      "pm.max_children" = 5;
-    };
+services.phpfpm.pools.pihole = {
+  user = "lighttpd";
+  group = "lighttpd";
+  settings = {
+    listen = "/run/php-fpm/pihole.sock";
+    "listen.owner" = "lighttpd";
+    "listen.group" = "lighttpd";
+    "pm" = "dynamic";
+    "pm.max_children" = 5;
   };
+};
+
 }

@@ -1,0 +1,85 @@
+{ config, modulesPath, pkgs, lib, ... }:
+
+{
+  imports = [
+    (modulesPath + "/virtualisation/proxmox-lxc.nix")
+  ];
+
+  # Basic settings
+  system.stateVersion = "25.11";
+  
+  nix.settings = {
+    experimental-features = [ "nix-command" "flakes" ];
+    sandbox = false;
+    require-sigs = false;
+  };
+
+  proxmoxLXC = {
+    manageNetwork = false;
+    privileged = true;
+  };
+
+  # Suppress problematic units in LXC
+  systemd.suppressedSystemUnits = [
+    "dev-mqueue.mount"
+    "sys-kernel-debug.mount"
+    "sys-fs-fuse-connections.mount"
+  ];
+
+  # Fix tty1 console
+  systemd.services."getty@tty1" = {
+    enable = lib.mkForce true;
+    wantedBy = [ "getty.target" ];
+    serviceConfig.Restart = "always";
+  };
+
+  # Networking
+  networking = {
+    hostName = "nixos";
+    useDHCP = lib.mkDefault true;
+    firewall = {
+      enable = true;
+      allowedTCPPorts = [ 22 ];
+    };
+  };
+
+  # SSH setup
+  services.openssh = {
+    enable = true;
+    openFirewall = true;
+    settings = {
+      PermitRootLogin = "yes";
+      PasswordAuthentication = false;
+    };
+  };
+
+  # Create deploy user
+  users.users.deploy = {
+    isNormalUser = true;
+    extraGroups = [ "wheel" ];
+    openssh.authorizedKeys.keys = [
+      # REPLACE WITH YOUR SSH PUBLIC KEY
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"
+    ];
+  };
+
+  # Passwordless sudo for wheel group
+  security.sudo.wheelNeedsPassword = false;
+
+  # Basic packages
+  environment.systemPackages = with pkgs; [
+    vim
+    wget
+    curl
+    git
+    htop
+  ];
+
+  # Timezone and locale
+  time.timeZone = "Europe/London";
+  i18n.defaultLocale = "en_GB.UTF-8";
+
+  # Container-specific settings
+  boot.isContainer = true;
+  services.fstrim.enable = false;
+}

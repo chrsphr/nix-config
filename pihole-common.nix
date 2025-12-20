@@ -15,6 +15,14 @@
     nameservers = [ "1.1.1.1" ];
   };
 
+
+  # Open firewall ports
+  networking.firewall = {
+    allowedTCPPorts = [ 22 53 80 ];
+    allowedUDPPorts = [ 53 ];
+  };
+
+
   services.pihole-ftl = {
     enable = true;
     openFirewallDHCP = true;

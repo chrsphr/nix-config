@@ -20,7 +20,7 @@
   #networking.firewall.allowedUDPPorts = [ 53 ];
   
   ### Pi-hole DNS only
-  services.pihole-ftl = {
+  services.pihole-web = {
     enable = true;
     settings = {
       dns.upstreams = [ "1.1.1.1" "1.0.0.1" ];

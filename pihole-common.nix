@@ -16,26 +16,18 @@
   };
 
   ### Firewall
-  networking.firewall.allowedTCPPorts = [ 22 80 53 443];
-  networking.firewall.allowedUDPPorts = [ 53 ];
+  #networking.firewall.allowedTCPPorts = [ 22 80 53 443];
+  #networking.firewall.allowedUDPPorts = [ 53 ];
   
   ### Pi-hole DNS only
   services.pihole-ftl = {
     enable = true;
-    openFirewallDNS = true;
-    openFirewallWebserver = true;
-
     settings = {
       dns.upstreams = [ "1.1.1.1" "1.0.0.1" ];
     };
   };
 
-  services.pihole-web = {
-  enable = true;
-  ports = [ "80r" "443s" ]; # HTTP only
-};
 
-services.pihole-ftl.settings.webserver.domain = "pihole-1.mcneill.fyi";
 
   ### Packages
   environment.systemPackages = with pkgs; [

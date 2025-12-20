@@ -15,17 +15,41 @@
     nameservers = [ "1.1.1.1" ];
   };
 
-  ### Firewall
-  #networking.firewall.allowedTCPPorts = [ 22 80 53 443];
-  #networking.firewall.allowedUDPPorts = [ 53 ];
-  
-  ### Pi-hole DNS only
-  services.pihole-web = {
+  services.pihole-ftl = {
     enable = true;
+    openFirewallDHCP = true;
+    queryLogDeleter.enable = true;
+    lists = [
+      {
+        url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts";
+        # Alternatively, use the file from nixpkgs. Note its contents won't be
+        # automatically updated by Pi-hole, as it would with an online URL.
+        # url = "file://${pkgs.stevenblack-blocklist}/hosts";
+        description = "Steven Black's unified adlist";
+      }
+    ];
     settings = {
-      dns.upstreams = [ "1.1.1.1" "1.0.0.1" ];
+      dns = {
+        domainNeeded = true;
+        expandHosts = true;
+        interface = "eth0";
+        listeningMode = "BIND";
+        upstreams = [ "1.1.1.1" ];
+      };
+      dhcp = {
+        active = false;
+
+      };
+
     };
   };
+
+    {
+    services.pihole-web = {
+        enable = true;
+        ports = [ 80 ];
+    };
+    }
 
 
 

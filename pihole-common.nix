@@ -56,7 +56,6 @@
       };
       webserver.api = {
         pwhash = "$BALLOON-SHA256$v=1$s=1024,t=32$0ryHODlDWJn1L0uBamA2Zg==$zq/YS/1/qOqhbXbcoKGf7hdWWVv3Tqd0Dn7iVwYKAf4=";
-        app_pwhash = "$BALLOON-SHA256$v=1$s=1024,t=32$esvjYqD7smd+6awbCetH6Q==$n5XFjyXmGrQD5wY+z5e3n9tRcvCXdGn8YizYvgxRhQ8=";
       };
     };
   };

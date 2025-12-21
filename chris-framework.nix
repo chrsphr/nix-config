@@ -8,7 +8,7 @@
   imports =
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
-      <nixos-hardware/framework/13-inch/amd-ai-300-series>
+
     ];
 
   # Bootloader.
@@ -17,15 +17,6 @@
 
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
-
-  #setting a swapfile
-
-   swapDevices = [
-    {
-      device = "/var/lib/swapfile";
-      size = 48 * 1024; # 48GB in MB
-    }
-  ];
   
   powerManagement.enable = true;
 
@@ -189,6 +180,22 @@
       PasswordAuthentication = false;
     };
   };
+
+  #Hibernate realted stuff
+
+  # Enable hibernation
+  boot.resumeDevice = "/dev/disk/by-uuid/21f4302e-2d51-4188-86ec-91ce91965f25";
+
+  # Optional: Configure power button/lid behavior
+  services.logind = {
+    lidSwitch = "suspend-then-hibernate";  # Suspend first, then hibernate after delay
+    # Or just: lidSwitch = "hibernate";
+  };
+  
+  # Optional: Set delay before hibernating (when using suspend-then-hibernate)
+  systemd.sleep.extraConfig = ''
+    HibernateDelaySec=30min
+  '';
 
 
   # Open firewall for SSH

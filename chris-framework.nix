@@ -188,7 +188,7 @@
   # Optional: Configure power button/lid behavior
   services.logind = {
     lidSwitch = "suspend-then-hibernate";  # Suspend first, then hibernate after delay
-    # Or just: lidSwitch = "hibernate";
+    #lidSwitch = "hibernate";
   };
   
   # Optional: Set delay before hibernating (when using suspend-then-hibernate)
@@ -196,6 +196,8 @@
     HibernateDelaySec=30min
   '';
 
+  # Ensure hibernate is available in the UI
+  systemd.targets.hibernate.enable = true;
 
   # Open firewall for SSH
   networking.firewall.allowedTCPPorts = [ 22 ];

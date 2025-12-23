@@ -18,6 +18,19 @@
           ./pihole-2.nix
         ];
       };
+      immich = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./immich.nix
+        ];
+      };   
+      plex = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./plex.nix
+        ];
+        
+      };            
       chris-framework = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [

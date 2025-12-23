@@ -13,7 +13,6 @@
     sandbox = false;
     require-sigs = false;
   };
-
   proxmoxLXC = {
     manageNetwork = false;
     privileged = true;

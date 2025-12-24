@@ -118,7 +118,7 @@
   };
 
   services.fprintd.enable = true;
-
+  services.flatpak.enable = true;
 
   hardware.bluetooth = {
     enable = true;
@@ -184,7 +184,11 @@
 
   # Enable hibernation
   boot.resumeDevice = "/dev/disk/by-uuid/21f4302e-2d51-4188-86ec-91ce91965f25";
+  boot.initrd.systemd.enable = true;
 
+  swapDevices = [
+   { device = "/dev/nvme0n1p3"; }
+  ];
   # Optional: Configure power button/lid behavior
   services.logind = {
     lidSwitch = "suspend-then-hibernate";  # Suspend first, then hibernate after delay
@@ -198,6 +202,8 @@
 
   # Ensure hibernate is available in the UI
   systemd.targets.hibernate.enable = true;
+  boot.kernelParams = [ "mem_sleep_default=deep" ];
+
 
   # Open firewall for SSH
   networking.firewall.allowedTCPPorts = [ 22 ];

@@ -200,9 +200,14 @@
     HibernateDelaySec=30min
   '';
 
+
   # Ensure hibernate is available in the UI
   systemd.targets.hibernate.enable = true;
-  boot.kernelParams = [ "mem_sleep_default=deep" ];
+  boot.kernelParams = [
+    "mem_sleep_default=deep"
+    "acpi.prefer_sleep_state=deep"
+    "nvme_core.default_ps_max_latency_us=5500"
+  ];
 
 
   # Open firewall for SSH

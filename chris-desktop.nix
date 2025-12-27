@@ -7,7 +7,7 @@
 {
   imports =
     [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
+      ./hardware-configuration-desktop.nix
     ];
 
   # Bootloader.
@@ -17,13 +17,13 @@
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
   
-  powerManagement.enable = true;
+powerManagement.enable = true;
 
 
   # Enable plymouth
   boot.plymouth.enable = true;
 
-  networking.hostName = "chris-framework"; # Define your hostname.
+  networking.hostName = "chris-desktop"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
   # Enable networking
@@ -183,31 +183,31 @@
   #Hibernate realted stuff
 
   # Enable hibernation
-  boot.resumeDevice = "/dev/disk/by-uuid/21f4302e-2d51-4188-86ec-91ce91965f25";
-  boot.initrd.systemd.enable = true;
+  #boot.resumeDevice = "/dev/disk/by-uuid/21f4302e-2d51-4188-86ec-91ce91965f25";
+  #boot.initrd.systemd.enable = true;
 
-  swapDevices = [
-   { device = "/dev/nvme0n1p3"; }
-  ];
+  #swapDevices = [
+  # { device = "/dev/nvme0n1p3"; }
+  #];
   # Optional: Configure power button/lid behavior
-  services.logind = {
-    lidSwitch = "suspend";  # Suspend first, then hibernate after delay
+  #services.logind = {
+  #  lidSwitch = "suspend-then-hibernate";  # Suspend first, then hibernate after delay
     #lidSwitch = "hibernate";
-  };
+  #};
   
   # Optional: Set delay before hibernating (when using suspend-then-hibernate)
-  systemd.sleep.extraConfig = ''
-    HibernateDelaySec=30min
-  '';
+  #systemd.sleep.extraConfig = ''
+  #  HibernateDelaySec=30min
+  #'';
 
 
   # Ensure hibernate is available in the UI
-  systemd.targets.hibernate.enable = false;
-  boot.kernelParams = [
-    "mem_sleep_default=deep"
-    "acpi.prefer_sleep_state=deep"
-    "nvme_core.default_ps_max_latency_us=5500"
-  ];
+  #systemd.targets.hibernate.enable = true;
+  #boot.kernelParams = [
+  #  "mem_sleep_default=deep"
+  #  "acpi.prefer_sleep_state=deep"
+  #  "nvme_core.default_ps_max_latency_us=5500"
+  #];
 
 
   # Open firewall for SSH
@@ -239,6 +239,7 @@
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
   system.stateVersion = "25.11"; # Did you read the comment?
+
 
 }
 

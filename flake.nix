@@ -38,6 +38,13 @@
           nixos-hardware.nixosModules.framework-amd-ai-300-series
         ];
       };
+
+      chris-desktop = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./chris-desktop.nix
+        ];
+      };
     };
   };
 }

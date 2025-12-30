@@ -102,6 +102,7 @@
     beeper
     qgis
     git
+    glib
     vscode
     spotify
     conda
@@ -114,9 +115,13 @@
     nixos-generators
     drawio
     wget
+    fwupd
+    gearlever
+    appimage-run
+    moonlight-qt
     ];
   };
-
+  programs.fuse.userAllowOther = true;
   services.fprintd.enable = true;
   services.flatpak.enable = true;
 
@@ -208,6 +213,7 @@
     "acpi.prefer_sleep_state=deep"
     "nvme_core.default_ps_max_latency_us=5500"
   ];
+
 
 
   # Open firewall for SSH

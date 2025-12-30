@@ -79,6 +79,7 @@ powerManagement.enable = true;
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true;
+    wireplumber.enable = true;    
     # If you want to use JACK applications, uncomment this
     #jack.enable = true;
 
@@ -114,11 +115,41 @@ powerManagement.enable = true;
     nixos-generators
     drawio
     wget
+    gnome-boxes
+    google-chrome
+    gamescope
+    vulkan-tools
     ];
   };
 
+  programs.gamescope = {
+    enable = true;
+    capSysNice = true;
+  };
+
+
+hardware.graphics = {
+  enable = true;
+  enable32Bit = true;
+};
+
+  programs.steam.gamescopeSession.enable = true; # Integrates with programs.steam
+
+
+
+
+
   services.fprintd.enable = true;
   services.flatpak.enable = true;
+
+  virtualisation.libvirtd.enable = true;
+  programs.virt-manager.enable = true;
+  users.groups = {
+    libvirtd.members = [ "chris" ];
+    kvm.members = [ "chris" ];
+  };
+
+
 
   hardware.bluetooth = {
     enable = true;
@@ -145,7 +176,7 @@ powerManagement.enable = true;
   # Install firefox.
   programs.firefox.enable = true;
   #enable powertop for power tuning
-  powerManagement.powertop.enable = true;
+  #powerManagement.powertop.enable = true;
   # install steam
   programs.steam = {
     enable = true;
@@ -180,34 +211,32 @@ powerManagement.enable = true;
     };
   };
 
-  #Hibernate realted stuff
-
-  # Enable hibernation
-  #boot.resumeDevice = "/dev/disk/by-uuid/21f4302e-2d51-4188-86ec-91ce91965f25";
-  #boot.initrd.systemd.enable = true;
-
-  #swapDevices = [
-  # { device = "/dev/nvme0n1p3"; }
-  #];
-  # Optional: Configure power button/lid behavior
-  #services.logind = {
-  #  lidSwitch = "suspend-then-hibernate";  # Suspend first, then hibernate after delay
-    #lidSwitch = "hibernate";
-  #};
-  
-  # Optional: Set delay before hibernating (when using suspend-then-hibernate)
-  #systemd.sleep.extraConfig = ''
-  #  HibernateDelaySec=30min
-  #'';
+  services.sunshine = {
+    enable = true;
+    autoStart = true;
+    capSysAdmin = true;
+    openFirewall = true;
+    
+  };
 
 
-  # Ensure hibernate is available in the UI
-  #systemd.targets.hibernate.enable = true;
-  #boot.kernelParams = [
-  #  "mem_sleep_default=deep"
-  #  "acpi.prefer_sleep_state=deep"
-  #  "nvme_core.default_ps_max_latency_us=5500"
-  #];
+  ###
+  # Disable problematic wake sources
+  systemd.services.disable-wake-sources = {
+    description = "Disable USB wake sources";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "multi-user.target" ];
+    script = ''
+      echo GPP0 > /proc/acpi/wakeup
+      echo GPP8 > /proc/acpi/wakeup
+      # Add XHC0/XHC1 if USB controllers are the issue
+      # echo XHC0 > /proc/acpi/wakeup
+    '';
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+  };
 
 
   # Open firewall for SSH

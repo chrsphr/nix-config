@@ -1,6 +1,6 @@
 # Edit this configuration file to define what should be installed on
 # your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running ‘nixos-help’).
+# and in the NixOS manual (accessible by running 'nixos-help').
 
 { config, pkgs, ... }:
 
@@ -14,14 +14,33 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # Use latest kernel.
+  # Use latest kernel for best AMD AI 300 support
   boot.kernelPackages = pkgs.linuxPackages_latest;
   
+  # AMD AI 300 specific kernel parameters
+  boot.kernelParams = [
+    "mem_sleep_default=s2idle"  # Better for modern AMD (s2idle instead of deep)
+    "nvme_core.default_ps_max_latency_us=5500"
+    "amdgpu.ppfeaturemask=0xffffffff"  # Enable all AMD GPU features
+  ];
+
+  # Power management
   powerManagement.enable = true;
+  # Note: power-profiles-daemon is enabled by the nixos-hardware module
+  # Do NOT enable powertop or TLP as they conflict
 
-
-  # Enable plymouth
+  # Enable plymouth for boot splash
   boot.plymouth.enable = true;
+
+  # Enable flakes and nix-command
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+
+  # Automatic garbage collection
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 30d";
+  };
 
   networking.hostName = "chris-framework"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
@@ -55,9 +74,9 @@
   services.xserver.desktopManager.gnome.enable = true;
   services.xserver.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
   services.xserver.desktopManager.gnome.extraGSettingsOverrides = ''
-  [org.gnome.mutter]
-  experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate']
-'';
+    [org.gnome.mutter]
+    experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate']
+  '';
 
   # Configure keymap in X11
   services.xserver.xkb = {
@@ -87,44 +106,60 @@
     #media-session.enable = true;
   };
 
+  # Graphics configuration - explicit for AMD
+  hardware.graphics = {
+    enable = true;
+    enable32Bit = true;  # For Steam and gaming
+  };
+
   # Enable touchpad support (enabled default in most desktopManager).
   # services.xserver.libinput.enable = true;
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
+  # Define a user account. Don't forget to set a password with 'passwd'.
   users.users.chris = {
     isNormalUser = true;
     openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"  # Same key as before
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"
     ];
     description = "Chris";
     extraGroups = [ "networkmanager" "wheel" ];
     packages = with pkgs; [
-    beeper
-    qgis
-    git
-    glib
-    vscode
-    spotify
-    conda
-    fastfetch
-    powertop
-    dig
-	  fprintd
-	  teams-for-linux
-    google-fonts
-    nixos-generators
-    drawio
-    wget
-    fwupd
-    gearlever
-    appimage-run
-    moonlight-qt
+      beeper
+      qgis
+      git
+      vscode
+      spotify
+      conda
+      fastfetch
+      dig
+      teams-for-linux
+      google-fonts
+      nixos-generators
+      drawio
+      wget
+      fwupd
+      gearlever
+      appimage-run
+      moonlight-qt
+      # AMD-specific monitoring tools
+      lm_sensors
+      amdgpu_top
     ];
   };
+
+  # Enable FUSE user mounts
   programs.fuse.userAllowOther = true;
+
+  # Fingerprint reader support
   services.fprintd.enable = true;
+  
+  # Flatpak support
   services.flatpak.enable = true;
 
+  # Firmware updates
+  services.fwupd.enable = true;
+
+  # Bluetooth configuration
   hardware.bluetooth = {
     enable = true;
     powerOnBoot = true;
@@ -149,14 +184,13 @@
 
   # Install firefox.
   programs.firefox.enable = true;
-  #enable powertop for power tuning
-  powerManagement.powertop.enable = true;
-  # install steam
+
+  # Install Steam
   programs.steam = {
     enable = true;
     remotePlay.openFirewall = true; # Open ports in the firewall for Steam Remote Play
     dedicatedServer.openFirewall = true; # Open ports in the firewall for Source Dedicated Server
-};
+  };
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
@@ -164,10 +198,11 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-  #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-  #  wget
+    vim
+    htop
   ];
 
+  # 1Password
   programs._1password.enable = true;
   programs._1password-gui = {
     enable = true;
@@ -185,36 +220,27 @@
     };
   };
 
-  #Hibernate realted stuff
-
-  # Enable hibernation
+  ### Hibernation Configuration ###
+  # Enable hibernation support
   boot.resumeDevice = "/dev/disk/by-uuid/21f4302e-2d51-4188-86ec-91ce91965f25";
   boot.initrd.systemd.enable = true;
 
   swapDevices = [
-   { device = "/dev/nvme0n1p3"; }
+    { device = "/dev/nvme0n1p3"; }
   ];
-  # Optional: Configure power button/lid behavior
+
+  # Configure lid behavior - suspend first, then hibernate after delay
   services.logind = {
-    lidSwitch = "suspend";  # Suspend first, then hibernate after delay
-    #lidSwitch = "hibernate";
+    lidSwitch = "suspend-then-hibernate";
   };
   
-  # Optional: Set delay before hibernating (when using suspend-then-hibernate)
+  # Set delay before hibernating (when using suspend-then-hibernate)
   systemd.sleep.extraConfig = ''
     HibernateDelaySec=30min
   '';
 
-
-  # Ensure hibernate is available in the UI
-  systemd.targets.hibernate.enable = false;
-  boot.kernelParams = [
-    "mem_sleep_default=deep"
-    "acpi.prefer_sleep_state=deep"
-    "nvme_core.default_ps_max_latency_us=5500"
-  ];
-
-
+  # Enable hibernate target
+  systemd.targets.hibernate.enable = true;
 
   # Open firewall for SSH
   networking.firewall.allowedTCPPorts = [ 22 ];
@@ -240,11 +266,10 @@
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
-  # on your system were taken. It‘s perfectly fine and recommended to leave
+  # on your system were taken. It's perfectly fine and recommended to leave
   # this value at the release version of the first install of this system.
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
   system.stateVersion = "25.11"; # Did you read the comment?
 
 }
-

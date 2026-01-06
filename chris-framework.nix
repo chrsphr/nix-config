@@ -220,27 +220,24 @@
     };
   };
 
-  ### Hibernation Configuration ###
-  # Enable hibernation support
-  boot.resumeDevice = "/dev/disk/by-uuid/21f4302e-2d51-4188-86ec-91ce91965f25";
+  ### Sleep/Suspend Configuration ###
+  # Hibernation disabled - unreliable on current kernel, will revisit later
+  # Using simple suspend for lid close and power button
+  
   boot.initrd.systemd.enable = true;
 
   swapDevices = [
     { device = "/dev/nvme0n1p3"; }
   ];
 
-  # Configure lid behavior - suspend first, then hibernate after delay
+  # Configure lid behavior - simple suspend only
   services.logind = {
-    lidSwitch = "suspend-then-hibernate";
+    lidSwitch = "suspend";
+    lidSwitchExternalPower = "suspend";
   };
-  
-  # Set delay before hibernating (when using suspend-then-hibernate)
-  systemd.sleep.extraConfig = ''
-    HibernateDelaySec=30min
-  '';
 
-  # Enable hibernate target
-  systemd.targets.hibernate.enable = true;
+  # Disable hibernate target
+  systemd.targets.hibernate.enable = false;
 
   # Open firewall for SSH
   networking.firewall.allowedTCPPorts = [ 22 ];

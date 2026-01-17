@@ -23,6 +23,12 @@
         modules = [
           ./immich.nix
         ];
+      };
+            transcode = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./transcode.nix
+        ];
       };   
       plex = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";

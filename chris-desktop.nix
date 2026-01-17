@@ -13,13 +13,14 @@
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
   
 powerManagement.enable = true;
 
-
+boot.kernelModules = [ "sg" ];
   # Enable plymouth
   boot.plymouth.enable = true;
 
@@ -71,6 +72,16 @@ powerManagement.enable = true;
   # Enable CUPS to print documents.
   services.printing.enable = true;
 
+## adding lilnas
+
+fileSystems."/home/chris/Media" = {
+  device = "//lilnas.mcneill.fyi/Media";
+  fsType = "cifs";
+  options = let
+    # x-systemd.automount is the secret sauce here
+    automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,mount-timeout=5s";
+  in ["${automount_opts},username=chris,uid=1000,gid=100,vers=3.0"];
+};
   # Enable sound with pipewire.
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;
@@ -98,7 +109,7 @@ powerManagement.enable = true;
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"  # Same key as before
     ];
     description = "Chris";
-    extraGroups = [ "networkmanager" "wheel" ];
+    extraGroups = [ "networkmanager" "wheel" "docker" "libvirtd" "cdrom" "arm"];
     packages = with pkgs; [
     beeper
     qgis
@@ -119,6 +130,13 @@ powerManagement.enable = true;
     google-chrome
     gamescope
     vulkan-tools
+    lsscsi
+    docker-compose
+    makemkv
+    sysstat
+    handbrake
+    filebot
+
     ];
   };
 
@@ -132,6 +150,17 @@ hardware.graphics = {
   enable = true;
   enable32Bit = true;
 };
+ 
+hardware.amdgpu = {
+  initrd.enable = true;
+  opencl.enable = true;
+};
+environment.systemPackages = with pkgs; [
+  ffmpeg-full
+];
+
+
+
 
   programs.steam.gamescopeSession.enable = true; # Integrates with programs.steam
 
@@ -187,12 +216,6 @@ hardware.graphics = {
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
-  # List packages installed in system profile. To search, run:
-  # $ nix search wget
-  environment.systemPackages = with pkgs; [
-  #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-  #  wget
-  ];
 
   programs._1password.enable = true;
   programs._1password-gui = {
@@ -238,6 +261,26 @@ hardware.graphics = {
     };
   };
 
+  virtualisation.docker.enable = true;
+
+
+  fileSystems."/mnt/Media" = {
+    device = "192.168.1.12:/mnt/Hutch/Media";
+    fsType = "nfs";
+    options = [ "x-systemd.automount" "noauto" "x-systemd.idle-timeout=600"];
+  };
+  
+  # optional, but ensures rpc-statsd is running for on demand mounting
+  boot.supportedFilesystems = [ "nfs" ];
+  services.rpcbind.enable = true; # needed for NFS
+
+   systemd.automounts = [{
+    wantedBy = [ "multi-user.target" ];
+    automountConfig = {
+      TimeoutIdleSec = "600";
+    };
+    where = "/mnt/Media";
+  }];
 
   # Open firewall for SSH
   networking.firewall.allowedTCPPorts = [ 22 ];

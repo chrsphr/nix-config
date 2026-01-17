@@ -33,9 +33,6 @@
   # Enable plymouth for boot splash
   boot.plymouth.enable = true;
 
-  # Enable flakes and nix-command
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
-
   # Automatic garbage collection
   nix.gc = {
     automatic = true;

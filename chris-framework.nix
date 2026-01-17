@@ -153,6 +153,14 @@
   # Enable FUSE user mounts
   programs.fuse.userAllowOther = true;
 
+  fileSystems."/mnt/Media" = {
+    device = "192.168.1.12:/mnt/Hutch/Media";
+    fsType = "nfs";
+    options = [ "x-systemd.automount" "noauto" "x-systemd.idle-timeout=600"];
+  };
+  
+
+
   # Fingerprint reader support
   services.fprintd.enable = true;
   

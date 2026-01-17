@@ -136,7 +136,7 @@ fileSystems."/home/chris/Media" = {
     sysstat
     handbrake
     filebot
-
+    htop
     ];
   };
 

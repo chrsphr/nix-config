@@ -142,9 +142,11 @@
       gearlever
       appimage-run
       moonlight-qt
-      # AMD-specific monitoring tools
       lm_sensors
       amdgpu_top
+      google-chrome
+      darktable
+      htop
     ];
   };
 

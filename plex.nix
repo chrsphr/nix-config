@@ -19,7 +19,7 @@
     #nameservers = [ "1.1.1.1" ];
   };
 
-snixpkgs.config.allowUnfree = true;
+nixpkgs.config.allowUnfree = true;
 
 services.plex = {
   enable = true;

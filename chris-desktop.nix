@@ -137,6 +137,7 @@ fileSystems."/home/chris/Media" = {
     handbrake
     filebot
     btop
+    darktable
     ];
   };
 

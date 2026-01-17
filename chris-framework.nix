@@ -143,7 +143,7 @@
       amdgpu_top
       google-chrome
       darktable
-      htop
+      btop
     ];
   };
 

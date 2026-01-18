@@ -9,11 +9,17 @@
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
     ];
-  
+
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   # Bootloader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 14d";
+  };
 
   # Use latest kernel for best AMD AI 300 support
   boot.kernelPackages = pkgs.linuxPackages_latest;
@@ -33,12 +39,6 @@
   # Enable plymouth for boot splash
   boot.plymouth.enable = true;
 
-  # Automatic garbage collection
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 30d";
-  };
 
   networking.hostName = "chris-framework"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
@@ -142,7 +142,6 @@
       lm_sensors
       amdgpu_top
       google-chrome
-      darktable
       btop
     ];
   };

@@ -20,6 +20,12 @@
   
 powerManagement.enable = true;
 
+nix.gc = {
+  automatic = true;
+  dates = "weekly";
+  options = "--delete-older-than 14d";
+};
+
 boot.kernelModules = [ "sg" ];
   # Enable plymouth
   boot.plymouth.enable = true;

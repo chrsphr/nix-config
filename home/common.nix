@@ -28,7 +28,25 @@
     # Terminal utilities for oh-my-zsh
     nerd-fonts.fira-code
     nerd-fonts.meslo-lg
+
+    # GNOME Extensions
+    gnomeExtensions.blur-my-shell
+    gnomeExtensions.emoji-copy
+    gnomeExtensions.appindicator
+
   ];
+
+  # GNOME Extensions configuration
+  dconf.settings = {
+    "org/gnome/shell" = {
+      disable-user-extensions = false;
+      enabled-extensions = [
+        "blur-my-shell@aunetx"
+        "emoji-copy@felipeftn"
+        "appindicatorsupport@rgcjonas.gmail.com"
+      ];
+    };
+  };
 
   # Git configuration
   programs.git = {

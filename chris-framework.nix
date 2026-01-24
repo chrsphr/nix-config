@@ -1,281 +1,61 @@
-# Edit this configuration file to define what should be installed on
-# your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running 'nixos-help').
-
-{ config, pkgs, ... }:
+{ config, pkgs, pkgs-unstable ? pkgs, ... }:
 
 {
-  imports =
-    [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
-    ];
-
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
-  # Bootloader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 14d";
-  };
-
-  # Use latest kernel for best AMD AI 300 support
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-  
-  # AMD AI 300 specific kernel parameters
-  boot.kernelParams = [
-    "mem_sleep_default=s2idle"  # Better for modern AMD (s2idle instead of deep)
-    "nvme_core.default_ps_max_latency_us=5500"
-    "amdgpu.ppfeaturemask=0xffffffff"  # Enable all AMD GPU features
+  imports = [
+    ./hardware/framework.nix
+    ./modules/common.nix
   ];
 
-  # Power management
-  powerManagement.enable = true;
-  # Note: power-profiles-daemon is enabled by the nixos-hardware module
-  # Do NOT enable powertop or TLP as they conflict
+  # Hostname
+  networking.hostName = "chris-framework";
 
-  # Enable plymouth for boot splash
-  boot.plymouth.enable = true;
+  # AMD AI 300 specific kernel parameters
+  boot.kernelParams = [
+    "mem_sleep_default=s2idle"
+    "nvme_core.default_ps_max_latency_us=5500"
+    "amdgpu.ppfeaturemask=0xffffffff"
+  ];
 
+  # Bluetooth firmware and driver support
+  hardware.enableRedistributableFirmware = true;
+  hardware.firmware = with pkgs; [ linux-firmware ];
+  boot.kernelModules = [ "btusb" "btrtl" ];
 
-  networking.hostName = "chris-framework"; # Define your hostname.
-  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
+  # Suspend-then-hibernate configuration
+  services.power-profiles-daemon.enable = true;
+  services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
+  services.logind.settings.Login.HandlePowerKey = "hibernate";
+  services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
 
-  # Enable networking
-  networking.networkmanager.enable = true;
-
-  # Set your time zone.
-  time.timeZone = "Europe/London";
-
-  # Select internationalisation properties.
-  i18n.defaultLocale = "en_GB.UTF-8";
-
-  i18n.extraLocaleSettings = {
-    LC_ADDRESS = "en_GB.UTF-8";
-    LC_IDENTIFICATION = "en_GB.UTF-8";
-    LC_MEASUREMENT = "en_GB.UTF-8";
-    LC_MONETARY = "en_GB.UTF-8";
-    LC_NAME = "en_GB.UTF-8";
-    LC_NUMERIC = "en_GB.UTF-8";
-    LC_PAPER = "en_GB.UTF-8";
-    LC_TELEPHONE = "en_GB.UTF-8";
-    LC_TIME = "en_GB.UTF-8";
-  };
-
-  # Enable the X11 windowing system.
-  services.xserver.enable = true;
-
-  # Enable the GNOME Desktop Environment.
-  services.displayManager.gdm.enable = true;
-  services.desktopManager.gnome.enable = true;
-  services.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
-  services.desktopManager.gnome.extraGSettingsOverrides = ''
-    [org.gnome.mutter]
-    experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate']
+  systemd.sleep.extraConfig = ''
+    HibernateDelaySec=30m
+    SuspendState=mem
   '';
 
-  # Configure keymap in X11
-  services.xserver.xkb = {
-    layout = "gb";
-    variant = "";
-  };
-
-  # Configure console keymap
-  console.keyMap = "uk";
-
-  # Enable CUPS to print documents.
-  services.printing.enable = true;
-
-  # Enable sound with pipewire.
-  services.pulseaudio.enable = false;
-  security.rtkit.enable = true;
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-    # If you want to use JACK applications, uncomment this
-    #jack.enable = true;
-
-    # use the example session manager (no others are packaged yet so this is enabled by default,
-    # no need to redefine it in your config for now)
-    #media-session.enable = true;
-  };
-
-  # Graphics configuration - explicit for AMD
-  hardware.graphics = {
-    enable = true;
-    enable32Bit = true;  # For Steam and gaming
-  };
-
-  # Enable touchpad support (enabled default in most desktopManager).
-  # services.xserver.libinput.enable = true;
-
-  # Define a user account. Don't forget to set a password with 'passwd'.
-  users.users.chris = {
-    isNormalUser = true;
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"
-    ];
-    description = "Chris";
-    extraGroups = [ "networkmanager" "wheel" ];
-    packages = with pkgs; [
-      beeper
-      qgis
-      git
-      vscode
-      spotify
-      conda
-      fastfetch
-      dig
-      teams-for-linux
-      google-fonts
-      nixos-generators
-      drawio
-      wget
-      fwupd
-      gearlever
-      appimage-run
-      moonlight-qt
-      lm_sensors
-      amdgpu_top
-      google-chrome
-      btop
-    ];
-  };
-
-  # Enable FUSE user mounts
-  programs.fuse.userAllowOther = true;
-
-  fileSystems."/mnt/Media" = {
-    device = "192.168.1.12:/mnt/Hutch/Media";
-    fsType = "nfs";
-    options = [ "x-systemd.automount" "noauto" "x-systemd.idle-timeout=600"];
-  };
-  
-
-
-  # Fingerprint reader support
+  # Fingerprint reader
   services.fprintd.enable = true;
-  
-  # Flatpak support
-  services.flatpak.enable = true;
 
   # Firmware updates
   services.fwupd.enable = true;
 
-  # Bluetooth configuration
-  hardware.bluetooth = {
-    enable = true;
-    powerOnBoot = true;
-    settings = {
-      General = {
-        # Shows battery charge of connected devices on supported
-        # Bluetooth adapters. Defaults to 'false'.
-        Experimental = true;
-        # When enabled other devices can connect faster to us, however
-        # the tradeoff is increased power consumption. Defaults to
-        # 'false'.
-        FastConnectable = true;
-      };
-      Policy = {
-        # Enable all controllers when they are found. This includes
-        # adapters present on start as well as adapters that are plugged
-        # in later on. Defaults to 'true'.
-        AutoEnable = true;
-      };
-    };
-  };
+  # Enable FUSE user mounts
+  programs.fuse.userAllowOther = true;
 
-  # Install firefox.
-  programs.firefox.enable = true;
-
-  # Install Steam
-  programs.steam = {
-    enable = true;
-    remotePlay.openFirewall = true; # Open ports in the firewall for Steam Remote Play
-    dedicatedServer.openFirewall = true; # Open ports in the firewall for Source Dedicated Server
-  };
-
-  # Allow unfree packages
-  nixpkgs.config.allowUnfree = true;
-
-  # List packages installed in system profile. To search, run:
-  # $ nix search wget
-  environment.systemPackages = with pkgs; [
-    vim
-    htop
-  ];
-
-  # 1Password
-  programs._1password.enable = true;
-  programs._1password-gui = {
-    enable = true;
-    # Certain features, including CLI integration and system authentication support,
-    # require enabling PolKit integration on some desktop environments (e.g. Plasma).
-    polkitPolicyOwners = [ "chris" ];
-  };
-
-  # Enable SSH server
-  services.openssh = {
-    enable = true;
-    settings = {
-      PermitRootLogin = "no";
-      PasswordAuthentication = false;
-    };
-  };
-
-  ### Sleep/Suspend Configuration ###
-  # Hibernation disabled - unreliable on current kernel, will revisit later
-  # Using simple suspend for lid close and power button
-  
+  # Hibernation support
   boot.initrd.systemd.enable = true;
-
   swapDevices = [
     { device = "/dev/nvme0n1p3"; }
   ];
 
-  # Configure lid behavior - simple suspend only
-  services.logind.settings = {
-    Login = {
-      HandleLidSwitch = "suspend";
-      HandleLidSwitchExternalPower = "suspend";
-    };
-  };
-
-  # Disable hibernate target
-  systemd.targets.hibernate.enable = false;
-
-  # Open firewall for SSH
-  networking.firewall.allowedTCPPorts = [ 22 ];
-
-  # Some programs need SUID wrappers, can be configured further or are
-  # started in user sessions.
-  # programs.mtr.enable = true;
-  # programs.gnupg.agent = {
-  #   enable = true;
-  #   enableSSHSupport = true;
-  # };
-
-  # List services that you want to enable:
-
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
-
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
-  # Or disable the firewall altogether.
-  # networking.firewall.enable = false;
-
-  # This value determines the NixOS release from which the default
-  # settings for stateful data, like file locations and database versions
-  # on your system were taken. It's perfectly fine and recommended to leave
-  # this value at the release version of the first install of this system.
-  # Before changing this value read the documentation for this option
-  # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system.stateVersion = "25.11"; # Did you read the comment?
-
+  # Framework-specific packages
+  users.users.chris.packages = with pkgs; [
+    fwupd
+    gearlever
+    appimage-run
+    moonlight-qt
+    lm_sensors
+    amdgpu_top
+    pkgs-unstable.darktable
+    claude-code
+  ];
 }

@@ -2,9 +2,10 @@
   description = "chris's nixos configurations";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
   };
-  outputs = { self, nixpkgs, nixos-hardware }: {
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware }: {
     nixosConfigurations = {
       pihole-1 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
@@ -39,6 +40,7 @@
       };            
       chris-framework = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
+        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
         modules = [
           ./chris-framework.nix
           nixos-hardware.nixosModules.framework-amd-ai-300-series
@@ -47,6 +49,7 @@
 
       chris-desktop = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
+        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
         modules = [
           ./chris-desktop.nix
         ];

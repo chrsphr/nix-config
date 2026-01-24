@@ -4,8 +4,12 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+    home-manager = {
+      url = "github:nix-community/home-manager/release-25.11";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware }: {
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, home-manager }: {
     nixosConfigurations = {
       pihole-1 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
@@ -44,6 +48,13 @@
         modules = [
           ./chris-framework.nix
           nixos-hardware.nixosModules.framework-amd-ai-300-series
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+            home-manager.extraSpecialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
+            home-manager.users.chris = import ./home/framework.nix;
+          }
         ];
       };
 
@@ -52,6 +63,13 @@
         specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
         modules = [
           ./chris-desktop.nix
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+            home-manager.extraSpecialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
+            home-manager.users.chris = import ./home/desktop.nix;
+          }
         ];
       };
     };

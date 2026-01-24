@@ -35,17 +35,4 @@
 
   # Enable FUSE user mounts
   programs.fuse.userAllowOther = true;
-
-
-  # Framework-specific packages
-  users.users.chris.packages = with pkgs; [
-    fwupd
-    gearlever
-    appimage-run
-    moonlight-qt
-    lm_sensors
-    amdgpu_top
-    pkgs-unstable.darktable
-    claude-code
-  ];
 }

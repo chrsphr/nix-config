@@ -1,8 +1,5 @@
 { config, pkgs, pkgs-unstable ? pkgs, ... }:
 
-let
-  commonPackages = import ./common-packages.nix { inherit pkgs pkgs-unstable; };
-in
 {
   # Nix configuration
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -97,15 +94,16 @@ in
   # User account
   users.users.chris = {
     isNormalUser = true;
+    shell = pkgs.zsh;
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"
     ];
     description = "Chris";
     extraGroups = [ "networkmanager" "wheel" ];
-    packages = commonPackages.sharedPackages;
   };
 
   # Programs
+  programs.zsh.enable = true;  # Enable zsh system-wide
   programs.firefox.enable = true;
   programs.steam = {
     enable = true;

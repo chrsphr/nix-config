@@ -83,21 +83,6 @@
     };
   };
 
-  # Desktop-specific packages
-  users.users.chris.packages = with pkgs; [
-    powertop
-    fprintd
-    gnome-boxes
-    gamescope
-    vulkan-tools
-    lsscsi
-    docker-compose
-    makemkv
-    sysstat
-    handbrake
-    filebot
-  ];
-
   # System packages for desktop
   environment.systemPackages = with pkgs; [
     ffmpeg-full

@@ -21,16 +21,11 @@
   hardware.firmware = with pkgs; [ linux-firmware ];
   boot.kernelModules = [ "btusb" "btrtl" ];
 
-  # Suspend-then-hibernate configuration
+  # Power management
   services.power-profiles-daemon.enable = true;
-  services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
-  services.logind.settings.Login.HandlePowerKey = "hibernate";
+  services.logind.settings.Login.HandleLidSwitch = "suspend";
+  services.logind.settings.Login.HandlePowerKey = "suspend";
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
-
-  systemd.sleep.extraConfig = ''
-    HibernateDelaySec=30m
-    SuspendState=mem
-  '';
 
   # Fingerprint reader
   services.fprintd.enable = true;
@@ -41,11 +36,6 @@
   # Enable FUSE user mounts
   programs.fuse.userAllowOther = true;
 
-  # Hibernation support
-  boot.initrd.systemd.enable = true;
-  swapDevices = [
-    { device = "/dev/nvme0n1p3"; }
-  ];
 
   # Framework-specific packages
   users.users.chris.packages = with pkgs; [

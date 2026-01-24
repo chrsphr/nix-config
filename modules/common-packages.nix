@@ -18,6 +18,9 @@
     wget
     google-chrome
     btop
-    darktable
+    pkgs-unstable.darktable
+    claude-code
+    amdgpu_top
+
   ];
 }

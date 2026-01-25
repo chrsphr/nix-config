@@ -35,7 +35,14 @@
           sops-nix.nixosModules.sops
         ];
       };
-            transcode = nixpkgs.lib.nixosSystem {
+      caddy = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./caddy.nix
+          sops-nix.nixosModules.sops
+        ];
+      };
+      transcode = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./transcode.nix

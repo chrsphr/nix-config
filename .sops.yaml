@@ -1,10 +1,16 @@
 keys:
   - &laptop age132q904eh8nk60sxel90e6n09k0sq6u4908sxz87gf33lwlgpwu6qeuvr49
   - &immich age1lvx0sy27p8gj4e8c4dw3tz5njyk975xtvl5rwr5fvyx7rqzg4uuqv6gkqq
+  - &caddy age1h9eg8cl50usge2e5sjr77pes2l0wgl3ypk95jd4w32m88yhpugnsd9dpl4
 
 creation_rules:
-  - path_regex: .*secrets/.*\.yaml$
+  - path_regex: .*secrets/immich\.yaml$
     key_groups:
       - age:
           - *laptop
           - *immich
+  - path_regex: .*secrets/caddy\.yaml$
+    key_groups:
+      - age:
+          - *laptop
+          - *caddy

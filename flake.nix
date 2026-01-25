@@ -8,8 +8,12 @@
       url = "github:nix-community/home-manager/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, home-manager }: {
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, home-manager, sops-nix }: {
     nixosConfigurations = {
       pihole-1 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
@@ -25,8 +29,10 @@
       };
       immich = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
+        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
         modules = [
           ./immich.nix
+          sops-nix.nixosModules.sops
         ];
       };
             transcode = nixpkgs.lib.nixosSystem {

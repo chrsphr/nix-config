@@ -11,7 +11,6 @@
   home.packages = with pkgs; [
     # Development tools
     git
-    vscode
     claude-code
 
     # Terminal utilities
@@ -55,6 +54,7 @@
       rebuild-wsl = "sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-wsl";
       rebuild-framework = "sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-framework";
       rebuild-desktop = "sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-desktop";
+      code = "/mnt/c/Users/Chris.McNeill/AppData/Local/Programs/Microsoft\\ VS\\ Code/bin/code";
     };
 
     oh-my-zsh = {

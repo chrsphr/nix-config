@@ -50,6 +50,15 @@
   # Programs
   programs.zsh.enable = true;
 
+  # Enable nix-ld for running dynamically linked executables (needed for VSCode Server)
+  programs.nix-ld.enable = true;
+  programs.nix-ld.libraries = with pkgs; [
+    # Add common libraries that VSCode Server might need
+    stdenv.cc.cc
+    zlib
+    openssl
+  ];
+
   # Docker for development
   virtualisation.docker.enable = true;
 

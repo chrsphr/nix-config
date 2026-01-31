@@ -1,6 +1,9 @@
 { config, pkgs, pkgs-unstable ? pkgs, ... }:
 
 {
+  # Disable documentation to speed up evaluation
+  documentation.enable = false;
+
   # Nix configuration
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nix.gc = {

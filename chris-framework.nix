@@ -4,6 +4,7 @@
   imports = [
     ./hardware/framework.nix
     ./modules/common.nix
+    ./modules/keyboard-backlight-timeout.nix
   ];
 
   # Hostname
@@ -29,6 +30,13 @@
   services.logind.settings.Login.HandleLidSwitch = "suspend";
   services.logind.settings.Login.HandlePowerKey = "suspend";
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
+
+  # Keyboard backlight auto-timeout
+  services.keyboard-backlight-timeout = {
+    enable = true;
+    timeout = 30;  # seconds
+    brightnessMax = 100;
+  };
 
   # Fingerprint reader
   services.fprintd.enable = true;

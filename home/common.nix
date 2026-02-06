@@ -14,7 +14,16 @@
     conda
     fastfetch
     dig
-    teams-for-linux
+    (pkgs.symlinkJoin {
+      name = "teams-for-linux";
+      paths = [ pkgs.teams-for-linux ];
+      buildInputs = [ pkgs.makeWrapper ];
+      postBuild = ''
+        wrapProgram $out/bin/teams-for-linux \
+          --add-flags "--enable-features=VaapiVideoDecoder,VaapiVideoEncoder --enable-gpu-rasterization --enable-native-gpu-memory-buffers --enable-features=UseOzonePlatform --ozone-platform-hint=auto"
+      '';
+    })
+    slack
     google-fonts
     nixos-generators
     drawio

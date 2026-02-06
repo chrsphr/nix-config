@@ -16,6 +16,9 @@
     "amdgpu.ppfeaturemask=0xffffffff"
   ];
 
+  # AMD GPU / OpenCL
+  hardware.amdgpu.opencl.enable = true;
+
   # Bluetooth firmware and driver support
   hardware.enableRedistributableFirmware = true;
   hardware.firmware = with pkgs; [ linux-firmware ];

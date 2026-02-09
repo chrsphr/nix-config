@@ -33,6 +33,7 @@
     pkgs-unstable.darktable
     claude-code
     amdgpu_top
+    libreoffice-fresh
 
     # Terminal utilities for oh-my-zsh
     nerd-fonts.fira-code

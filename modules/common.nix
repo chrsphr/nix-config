@@ -138,7 +138,21 @@
   fileSystems."/mnt/Media" = {
     device = "192.168.1.12:/mnt/Hutch/Media";
     fsType = "nfs";
-    options = [ "x-systemd.automount" "noauto" "x-systemd.idle-timeout=600" ];
+    options = [
+      "x-systemd.automount"
+      "noauto"
+      "x-systemd.idle-timeout=600"
+      # Prevent blocking during systemd restarts
+      "x-systemd.requires=network-online.target"
+      "x-systemd.device-timeout=10s"
+      "x-systemd.mount-timeout=10s"
+      # NFS performance and reliability options
+      "soft"           # Don't hang forever if server is down
+      "timeo=10"       # 1 second timeout (10 deciseconds)
+      "retrans=2"      # Only retry twice
+      "nofail"         # Don't fail boot if mount fails
+      "_netdev"        # This is a network device
+    ];
   };
 
   # Firewall

@@ -43,15 +43,6 @@
     LC_TIME = "en_GB.UTF-8";
   };
 
-  # X11 and GNOME Desktop
-  services.xserver.enable = true;
-  services.displayManager.gdm.enable = true;
-  services.desktopManager.gnome.enable = true;
-  services.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
-  services.desktopManager.gnome.extraGSettingsOverrides = ''
-    [org.gnome.mutter]
-    experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate']
-  '';
 
   # Keymap configuration
   services.xserver.xkb = {
@@ -120,6 +111,9 @@
     enable = true;
     polkitPolicyOwners = [ "chris" ];
   };
+
+  # XDG portals (required for Flatpak and app integrations)
+  xdg.portal.enable = true;
 
   # Services
   services.fprintd.enable = true;

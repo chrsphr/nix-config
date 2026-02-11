@@ -4,6 +4,7 @@
   imports = [
     ./hardware/framework.nix
     ./modules/common.nix
+    ./modules/niri.nix
     ./modules/keyboard-backlight-timeout.nix
   ];
 

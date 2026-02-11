@@ -9,6 +9,16 @@
   # Hostname
   networking.hostName = "chris-desktop";
 
+  # GNOME Desktop
+  services.xserver.enable = true;
+  services.displayManager.gdm.enable = true;
+  services.desktopManager.gnome.enable = true;
+  services.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
+  services.desktopManager.gnome.extraGSettingsOverrides = ''
+    [org.gnome.mutter]
+    experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate']
+  '';
+
   # Desktop-specific kernel modules
   boot.kernelModules = [ "sg" ];
 

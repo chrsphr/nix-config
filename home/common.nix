@@ -9,7 +9,15 @@
     beeper
     qgis
     git
-    vscode
+    (pkgs.symlinkJoin {
+      name = "vscode";
+      paths = [ pkgs.vscode ];
+      buildInputs = [ pkgs.makeWrapper ];
+      postBuild = ''
+        wrapProgram $out/bin/code \
+          --add-flags "--enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform-hint=auto"
+      '';
+    })
     spotify
     conda
     fastfetch

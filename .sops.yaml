@@ -14,3 +14,7 @@ creation_rules:
       - age:
           - *laptop
           - *caddy
+  - path_regex: .*secrets/wireguard\.yaml$
+    key_groups:
+      - age:
+          - *laptop

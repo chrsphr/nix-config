@@ -65,6 +65,7 @@
         modules = [
           ./chris-framework.nix
           nixos-hardware.nixosModules.framework-amd-ai-300-series
+          sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           {
             home-manager.useGlobalPkgs = true;

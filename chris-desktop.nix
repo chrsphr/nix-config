@@ -33,6 +33,23 @@
   # NFS configuration
   boot.supportedFilesystems = [ "nfs" ];
   services.rpcbind.enable = true;
+  fileSystems."/mnt/Media" = {
+    device = "192.168.1.12:/mnt/Hutch/Media";
+    fsType = "nfs";
+    options = [
+      "x-systemd.automount"
+      "noauto"
+      "x-systemd.idle-timeout=600"
+      "x-systemd.requires=network-online.target"
+      "x-systemd.device-timeout=10s"
+      "x-systemd.mount-timeout=10s"
+      "soft"
+      "timeo=10"
+      "retrans=2"
+      "nofail"
+      "_netdev"
+    ];
+  };
   systemd.automounts = [{
     wantedBy = [ "multi-user.target" ];
     automountConfig = {

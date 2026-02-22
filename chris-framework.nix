@@ -77,9 +77,14 @@
 
   # Power management
   services.power-profiles-daemon.enable = true;
-  services.logind.settings.Login.HandleLidSwitch = "suspend";
-  services.logind.settings.Login.HandlePowerKey = "suspend";
+  services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
+  services.logind.settings.Login.HandlePowerKey = "suspend-then-hibernate";
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
+
+  # Hibernate after 15 minutes of sleep
+  systemd.sleep.extraConfig = ''
+    HibernateDelaySec=15min
+  '';
 
   # Keyboard backlight auto-timeout
   services.keyboard-backlight-timeout = {

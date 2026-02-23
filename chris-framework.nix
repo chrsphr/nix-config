@@ -67,6 +67,9 @@
     "amdgpu.ppfeaturemask=0xffffffff"
   ];
 
+  # Resume device for hibernate (must match swap partition)
+  boot.resumeDevice = "/dev/disk/by-uuid/94e97208-7c17-4f2a-87ea-2471dd708f1f";
+
   # AMD GPU / OpenCL
   hardware.amdgpu.opencl.enable = true;
 

@@ -87,7 +87,7 @@
       "concurrency": 50
     },
     "smartSearch": {
-      "concurrency": 50
+      "concurrency": 20
     },
     "thumbnailGeneration": {
       "concurrency": 50
@@ -120,7 +120,7 @@
     },
     "clip": {
       "enabled": true,
-      "modelName": "immich-app/ViT-SO400M-16-SigLIP2-384__webli"
+      "modelName": "immich-app/ViT-g-14__laion2b-s12b-b42k"
     },
     "duplicateDetection": {
       "enabled": true,
@@ -142,7 +142,8 @@
       "modelName": "PP-OCRv5_mobile"
     },
     "urls": [
-      "http://immich-machine-learning:3003"
+      "http://192.168.1.181:3003",
+      "http://localhost:3003"
     ]
   },
   "map": {

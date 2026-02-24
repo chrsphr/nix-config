@@ -65,6 +65,9 @@
   };
   programs.steam.gamescopeSession.enable = true;
 
+  # Open port for Immich ML service
+  networking.firewall.allowedTCPPorts = [ 3003 ];
+
   # Virtualization
   virtualisation.libvirtd.enable = true;
   virtualisation.docker.enable = true;

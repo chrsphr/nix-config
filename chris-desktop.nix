@@ -98,28 +98,18 @@
   };
 
   # Gamescope + Sunshine streaming session
+  # Note: Start manually with: systemctl --user start gamescope-sunshine
   systemd.user.services.gamescope-sunshine = {
     description = "Gamescope Streaming Session with Sunshine";
-    wantedBy = [ "graphical-session.target" ];
+    # Don't auto-start - needs graphical session environment
+    # wantedBy = [ "graphical-session.target" ];
     partOf = [ "graphical-session.target" ];
     after = [ "graphical-session.target" ];
 
     path = [ pkgs.gamescope ];
 
-    script = ''
-      # Run Gamescope as a nested Wayland compositor with Sunshine inside
-      # Sunshine will capture the Gamescope session, not your desktop
-      exec gamescope \
-        -W 2560 -H 1440 \
-        -w 2560 -h 1440 \
-        -r 60 \
-        --nested-refresh 60 \
-        --nested-unfocused-refresh 60 \
-        --expose-wayland \
-        -- ${config.security.wrapperDir}/sunshine
-    '';
-
     serviceConfig = {
+      ExecStart = "${pkgs.gamescope}/bin/gamescope -W 2560 -H 1440 -w 2560 -h 1440 -r 60 --backend sdl --nested-refresh 60 --nested-unfocused-refresh 60 -- ${config.security.wrapperDir}/sunshine";
       Restart = "on-failure";
       RestartSec = 5;
     };

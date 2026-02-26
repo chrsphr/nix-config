@@ -86,6 +86,19 @@
     autoStart = true;
     capSysAdmin = true;
     openFirewall = true;
+    applications = {
+      apps = [
+        {
+          name = "Desktop";
+          image-path = "desktop.png";
+        }
+        {
+          name = "Steam (Gamescope)";
+          detached = [ "${pkgs.gamescope}/bin/gamescope -W 2560 -H 1440 -w 2560 -h 1440 -r 60 --nested-refresh 60 --nested-unfocused-refresh 60 --force-grab-cursor --steam -- steam -gamepadui" ];
+          image-path = "steam.png";
+        }
+      ];
+    };
   };
 
   # Disable problematic wake sources

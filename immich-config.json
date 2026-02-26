@@ -87,7 +87,7 @@
       "concurrency": 50
     },
     "smartSearch": {
-      "concurrency": 20
+      "concurrency": 5
     },
     "thumbnailGeneration": {
       "concurrency": 50

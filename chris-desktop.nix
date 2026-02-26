@@ -119,5 +119,9 @@
   # System packages for desktop
   environment.systemPackages = with pkgs; [
     ffmpeg-full
+    liquidctl
   ];
+
+  # Liquidctl udev rules for NZXT fan/RGB control
+  services.udev.packages = [ pkgs.liquidctl ];
 }

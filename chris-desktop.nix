@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, ... }:
 
 {
   imports = [
@@ -80,39 +80,12 @@
     kvm.members = [ "chris" ];
   };
 
-  # Sunshine streaming (config only, we run it inside Gamescope)
+  # Sunshine streaming
   services.sunshine = {
     enable = true;
-    autoStart = false;  # We start it manually inside Gamescope
+    autoStart = true;
     capSysAdmin = true;
     openFirewall = true;
-    applications = {
-      apps = [
-        {
-          name = "Steam";
-          detached = [ "steam -gamepadui" ];
-          image-path = "steam.png";
-        }
-      ];
-    };
-  };
-
-  # Gamescope + Sunshine streaming session
-  # Note: Start manually with: systemctl --user start gamescope-sunshine
-  systemd.user.services.gamescope-sunshine = {
-    description = "Gamescope Streaming Session with Sunshine";
-    # Don't auto-start - needs graphical session environment
-    # wantedBy = [ "graphical-session.target" ];
-    partOf = [ "graphical-session.target" ];
-    after = [ "graphical-session.target" ];
-
-    path = [ pkgs.gamescope ];
-
-    serviceConfig = {
-      ExecStart = "${pkgs.gamescope}/bin/gamescope -W 2560 -H 1440 -w 2560 -h 1440 -r 60 --backend sdl --nested-refresh 60 --nested-unfocused-refresh 60 -- ${config.security.wrapperDir}/sunshine";
-      Restart = "on-failure";
-      RestartSec = 5;
-    };
   };
 
   # Disable problematic wake sources

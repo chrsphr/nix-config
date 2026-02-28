@@ -1,9 +1,6 @@
 { config, pkgs, pkgs-unstable, ... }:
 
 {
-  imports = [
-    ./gnome-openbar.nix
-  ];
   # Home Manager state version
   home.stateVersion = "25.11";
 
@@ -80,7 +77,6 @@
         "blur-my-shell@aunetx"
         "emoji-copy@felipeftn"
         "appindicatorsupport@rgcjonas.gmail.com"
-        "openbar@neuromorph"
       ];
     };
     "org/gnome/desktop/interface" = {

@@ -57,7 +57,12 @@
         modules = [
           ./plex.nix
         ];
-        
+      };
+      tailscale = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./tailscale.nix
+        ];
       };            
       chris-framework = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";

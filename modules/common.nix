@@ -125,6 +125,12 @@
   services.fprintd.enable = true;
   services.flatpak.enable = true;
 
+  # Tailscale VPN
+  services.tailscale = {
+    enable = true;
+    openFirewall = true;
+  };
+
   # SSH server
   services.openssh = {
     enable = true;

@@ -66,6 +66,19 @@
         ports = [ 80 ];
     };
 
+  # Update gravity database on boot
+  systemd.services.pihole-gravity-update = {
+    description = "Update Pi-hole gravity database";
+    after = [ "pihole-ftl.service" "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.bash}/bin/bash -c '/run/current-system/sw/bin/pihole -g'";
+      RemainAfterExit = true;
+    };
+  };
+
 
 
 

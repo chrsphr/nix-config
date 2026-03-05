@@ -12,6 +12,13 @@
     experimental-features = [ "nix-command" "flakes" ];
     sandbox = false;
     require-sigs = false;
+    auto-optimise-store = true;
+  };
+
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 7d";
   };
   proxmoxLXC = {
     manageNetwork = false;

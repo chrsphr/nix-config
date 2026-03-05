@@ -78,6 +78,16 @@
         handle @transmission {
           reverse_proxy 192.168.9.2:9091
         }
+
+        @pihole1 host pihole-1.mcneill.fyi
+        handle @pihole1 {
+          reverse_proxy 192.168.1.9:80
+        }
+
+        @pihole2 host pihole-2.mcneill.fyi
+        handle @pihole2 {
+          reverse_proxy 192.168.1.10:80
+        }
       }
     '';
   };

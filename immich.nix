@@ -30,6 +30,7 @@
       oauth_client_secret = {
         owner = "immich";
       };
+      cloudflare_tunnel_token = {};
     };
     templates."immich-config.json" = {
       owner = "immich";
@@ -76,8 +77,10 @@
     description = "Cloudflare Tunnel";
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
+    script = ''
+      ${pkgs.cloudflared}/bin/cloudflared tunnel run --token $(cat ${config.sops.secrets.cloudflare_tunnel_token.path})
+    '';
     serviceConfig = {
-      ExecStart = "${pkgs.cloudflared}/bin/cloudflared tunnel run --token eyJhIjoiNjkzMWUxYTc0NWIwMWViMDcwM2YxYTU0YWE4MjcxNzYiLCJ0IjoiYTEzODFiNGItYmMwZS00YWFlLTgxMTgtZDk1MTQwOTA1MWUxIiwicyI6Ik5HWXpOVFU1TWpFdFpEbGhPQzAwTW1RM0xUZzNOalF0WmpVMk1qazBNREV3TTJabCJ9";
       Restart = "always";
       RestartSec = "5s";
     };

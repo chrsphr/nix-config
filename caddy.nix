@@ -1,5 +1,8 @@
 { config, pkgs, lib, ... }:
 
+let
+  hostsLib = import ./hosts.nix { inherit lib; };
+in
 {
   imports = [
     ./common.nix
@@ -36,58 +39,12 @@
     '';
 
     extraConfig = ''
-      *.mcneill.fyi {
+      *.${hostsLib.domain} {
         tls {
           dns cloudflare {env.CLOUDFLARE_API_TOKEN}
         }
 
-        @ha host ha.mcneill.fyi
-        handle @ha {
-          reverse_proxy 192.168.1.11:8123 {
-            header_up X-Forwarded-For {remote_host}
-            header_up X-Forwarded-Proto {scheme}
-            header_up X-Forwarded-Host {host}
-          }
-        }
-
-        @grafana host grafana.mcneill.fyi
-        handle @grafana {
-          reverse_proxy 192.168.1.61:3000
-        }
-
-        @immich host immich.mcneill.fyi
-        handle @immich {
-          reverse_proxy 192.168.1.127:2283
-        }
-
-        @lilnas host lilnas.mcneill.fyi
-        handle @lilnas {
-          reverse_proxy https://192.168.1.12:443 {
-            transport http {
-              tls_insecure_skip_verify
-            }
-          }
-        }
-
-        @sonarr host sonarr.mcneill.fyi
-        handle @sonarr {
-          reverse_proxy 192.168.9.3:8989
-        }
-
-        @transmission host transmission.mcneill.fyi
-        handle @transmission {
-          reverse_proxy 192.168.9.2:9091
-        }
-
-        @pihole1 host pihole-1.mcneill.fyi
-        handle @pihole1 {
-          reverse_proxy 192.168.1.9:80
-        }
-
-        @pihole2 host pihole-2.mcneill.fyi
-        handle @pihole2 {
-          reverse_proxy 192.168.1.10:80
-        }
+${hostsLib.generateCaddyConfig}
       }
     '';
   };

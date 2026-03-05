@@ -1,14 +1,15 @@
 { config, pkgs, lib, ... }:
 
+let
+  hostsLib = import ./hosts.nix { inherit lib; };
+in
 {
   imports = [
     ./common.nix
     ./pihole-common.nix
   ];
 
-
-  networking.interfaces.eth0.ipv4.addresses = lib.mkForce [{
-    address = "192.168.1.9";
-    prefixLength = 24;
-  }];
+  networking = hostsLib.mkStaticNetwork "pihole-1" // {
+    hostName = "pihole-1";
+  };
 }

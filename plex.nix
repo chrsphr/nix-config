@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, pkgs-unstable, lib, ... }:
 
 {
   imports = [
@@ -24,8 +24,11 @@ nixpkgs.config.allowUnfree = true;
 services.plex = {
   enable = true;
   openFirewall = true;
-  user="plex";
+  user = "plex";
+  group = "plex";
+  package = pkgs-unstable.plex;
 };
 
+users.users.plex.extraGroups = [ "video" "render" ];
 
 }

@@ -34,7 +34,7 @@ let
     plex = {
       ip = "192.168.1.209";
       port = 32400;
-      caddy = false;
+      caddy = true;
     };
     transcode = {
       ip = "192.168.1.210";
@@ -49,7 +49,7 @@ let
       headers = true;
     };
     grafana = {
-      ip = "192.168.1.61";
+      ip = "192.168.1.122";
       port = 3000;
       caddy = true;
     };
@@ -60,14 +60,20 @@ let
       https = true;
     };
     sonarr = {
-      ip = "192.168.9.3";
+      ip = "192.168.1.75";
       port = 8989;
       caddy = true;
     };
     transmission = {
-      ip = "192.168.9.2";
+      ip = "192.168.1.136";
       port = 9091;
       caddy = true;
+    };
+    uptime-kuma = {
+      ip = "192.168.1.31";
+      port = 3001;
+      caddy = true;
+      subdomain = "uptime";
     };
   };
 

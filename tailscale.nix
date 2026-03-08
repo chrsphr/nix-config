@@ -35,5 +35,15 @@
   networking.firewall = {
     trustedInterfaces = [ "tailscale0" ];
     checkReversePath = "loose";
+    allowedTCPPorts = [ 8080 ];
+  };
+
+  # Health check endpoint for monitoring
+  services.nginx = {
+    enable = true;
+    virtualHosts."health" = {
+      listen = [{ addr = "0.0.0.0"; port = 8080; }];
+      locations."/health".return = "200 'ok'";
+    };
   };
 }

@@ -54,6 +54,7 @@
       };   
       plex = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
+        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
         modules = [
           ./plex.nix
         ];
@@ -62,6 +63,31 @@
         system = "x86_64-linux";
         modules = [
           ./tailscale.nix
+        ];
+      };
+      transmission = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./transmission.nix
+        ];
+      };
+      sonarr = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./sonarr.nix
+        ];
+      };
+      grafana = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./grafana.nix
+        ];
+      };
+      uptime-kuma = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./uptime-kuma.nix
+          sops-nix.nixosModules.sops
         ];
       };            
       chris-framework = nixpkgs.lib.nixosSystem {

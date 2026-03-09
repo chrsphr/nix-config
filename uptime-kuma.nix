@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, pkgs-unstable, lib, ... }:
 
 let
   hostsLib = import ./hosts.nix { inherit lib; };
@@ -22,6 +22,7 @@ in
 
   services.uptime-kuma = {
     enable = true;
+    package = pkgs-unstable.uptime-kuma;
     settings = {
       PORT = "3001";
       HOST = "0.0.0.0";

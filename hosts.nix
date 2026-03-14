@@ -75,6 +75,12 @@ let
       caddy = true;
       subdomain = "uptime";
     };
+    paperless = {
+      ip = "192.168.1.32";
+      port = 28981;
+      caddy = true;
+      subdomain = "paper";
+    };
   };
 
   # Filter hosts that should be in Caddy

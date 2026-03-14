@@ -75,7 +75,7 @@
 
   # Bluetooth firmware and driver support
   hardware.enableRedistributableFirmware = true;
-  hardware.firmware = with pkgs; [ linux-firmware ];
+  hardware.firmware = [ pkgs-unstable.linux-firmware ];
   boot.kernelModules = [ "btusb" "btrtl" ];
 
   # Power management

@@ -5,24 +5,9 @@
     ./common.nix
   ];
   
-  ### Networking (adjust IP as needed)
-  networking = {
-    hostName = "transcode";
-    #interfaces.eth0.ipv4.addresses = [{
-    #  address = "192.168.1.9";
-    #  prefixLength = 24;
-    #}];
-    #defaultGateway = {
-    #address = "192.168.1.1";
-    #interface = "eth0";
-    #};
-    #nameservers = [ "1.1.1.1" ];
-  };
+  networking.hostName = "transcode";
 
-nixpkgs.config.allowUnfree = true;
-
-
-environment.systemPackages = with pkgs; [
+  environment.systemPackages = with pkgs; [
   ffmpeg-full
 ];
 

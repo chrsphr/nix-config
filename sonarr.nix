@@ -19,5 +19,4 @@ in
 
   # Allow sonarr to access media mount
   users.users.sonarr.extraGroups = [ "media" ];
-  users.groups.media = {};
 }

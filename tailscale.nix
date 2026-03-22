@@ -1,22 +1,21 @@
 { config, pkgs, lib, ... }:
 
+let
+  hostsLib = import ./hosts.nix { inherit lib; };
+in
 {
   imports = [
     ./common.nix
   ];
 
-  networking.hostName = "tailscale";
-
-  # Static IP
-  networking.interfaces.eth0.ipv4.addresses = lib.mkForce [{
-    address = "192.168.1.207";
-    prefixLength = 24;
-  }];
-  networking.defaultGateway = {
-    address = "192.168.1.1";
-    interface = "eth0";
+  networking = hostsLib.mkStaticNetwork "tailscale" // {
+    hostName = "tailscale";
+    firewall = {
+      trustedInterfaces = [ "tailscale0" ];
+      checkReversePath = "loose";
+      allowedTCPPorts = [ 8080 ];
+    };
   };
-  networking.nameservers = [ "192.168.1.9" "192.168.1.10" ];
 
   # Enable IP forwarding for exit node
   boot.kernel.sysctl = {
@@ -29,13 +28,10 @@
     enable = true;
     openFirewall = true;
     useRoutingFeatures = "server";
-  };
-
-  # Open firewall for forwarded traffic
-  networking.firewall = {
-    trustedInterfaces = [ "tailscale0" ];
-    checkReversePath = "loose";
-    allowedTCPPorts = [ 8080 ];
+    extraUpFlags = [
+      "--advertise-routes=192.168.1.0/24"
+      "--accept-routes"
+    ];
   };
 
   # Health check endpoint for monitoring

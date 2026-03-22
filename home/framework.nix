@@ -17,7 +17,8 @@
     moonlight-qt
     lm_sensors
     amdgpu_top
-
+    cairo  # For remarkable-mcp notebook rendering
+    trayscale  # Tailscale GUI tray app
   ];
 
   # Framework-specific bash aliases

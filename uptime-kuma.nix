@@ -6,6 +6,7 @@ in
 {
   imports = [
     ./common.nix
+    ./modules/cloudflare-tunnel.nix
   ];
 
   networking = hostsLib.mkStaticNetwork "uptime-kuma" // {
@@ -32,18 +33,8 @@ in
   # Allow uptime-kuma to use ping (requires CAP_NET_RAW)
   systemd.services.uptime-kuma.serviceConfig.AmbientCapabilities = [ "CAP_NET_RAW" ];
 
-  # Cloudflare tunnel (token-based, remotely managed)
-  systemd.services.cloudflared-tunnel = {
-    description = "Cloudflare Tunnel";
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    wantedBy = [ "multi-user.target" ];
-    script = ''
-      ${pkgs.cloudflared}/bin/cloudflared tunnel --no-autoupdate run --token "$(cat ${config.sops.secrets.cloudflare_tunnel_token.path})"
-    '';
-    serviceConfig = {
-      Restart = "on-failure";
-      RestartSec = "5s";
-    };
+  services.cloudflare-tunnel = {
+    enable = true;
+    tokenFile = config.sops.secrets.cloudflare_tunnel_token.path;
   };
 }

@@ -14,15 +14,14 @@
   # AMD AI 300 specific kernel parameters
   boot.kernelParams = [
     "mem_sleep_default=s2idle"
-    "nvme_core.default_ps_max_latency_us=5500"
-    "amdgpu.ppfeaturemask=0xffffffff"
+    "amdgpu.cwsr_enable=0"  # Disable CWSR to prevent MES firmware hangs
   ];
 
   # Resume device for hibernate (must match swap partition)
   boot.resumeDevice = "/dev/disk/by-uuid/94e97208-7c17-4f2a-87ea-2471dd708f1f";
 
-  # AMD GPU / OpenCL
-  hardware.amdgpu.opencl.enable = true;
+  # AMD GPU / OpenCL (using ROCm 7.2 from unstable for better Strix Point support)
+  hardware.graphics.extraPackages = [ pkgs-unstable.rocmPackages.clr.icd ];
 
   # Bluetooth firmware and driver support
   hardware.enableRedistributableFirmware = true;

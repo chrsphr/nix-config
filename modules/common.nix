@@ -50,7 +50,7 @@
   services.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
   services.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.mutter]
-    experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate']
+    experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate','autoclose-xwayland']
   '';
 
   # Keymap configuration
@@ -129,6 +129,7 @@
   services.tailscale = {
     enable = true;
     openFirewall = true;
+    useRoutingFeatures = "client";  # Required for using exit nodes
     extraSetFlags = [ "--operator=chris" ];
   };
 
@@ -142,7 +143,11 @@
   };
 
   # Firewall
-  networking.firewall.allowedTCPPorts = [ 22 ];
+  networking.firewall = {
+    allowedTCPPorts = [ 22 ];
+    # Required for Tailscale exit nodes - return traffic comes via different interface
+    checkReversePath = "loose";
+  };
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;

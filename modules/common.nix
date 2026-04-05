@@ -53,6 +53,10 @@
     experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate','autoclose-xwayland']
   '';
 
+  # Disable unused GNOME components
+  services.gnome.core-apps.enable = false;
+  services.gnome.gnome-software.enable = false;
+
   # Keymap configuration
   services.xserver.xkb = {
     layout = "gb";
@@ -61,7 +65,7 @@
   console.keyMap = "uk";
 
   # Printing
-  services.printing.enable = true;
+  services.printing.enable = false;
 
   # Sound with PipeWire
   services.pulseaudio.enable = false;
@@ -156,6 +160,16 @@
   environment.systemPackages = with pkgs; [
     vim
     htop
+    # GNOME apps
+    nautilus
+    gnome-calendar
+    gnome-calculator
+    gnome-system-monitor
+    gnome-text-editor
+    evince
+    gnome-console
+    file-roller
+    loupe
   ];
 
   # State version

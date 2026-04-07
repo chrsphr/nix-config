@@ -1,4 +1,4 @@
-{ config, pkgs, pkgs-unstable ? pkgs, ... }:
+{ pkgs, pkgs-unstable ? pkgs, ... }:
 
 {
   imports = [
@@ -8,70 +8,32 @@
     ./modules/nfs-home-automount.nix
   ];
 
-  # Sops secrets for WireGuard private key
-  sops = {
-    defaultSopsFile = ./secrets/wireguard.yaml;
-    age.keyFile = "/home/chris/.config/sops/age/keys.txt";
-    secrets.wireguard_private_key = {};
-    templates."wg-home.nmconnection" = {
-      mode = "0600";
-      content = ''
-        [connection]
-        id=wg-home
-        type=wireguard
-        interface-name=wg-home
-        autoconnect=false
-
-        [wireguard]
-        private-key=${config.sops.placeholder.wireguard_private_key}
-
-        [wireguard-peer.xfd+GKSDFNUXN/07/JjHZKTM8In/R0wyH12i3ATuYH8=]
-        endpoint=193.237.155.17:51820
-        allowed-ips=0.0.0.0/0
-
-        [ipv4]
-        address1=192.168.13.5/32
-        dns=192.168.13.1;
-        method=manual
-
-        [ipv6]
-        method=ignore
-        addr-gen-mode=default
-      '';
-    };
-  };
-
-  # Install WireGuard NM profile so it appears in GNOME VPN toggle
-  # Sops secrets are installed via activation script before systemd services start
-  systemd.services.nm-ensure-wireguard = {
-    description = "Install WireGuard NetworkManager profile";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "NetworkManager.service" ];
-    serviceConfig.Type = "oneshot";
-    serviceConfig.RemainAfterExit = true;
-    script = ''
-      install -m 0600 -o root -g root \
-        ${config.sops.templates."wg-home.nmconnection".path} \
-        /etc/NetworkManager/system-connections/wg-home.nmconnection
-      ${pkgs.networkmanager}/bin/nmcli connection reload || true
-    '';
-  };
-
   # Hostname
   networking.hostName = "chris-framework";
 
   # AMD AI 300 specific kernel parameters
   boot.kernelParams = [
     "mem_sleep_default=s2idle"
-    "nvme_core.default_ps_max_latency_us=5500"
-    "amdgpu.ppfeaturemask=0xffffffff"
+    "amdgpu.cwsr_enable=0"  # Disable CWSR to prevent MES firmware hangs
+    "pcie_aspm.policy=powersupersave"  # Aggressive PCIe power states
   ];
+
+  # Kernel sysctl settings for battery optimization
+  boot.kernel.sysctl = {
+    "kernel.nmi_watchdog" = 0;              # Disable watchdog interrupts
+    "vm.dirty_writeback_centisecs" = 1500;  # Aggregate disk writes (15s)
+  };
+
+  # Audio codec power saving (revert to power_save=0 if clicking sounds occur)
+  boot.extraModprobeConfig = ''
+    options snd_hda_intel power_save=1
+  '';
 
   # Resume device for hibernate (must match swap partition)
   boot.resumeDevice = "/dev/disk/by-uuid/94e97208-7c17-4f2a-87ea-2471dd708f1f";
 
-  # AMD GPU / OpenCL
-  hardware.amdgpu.opencl.enable = true;
+  # AMD GPU / OpenCL (using ROCm 7.2 from unstable for better Strix Point support)
+  hardware.graphics.extraPackages = [ pkgs-unstable.rocmPackages.clr.icd ];
 
   # Bluetooth firmware and driver support
   hardware.enableRedistributableFirmware = true;
@@ -80,6 +42,7 @@
 
   # Power management
   services.power-profiles-daemon.enable = true;
+  powerManagement.powertop.enable = true;  # Auto-tune power optimizations
   services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
   services.logind.settings.Login.HandlePowerKey = "suspend-then-hibernate";
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
@@ -104,4 +67,10 @@
 
   # Enable FUSE user mounts
   programs.fuse.userAllowOther = true;
+
+  # Enable nix-ld for dynamically-linked binaries (uvx, etc.)
+  programs.nix-ld.enable = true;
+  programs.nix-ld.libraries = with pkgs; [
+    cairo  # For remarkable-mcp notebook rendering
+  ];
 }

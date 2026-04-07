@@ -32,6 +32,7 @@
     btop
     pkgs-unstable.darktable
     claude-code
+    uv
     amdgpu_top
     libreoffice-fresh
 

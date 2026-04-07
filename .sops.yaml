@@ -16,10 +16,6 @@ creation_rules:
       - age:
           - *laptop
           - *caddy
-  - path_regex: .*secrets/wireguard\.yaml$
-    key_groups:
-      - age:
-          - *laptop
   - path_regex: .*secrets/uptime-kuma\.yaml$
     key_groups:
       - age:

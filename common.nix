@@ -12,8 +12,9 @@
     experimental-features = [ "nix-command" "flakes" ];
     sandbox = false;
     require-sigs = false;
-    auto-optimise-store = true;
   };
+
+  nix.optimise.automatic = true;
 
   nix.gc = {
     automatic = true;
@@ -87,6 +88,12 @@
   # Timezone and locale
   time.timeZone = "Europe/London";
   i18n.defaultLocale = "en_GB.UTF-8";
+
+  # Common group for media access
+  users.groups.media = {};
+
+  # Allow unfree packages
+  nixpkgs.config.allowUnfree = true;
 
   # Container-specific settings
   boot.isContainer = true;

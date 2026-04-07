@@ -16,9 +16,8 @@
     lists = [
       {
         url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts";
-        # Alternatively, use the file from nixpkgs. Note its contents won't be
-        # automatically updated by Pi-hole, as it would with an online URL.
-        # url = "file://${pkgs.stevenblack-blocklist}/hosts";
+        type = "block";
+        enabled = true;
         description = "Steven Black's unified adlist";
       }
     ];
@@ -51,16 +50,22 @@
         ports = [ 80 ];
     };
 
-  # Update gravity database on boot
+  # Update gravity database on boot and daily
   systemd.services.pihole-gravity-update = {
     description = "Update Pi-hole gravity database";
     after = [ "pihole-ftl.service" "network-online.target" ];
     wants = [ "network-online.target" ];
-    wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${pkgs.bash}/bin/bash -c '/run/current-system/sw/bin/pihole -g'";
-      RemainAfterExit = true;
+    };
+  };
+
+  systemd.timers.pihole-gravity-update = {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "10min";
+      OnUnitActiveSec = "24h";
     };
   };
 

@@ -50,8 +50,12 @@
   services.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
   services.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.mutter]
-    experimental-features=['scale-monitor-framebuffer','variable-refresh-rate']
+    experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate','autoclose-xwayland']
   '';
+
+  # Disable unused GNOME components
+  services.gnome.core-apps.enable = false;
+  services.gnome.gnome-software.enable = false;
 
   # Keymap configuration
   services.xserver.xkb = {
@@ -61,7 +65,7 @@
   console.keyMap = "uk";
 
   # Printing
-  services.printing.enable = true;
+  services.printing.enable = false;
 
   # Sound with PipeWire
   services.pulseaudio.enable = false;
@@ -129,6 +133,8 @@
   services.tailscale = {
     enable = true;
     openFirewall = true;
+    useRoutingFeatures = "client";  # Required for using exit nodes
+    extraSetFlags = [ "--operator=chris" ];
   };
 
   # SSH server
@@ -141,7 +147,11 @@
   };
 
   # Firewall
-  networking.firewall.allowedTCPPorts = [ 22 ];
+  networking.firewall = {
+    allowedTCPPorts = [ 22 ];
+    # Required for Tailscale exit nodes - return traffic comes via different interface
+    checkReversePath = "loose";
+  };
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
@@ -150,6 +160,16 @@
   environment.systemPackages = with pkgs; [
     vim
     htop
+    # GNOME apps
+    nautilus
+    gnome-calendar
+    gnome-calculator
+    gnome-system-monitor
+    gnome-text-editor
+    evince
+    gnome-console
+    file-roller
+    loupe
   ];
 
   # State version

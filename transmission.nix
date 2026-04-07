@@ -28,5 +28,4 @@ in
 
   # Allow transmission to write to media mount
   users.users.transmission.extraGroups = [ "media" ];
-  users.groups.media = {};
 }

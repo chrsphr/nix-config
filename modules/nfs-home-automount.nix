@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
-# Mounts the home NAS over NFS when on the home WiFi network or when the
-# WireGuard VPN is active. Unmounts when neither condition is true.
+# Mounts the home NAS over NFS when on the home WiFi network or when
+# Tailscale is connected. Unmounts when neither condition is true.
 # Designed for portable devices that roam between networks.
 
 let
@@ -9,7 +9,7 @@ let
   mountPoint = "/mnt/Media";
   nasExport = "${nas}:/mnt/Hutch/Media";
   homeSSID = "Rebel Hideout";
-  vpnInterface = "wg-home";
+  vpnInterface = "tailscale0";
 
   dispatcherScript = pkgs.writeShellScript "nfs-home-automount" ''
     INTERFACE="$1"

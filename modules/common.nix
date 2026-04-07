@@ -50,7 +50,7 @@
   services.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
   services.desktopManager.gnome.extraGSettingsOverrides = ''
     [org.gnome.mutter]
-    experimental-features=['scale-monitor-framebuffer','xwayland-native-scaling','variable-refresh-rate']
+    experimental-features=['scale-monitor-framebuffer','variable-refresh-rate']
   '';
 
   # Keymap configuration

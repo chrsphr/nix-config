@@ -39,25 +39,10 @@ let
     transcode = {
       ip = "192.168.1.210";
     };
-
-    # Non-NixOS hosts (for Caddy config generation)
-    ha = {
-      ip = "192.168.1.11";
-      port = 8123;
-      caddy = true;
-      subdomain = "ha";
-      headers = true;
-    };
     grafana = {
       ip = "192.168.1.122";
       port = 3000;
       caddy = true;
-    };
-    lilnas = {
-      ip = "192.168.1.12";
-      port = 443;
-      caddy = true;
-      https = true;
     };
     sonarr = {
       ip = "192.168.1.75";
@@ -80,6 +65,21 @@ let
       port = 28981;
       caddy = true;
       subdomain = "paper";
+    };
+
+    # Non-NixOS hosts (for Caddy config generation)
+    ha = {
+      ip = "192.168.1.11";
+      port = 8123;
+      caddy = true;
+      subdomain = "ha";
+      headers = true;
+    };
+    lilnas = {
+      ip = "192.168.1.12";
+      port = 443;
+      caddy = true;
+      https = true;
     };
   };
 

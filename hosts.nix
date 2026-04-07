@@ -39,6 +39,9 @@ let
     transcode = {
       ip = "192.168.1.210";
     };
+    photosdotmcneill = {
+      ip = "192.168.1.240";
+    };
     grafana = {
       ip = "192.168.1.122";
       port = 3000;

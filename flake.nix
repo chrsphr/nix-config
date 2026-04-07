@@ -83,6 +83,13 @@
           ./grafana.nix
         ];
       };
+      photosdotmcneill = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./photosdotmcneill.nix
+          sops-nix.nixosModules.sops
+        ];
+      };
       uptime-kuma = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; }; };

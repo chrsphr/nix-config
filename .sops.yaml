@@ -5,6 +5,7 @@ keys:
   - &uptime-kuma age1z8939t5qwrcg0huvwhh0ldpzgedl9ugcufm40wj6dnu0cnptte5sw8m9sh
   - &paperless age1yfuu9700ddt6xyle3s4fvmpsp2nx3css2cu0e63lc4x5qr6l2arsszjj49
   - &claude-agent age1z8939t5qwrcg0huvwhh0ldpzgedl9ugcufm40wj6dnu0cnptte5sw8m9sh
+  - &photosdotmcneill age1rvkhelafufc4l2lc780fp22uw0cckhfam4wrsgdmcr7jk6ctcypqe83787
 
 creation_rules:
   - path_regex: .*secrets/immich\.yaml$
@@ -32,3 +33,8 @@ creation_rules:
       - age:
           - *laptop
           - *claude-agent
+  - path_regex: .*secrets/photosdotmcneill\.yaml$
+    key_groups:
+      - age:
+          - *laptop
+          - *photosdotmcneill

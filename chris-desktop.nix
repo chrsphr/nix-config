@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, pkgs-unstable ? pkgs, ... }:
 
 {
   imports = [
@@ -17,6 +17,10 @@
     initrd.enable = true;
     opencl.enable = true;
   };
+
+  # Mesa unstable for latest AMD GPU driver support
+  hardware.graphics.package = pkgs-unstable.mesa;
+  hardware.graphics.package32 = pkgs-unstable.pkgsi686Linux.mesa;
 
   # PipeWire wireplumber
   services.pipewire.wireplumber.enable = true;

@@ -61,6 +61,10 @@
     };
   };
 
+  # Trigger gravity update whenever pihole-ftl (re)starts
+  systemd.services.pihole-ftl.serviceConfig.ExecStartPost =
+    "+${pkgs.systemd}/bin/systemctl --no-block start pihole-gravity-update.service";
+
   systemd.timers.pihole-gravity-update = {
     wantedBy = [ "timers.target" ];
     timerConfig = {

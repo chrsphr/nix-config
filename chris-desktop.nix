@@ -18,9 +18,8 @@
     opencl.enable = true;
   };
 
-  # Mesa unstable for latest AMD GPU driver support
-  hardware.graphics.package = pkgs-unstable.mesa;
-  hardware.graphics.package32 = pkgs-unstable.pkgsi686Linux.mesa;
+  hardware.graphics.package = pkgs.mesa;
+  hardware.graphics.package32 = pkgs.pkgsi686Linux.mesa;
 
   # PipeWire wireplumber
   services.pipewire.wireplumber.enable = true;

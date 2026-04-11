@@ -122,6 +122,7 @@
   };
 
   # Services
+  services.colord.enable = true;
   services.fprintd.enable = true;
   services.flatpak.enable = true;
 

@@ -19,7 +19,7 @@
     google-chrome
     btop
     pkgs-unstable.darktable
-    claude-code
+    pkgs-unstable.claude-code
     amdgpu_top
 
   ];

@@ -99,6 +99,20 @@
           sops-nix.nixosModules.sops
         ];
       };
+      claude-agent = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = {
+          pkgs-unstable = import nixpkgs-unstable {
+            system = "x86_64-linux";
+            config = { allowUnfree = true; };
+          };
+        };
+        modules = [
+          ./claude-agent.nix
+          sops-nix.nixosModules.sops
+        ];
+      };
+
       chris-framework = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };

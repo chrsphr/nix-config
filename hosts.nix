@@ -81,6 +81,9 @@ let
       caddy = true;
       subdomain = "paper";
     };
+    claude-agent = {
+      ip = "192.168.1.33";
+    };
   };
 
   # Filter hosts that should be in Caddy

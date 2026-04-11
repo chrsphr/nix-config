@@ -11,7 +11,9 @@
   home.packages = with pkgs; [
     # Development tools
     git
-    claude-code
+    pkgs-unstable.claude-code
+    azure-cli
+    terraform
 
     # Terminal utilities
     fastfetch

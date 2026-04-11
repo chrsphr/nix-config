@@ -31,7 +31,7 @@
     google-chrome
     btop
     pkgs-unstable.darktable
-    claude-code
+    pkgs-unstable.claude-code
     uv
     amdgpu_top
     libreoffice-fresh

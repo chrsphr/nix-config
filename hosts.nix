@@ -37,7 +37,7 @@ let
       caddy = true;
     };
     transcode = {
-      ip = "192.168.1.210";
+      ip = "192.168.1.74";
     };
     photosdotmcneill = {
       ip = "192.168.1.240";

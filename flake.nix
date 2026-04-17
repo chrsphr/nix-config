@@ -16,8 +16,29 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    deploy-rs = {
+      url = "github:serokell/deploy-rs";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-wsl, home-manager, sops-nix }: {
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-wsl, home-manager, sops-nix, deploy-rs }:
+  let
+    system = "x86_64-linux";
+    lib = nixpkgs.lib;
+    hostsConfig = import ./hosts.nix { inherit lib; };
+
+    # Generate deploy-rs nodes for all hosts that exist in both hosts.nix and nixosConfigurations
+    mkDeployNodes = configs:
+      lib.mapAttrs (name: cfg: {
+        hostname = hostsConfig.hosts.${name}.ip;
+        profiles.system = {
+          user = "root";
+          sshUser = "deploy";
+          path = deploy-rs.lib.${system}.activate.nixos configs.${name};
+          remoteBuild = false;
+        };
+      }) (lib.filterAttrs (name: _: hostsConfig.hosts ? ${name}) configs);
+  in {
     nixosConfigurations = {
       pihole-1 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
@@ -167,5 +188,9 @@
         ];
       };
     };
+
+    deploy.nodes = mkDeployNodes self.nixosConfigurations;
+
+    checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
   };
 }

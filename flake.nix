@@ -143,7 +143,7 @@
 
       chris-framework = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
+        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
         modules = [
           ./chris-framework.nix
           nixos-hardware.nixosModules.framework-amd-ai-300-series
@@ -159,7 +159,7 @@
 
       chris-desktop = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
+        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
         modules = [
           ./chris-desktop.nix
           home-manager.nixosModules.home-manager
@@ -174,7 +174,7 @@
 
       chris-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
+        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
         modules = [
           nixos-wsl.nixosModules.default
           ./chris-wsl.nix

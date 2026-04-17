@@ -1,4 +1,4 @@
-{ config, pkgs, pkgs-unstable ? pkgs, ... }:
+{ config, pkgs, pkgs-unstable ? pkgs, deploy-rs-pkg ? null, ... }:
 
 {
   # Disable documentation to speed up evaluation
@@ -157,7 +157,7 @@
   environment.systemPackages = with pkgs; [
     vim
     htop
-  ];
+  ] ++ pkgs.lib.optional (deploy-rs-pkg != null) deploy-rs-pkg;
 
   # State version
   system.stateVersion = "25.11";

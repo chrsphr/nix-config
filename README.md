@@ -21,7 +21,7 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `pihole-2` | 192.168.1.10 | Secondary DNS |
 | `immich` | 192.168.1.127 | Photo management |
 | `plex` | 192.168.1.209 | Media server |
-| `transcode` | 192.168.1.210 | FFmpeg transcoding worker |
+| `transcode` | 192.168.1.74 | FFmpeg transcoding worker |
 | `transmission` | 192.168.1.136 | Torrent client |
 | `sonarr` | 192.168.1.75 | TV automation |
 | `grafana` | 192.168.1.122 | Metrics dashboard |
@@ -48,21 +48,36 @@ For example, on the Framework laptop:
 sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-framework
 ```
 
-### Remote rebuild (deploy to a server from your laptop)
+### Remote deployment with deploy-rs
+
+Remote deploys use [deploy-rs](https://github.com/serokell/deploy-rs). Deploy nodes are auto-generated from `hosts.nix` — any host that exists in both `hosts.nix` and `nixosConfigurations` gets a deploy node. All builds happen locally and closures are copied to the target.
+
+Deploy all servers (shows a confirmation prompt first):
 
 ```bash
-nixos-rebuild switch --flake /home/chris/nix-config#<hostname> \
-  --target-host deploy@<ip-or-hostname> \
-  --use-remote-sudo
+./deploy-all.sh
 ```
 
-Example — deploy to the Caddy server:
+Deploy a single server:
 
 ```bash
-nixos-rebuild switch --flake /home/chris/nix-config#caddy \
-  --target-host deploy@192.168.1.239 \
-  --use-remote-sudo
+deploy .#caddy
 ```
+
+Dry run — preview what would change without activating:
+
+```bash
+./deploy-all.sh --dry-activate
+deploy .#caddy --dry-activate
+```
+
+Rollback all servers:
+
+```bash
+./deploy-all.sh --rollback
+```
+
+deploy-rs includes **magic rollback** — if a deployment makes a machine unreachable (e.g. broken networking), it automatically rolls back after a timeout.
 
 The `deploy` user has passwordless sudo configured on all servers. SSH key auth is required.
 
@@ -74,20 +89,13 @@ nixos-rebuild build --flake /home/chris/nix-config#<hostname>
 
 This builds the system closure without activating it. Useful for catching errors before deploying.
 
-### Dry run — show what would change
+### Dry run with nixos-rebuild
 
 ```bash
 nixos-rebuild dry-activate --flake /home/chris/nix-config#<hostname>
 ```
 
 Shows which services would be restarted and what would change, without applying anything.
-
-### Remote dry run
-
-```bash
-nixos-rebuild dry-activate --flake /home/chris/nix-config#<hostname> \
-  --target-host deploy@<ip>
-```
 
 ---
 
@@ -176,9 +184,10 @@ sops updatekeys secrets/<name>.yaml
 ## Repository structure
 
 ```
-flake.nix                  # Flake inputs and all NixOS configurations
+flake.nix                  # Flake inputs, NixOS configs, deploy-rs nodes
 flake.lock                 # Pinned dependency versions
 hosts.nix                  # Network topology — IPs, ports, Caddy routing
+deploy-all.sh              # Deploy all servers (with confirmation prompt)
 .sops.yaml                 # Age encryption rules per host
 
 <hostname>.nix             # Top-level config for each host
@@ -217,12 +226,17 @@ nixos-install --flake /home/chris/nix-config#<hostname>
 Or deploy remotely after initial install:
 
 ```bash
-nixos-rebuild switch --flake /home/chris/nix-config#<hostname> \
-  --target-host root@<ip> \
-  --use-remote-sudo
+deploy .#<hostname>
 ```
 
 ### Roll back a broken deployment
+
+deploy-rs has **magic rollback** — if the machine becomes unreachable after activation, it rolls back automatically. To manually roll back:
+
+```bash
+deploy .#<hostname> --rollback
+./deploy-all.sh --rollback
+```
 
 On the machine directly:
 

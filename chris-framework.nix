@@ -33,6 +33,7 @@
   boot.resumeDevice = "/dev/disk/by-uuid/94e97208-7c17-4f2a-87ea-2471dd708f1f";
 
   # AMD GPU / OpenCL (using ROCm 7.2 from unstable for better Strix Point support)
+  hardware.graphics.package = pkgs-unstable.mesa;
   hardware.graphics.extraPackages = [ pkgs-unstable.rocmPackages.clr.icd ];
 
   # Bluetooth firmware and driver support

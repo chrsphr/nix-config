@@ -72,6 +72,9 @@ let
     claude-agent = {
       ip = "192.168.1.33";
     };
+    pi-top = {
+      ip = "192.168.1.7";
+    };
 
     # Non-NixOS hosts (for Caddy config generation)
     ha = {

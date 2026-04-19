@@ -29,15 +29,19 @@
 
     # Generate deploy-rs nodes for all hosts that exist in both hosts.nix and nixosConfigurations
     mkDeployNodes = configs:
-      lib.mapAttrs (name: cfg: {
-        hostname = hostsConfig.hosts.${name}.ip;
-        profiles.system = {
-          user = "root";
-          sshUser = "deploy";
-          path = deploy-rs.lib.${system}.activate.nixos configs.${name};
-          remoteBuild = false;
-        };
-      }) (lib.filterAttrs (name: _: hostsConfig.hosts ? ${name}) configs);
+      lib.mapAttrs (name: cfg:
+        let
+          targetSystem = configs.${name}.pkgs.stdenv.hostPlatform.system;
+        in {
+          hostname = hostsConfig.hosts.${name}.ip;
+          profiles.system = {
+            user = "root";
+            sshUser = "deploy";
+            path = deploy-rs.lib.${targetSystem}.activate.nixos configs.${name};
+            remoteBuild = targetSystem != system;
+          };
+        }
+      ) (lib.filterAttrs (name: _: hostsConfig.hosts ? ${name}) configs);
   in {
     nixosConfigurations = {
       pihole-1 = nixpkgs.lib.nixosSystem {
@@ -138,6 +142,14 @@
         modules = [
           ./claude-agent.nix
           sops-nix.nixosModules.sops
+        ];
+      };
+
+      pi-top = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        modules = [
+          ./pi-top.nix
+          nixos-hardware.nixosModules.raspberry-pi-4
         ];
       };
 

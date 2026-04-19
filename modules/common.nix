@@ -19,6 +19,9 @@
   # Use latest kernel
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  # Enable aarch64 emulation for cross-building (e.g. Pi)
+  boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
+
   # Plymouth boot splash
   boot.plymouth.enable = true;
 

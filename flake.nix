@@ -145,14 +145,6 @@
         ];
       };
 
-      pi-top = nixpkgs.lib.nixosSystem {
-        system = "aarch64-linux";
-        modules = [
-          ./pi-top.nix
-          nixos-hardware.nixosModules.raspberry-pi-4
-        ];
-      };
-
       chris-framework = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; deploy-rs-pkg = deploy-rs.packages.${system}.default; };

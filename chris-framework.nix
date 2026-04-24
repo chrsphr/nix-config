@@ -53,6 +53,11 @@
     HibernateDelaySec=15min
   '';
 
+  #boot settings
+  boot.loader.timeout = 0;
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+
   # Keyboard backlight auto-timeout
   services.keyboard-backlight-timeout = {
     enable = true;

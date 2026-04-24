@@ -32,9 +32,11 @@
   # Resume device for hibernate (must match swap partition)
   boot.resumeDevice = "/dev/disk/by-uuid/94e97208-7c17-4f2a-87ea-2471dd708f1f";
 
-  # AMD GPU / OpenCL (using ROCm 7.2 from unstable for better Strix Point support)
-  hardware.graphics.package = pkgs-unstable.mesa;
-  hardware.graphics.extraPackages = [ pkgs-unstable.rocmPackages.clr.icd ];
+  # AMD GPU / OpenCL
+  hardware.graphics.extraPackages = with pkgs; [
+    rocmPackages.clr.icd
+    libvdpau-va-gl
+  ];
 
   # Bluetooth firmware and driver support
   hardware.enableRedistributableFirmware = true;
@@ -52,6 +54,11 @@
   systemd.sleep.extraConfig = ''
     HibernateDelaySec=15min
   '';
+
+  #boot settings
+  boot.loader.timeout = 0;
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
 
   # Keyboard backlight auto-timeout
   services.keyboard-backlight-timeout = {

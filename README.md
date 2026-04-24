@@ -12,14 +12,6 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `chris-desktop` | AMD desktop (gaming/workstation) |
 | `chris-wsl` | Windows Subsystem for Linux |
 
-### Raspberry Pi
-
-| Host | IP | Role | Status |
-|------|----|------|--------|
-| `pi-top` | 192.168.1.7 | Moonlight streaming kiosk (Pi 4) | Moonlight EGLFS display output TODO |
-
-Direct boot (no U-Boot) with 256MB firmware partition. Deploys via `nixos-rebuild --target-host deploy@192.168.1.7 --build-host deploy@192.168.1.7 --sudo`. Cross-building requires `boot.binfmt.emulatedSystems = ["aarch64-linux"]` on the build host (enabled in `modules/common.nix`).
-
 ### Servers / LXC containers (Proxmox)
 
 | Host | IP | Role |
@@ -199,8 +191,7 @@ deploy-all.sh              # Deploy all servers (with confirmation prompt)
 .sops.yaml                 # Age encryption rules per host
 
 <hostname>.nix             # Top-level config for each host
-crossShell.nix             # Cross-compilation shell for aarch64 builds
-hardware/                  # Hardware-specific configs (Framework, desktop, Pi 4)
+hardware/                  # Hardware-specific configs (Framework, desktop)
 modules/                   # Reusable NixOS modules
   common.nix               # Base for desktop machines (GNOME, Tailscale, etc.)
   cloudflare-tunnel.nix    # Cloudflare tunnel service wrapper

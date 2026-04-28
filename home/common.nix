@@ -6,8 +6,8 @@
 
   # Shared packages for both desktop and framework laptop
   home.packages = with pkgs; [
-    beeper
-    qgis
+    pkgs-unstable.beeper
+    pkgs-unstable.qgis
     git
     vscode
     spotify
@@ -23,7 +23,6 @@
           --add-flags "--enable-features=VaapiVideoDecoder,VaapiVideoEncoder --enable-gpu-rasterization --enable-native-gpu-memory-buffers --enable-features=UseOzonePlatform --ozone-platform-hint=auto"
       '';
     })
-    slack
     google-fonts
     nixos-generators
     drawio

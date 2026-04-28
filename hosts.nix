@@ -72,6 +72,12 @@ let
     claude-agent = {
       ip = "192.168.1.33";
     };
+    mealie = {
+      ip = "192.168.1.34";
+      port = 9000;
+      caddy = true;
+      subdomain = "food";
+    };
     desktop = {
       ip = "192.168.1.181";
     };

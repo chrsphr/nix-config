@@ -131,6 +131,13 @@
           sops-nix.nixosModules.sops
         ];
       };
+      mealie = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./mealie.nix
+        ];
+      };
+
       claude-agent = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {

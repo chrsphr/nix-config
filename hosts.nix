@@ -81,6 +81,9 @@ let
     desktop = {
       ip = "192.168.1.181";
     };
+    gb-grid = {
+      ip = "192.168.1.28";
+    };
 
     # Non-NixOS hosts (for Caddy config generation)
     ha = {

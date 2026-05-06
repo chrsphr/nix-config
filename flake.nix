@@ -20,8 +20,12 @@
       url = "github:serokell/deploy-rs";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    gb-grid = {
+      url = "github:chrsphr/gb-grid";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
   };
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-wsl, home-manager, sops-nix, deploy-rs }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-wsl, home-manager, sops-nix, deploy-rs, gb-grid }:
   let
     system = "x86_64-linux";
     lib = nixpkgs.lib;
@@ -135,6 +139,16 @@
         system = "x86_64-linux";
         modules = [
           ./mealie.nix
+        ];
+      };
+
+      gb-grid = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = {
+          gb-grid-pkg = gb-grid.packages.x86_64-linux.default;
+        };
+        modules = [
+          ./gb-grid.nix
         ];
       };
 

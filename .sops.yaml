@@ -38,3 +38,7 @@ creation_rules:
       - age:
           - *laptop
           - *photosdotmcneill
+  - path_regex: .*secrets/gb-grid\.yaml$
+    key_groups:
+      - age:
+          - *laptop

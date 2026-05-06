@@ -29,6 +29,8 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `paperless` | 192.168.1.32 | Document management |
 | `tailscale` | 192.168.1.207 | VPN exit node |
 | `claude-agent` | 192.168.1.33 | Remote Claude Code agent |
+| `mealie` | 192.168.1.34 | Recipe manager |
+| `gb-grid` | 192.168.1.28 | GB power grid Postgres + BMRS ingester |
 
 All host IPs and Caddy routing are defined in `hosts.nix` — the single source of truth for network topology.
 

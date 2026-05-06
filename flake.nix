@@ -149,6 +149,7 @@
         };
         modules = [
           ./gb-grid.nix
+          sops-nix.nixosModules.sops
         ];
       };
 

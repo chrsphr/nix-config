@@ -24,6 +24,7 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `transcode` | 192.168.1.74 | FFmpeg transcoding worker |
 | `transmission` | 192.168.1.136 | Torrent client |
 | `sonarr` | 192.168.1.75 | TV automation |
+| `prowlarr` | 192.168.1.75 | Indexer manager (co-located on sonarr host) |
 | `grafana` | 192.168.1.122 | Metrics dashboard |
 | `uptime-kuma` | 192.168.1.31 | Uptime monitoring |
 | `paperless` | 192.168.1.32 | Document management |

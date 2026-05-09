@@ -17,6 +17,11 @@ in
     openFirewall = true;
   };
 
+  services.prowlarr = {
+    enable = true;
+    openFirewall = true;
+  };
+
   # Allow sonarr to access media mount
   users.users.sonarr.extraGroups = [ "media" ];
 }

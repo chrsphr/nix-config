@@ -52,6 +52,11 @@ let
       port = 8989;
       caddy = true;
     };
+    prowlarr = {
+      ip = "192.168.1.75";
+      port = 9696;
+      caddy = true;
+    };
     transmission = {
       ip = "192.168.1.136";
       port = 9091;

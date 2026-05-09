@@ -26,7 +26,7 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `sonarr` | 192.168.1.75 | TV automation |
 | `prowlarr` | 192.168.1.75 | Indexer manager (co-located on sonarr host) |
 | `grafana` | 192.168.1.122 | Metrics dashboard |
-| `uptime-kuma` | 192.168.1.31 | Uptime monitoring |
+| `uptime` | 192.168.1.31 | Uptime monitoring (Gatus, declarative via `hosts.nix`). External access via Cloudflare tunnel is **TODO** — currently only reachable on the LAN at `http://192.168.1.31:3001`. |
 | `paperless` | 192.168.1.32 | Document management |
 | `tailscale` | 192.168.1.207 | VPN exit node |
 | `claude-agent` | 192.168.1.33 | Remote Claude Code agent |
@@ -181,6 +181,81 @@ sops secrets/<name>.yaml
 ```bash
 sops updatekeys secrets/<name>.yaml
 ```
+
+---
+
+## Monitoring (Gatus)
+
+The `uptime` host runs [Gatus](https://gatus.io). Monitor definitions live next to each host entry in `hosts.nix`, so a single source of truth covers IP, port, Caddy routing, and uptime checks. `uptime.nix` is just a thin shell that calls `hostsLib.generateGatusEndpoints`.
+
+### How to add or change a monitor
+
+Add a `monitor` field to any entry in `hosts.nix`. It can be a single attrset or a list (for hosts that need multiple checks, e.g. v4 + v6 DNS):
+
+```nix
+immich = {
+  ip = "192.168.1.127"; port = 2283; caddy = true;
+  monitor = {
+    type = "http";                    # "http" | "dns" | "port"
+    name = "Immich";                  # optional, defaults to host key
+    path = "/api/server/ping";        # http only, default "/"
+    group = "Hutch Primary Services"; # optional Gatus group
+    # interval = "60s";               # default
+    # scheme = "https";               # default https if host.https else http
+    # insecure = true;                # skip TLS verify (self-signed certs)
+    # url = "https://...";            # full URL override
+    # headers.Authorization = "Bearer ...";  # may reference ''${ENV_VARS}''
+  };
+};
+
+pihole-1 = {
+  ip = "192.168.1.9"; port = 80; caddy = true;
+  monitor = [
+    { type = "dns"; name = "Pihole 1";      family = "v4"; group = "Hutch Primary Services"; }
+    { type = "dns"; name = "Pihole 1 (v6)"; family = "v6"; group = "Hutch Primary Services"; }
+  ];
+};
+```
+
+Per-type fields:
+
+- **http** — `scheme`, `path`, `insecure`, `headers`, `url` (override). Asserts `[STATUS] == 200`.
+- **dns** — `resolver` (default = host IP), `query` (default `google.com`), `family` (`v4`/`v6`). Asserts `[DNS_RCODE] == NOERROR`.
+- **port** — `targetPort` (default = host port). TCP connect; asserts `[CONNECTED] == true`.
+
+For checks that aren't tied to a host (e.g. probing external services), pass them via the `extra` argument in `uptime.nix`:
+
+```nix
+endpoints = hostsLib.generateGatusEndpoints {
+  extra = [
+    { name = "Internet Access"; url = "tcp://1.1.1.1:53";
+      conditions = [ "[CONNECTED] == true" ]; interval = "60s"; }
+  ];
+};
+```
+
+### Authenticated checks (secrets)
+
+For monitors that need credentials (e.g. Proxmox API token), put only the secret value in `secrets/uptime.yaml` and reference it via `${ENV_VAR}` interpolation. The non-secret prefix (user/realm/token-name) stays in `hosts.nix`. See the `proxmox`/`minimox` entries for a working example.
+
+```bash
+# Add or edit a secret
+sops secrets/uptime.yaml
+
+# Wire it: secrets.<name> = {} + sops.templates."gatus.env" + services.gatus.environmentFile
+```
+
+### Deploying changes
+
+```bash
+deploy .#uptime
+```
+
+Gatus reloads on activation. State (uptime history) lives in `/var/lib/gatus/data.db` (SQLite) and persists across deploys.
+
+### Known TODO
+
+- **Cloudflare tunnel / external access** — the host has the cloudflare-tunnel module wired up, but the dashboard at `uptime.mcneill.fyi` is not yet routed to Gatus's port (3001) on the tunnel side. Currently LAN-only.
 
 ---
 

@@ -119,11 +119,10 @@
           sops-nix.nixosModules.sops
         ];
       };
-      uptime-kuma = nixpkgs.lib.nixosSystem {
+      uptime = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; }; };
         modules = [
-          ./uptime-kuma.nix
+          ./uptime.nix
           sops-nix.nixosModules.sops
         ];
       };

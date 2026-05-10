@@ -145,6 +145,9 @@ let
     };
     gb-grid = {
       ip = "192.168.1.28";
+      port = 3000;
+      caddy = true;
+      subdomain = "grid";
     };
 
     # Non-NixOS hosts (for Caddy config + monitoring)

@@ -1,4 +1,4 @@
-{ config, pkgs, pkgs-unstable, lib, ... }:
+{ config, pkgs, lib, ... }:
 
 let
   hostsLib = import ./hosts.nix { inherit lib; };
@@ -24,7 +24,6 @@ in
 
   services.paperless = {
     enable = true;
-    package = pkgs-unstable.paperless-ngx;
     address = "0.0.0.0";
     port = 28981;
     mediaDir = "/mnt/media/Documents";

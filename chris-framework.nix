@@ -11,13 +11,6 @@
   # Hostname
   networking.hostName = "chris-framework";
 
-  # AMD AI 300 specific kernel parameters
-  boot.kernelParams = [
-    "mem_sleep_default=s2idle"
-    "amdgpu.cwsr_enable=0"  # Disable CWSR to prevent MES firmware hangs
-    "pcie_aspm.policy=powersupersave"  # Aggressive PCIe power states
-  ];
-
   # Kernel sysctl settings for battery optimization
   boot.kernel.sysctl = {
     "kernel.nmi_watchdog" = 0;              # Disable watchdog interrupts
@@ -29,13 +22,13 @@
     options snd_hda_intel power_save=1
   '';
 
-  # Hibernate resume: swapfile lives on the btrfs root (LUKS-backed).
-  # resumeDevice = the device holding the swapfile (/dev/mapper/cryptroot);
-  # resumeOffset is set by nixos-generate-config or computed with
-  #   `btrfs inspect-internal map-swapfile -r /swap/swapfile`
-  # Fill these in after install, then `nixos-rebuild switch`.
-  # boot.resumeDevice = "/dev/mapper/cryptroot";
-  # boot.kernelParams = [ "resume_offset=<offset>" ];
+  boot.resumeDevice = "/dev/mapper/cryptroot";
+  boot.kernelParams = [
+    "mem_sleep_default=s2idle"
+    "amdgpu.cwsr_enable=0"
+    "pcie_aspm.policy=powersupersave"
+    "resume_offset=533760"
+  ];
 
   # AMD GPU / OpenCL
   hardware.graphics.extraPackages = with pkgs; [
@@ -55,9 +48,8 @@
   services.logind.settings.Login.HandlePowerKey = "suspend-then-hibernate";
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
 
-  # Hibernate after 15 minutes of sleep
   systemd.sleep.extraConfig = ''
-    HibernateDelaySec=15min
+    HibernateDelaySec=30min
   '';
 
   #boot settings

@@ -24,8 +24,12 @@
       url = "github:chrsphr/gb-grid";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-wsl, home-manager, sops-nix, deploy-rs, gb-grid }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-wsl, home-manager, sops-nix, deploy-rs, gb-grid, disko }:
   let
     system = "x86_64-linux";
     lib = nixpkgs.lib;
@@ -159,6 +163,8 @@
         specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
         modules = [
           ./chris-framework.nix
+          ./hardware/framework-disko.nix
+          disko.nixosModules.disko
           nixos-hardware.nixosModules.framework-amd-ai-300-series
           home-manager.nixosModules.home-manager
           {

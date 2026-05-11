@@ -29,8 +29,13 @@
     options snd_hda_intel power_save=1
   '';
 
-  # Resume device for hibernate (must match swap partition)
-  boot.resumeDevice = "/dev/disk/by-uuid/94e97208-7c17-4f2a-87ea-2471dd708f1f";
+  # Hibernate resume: swapfile lives on the btrfs root (LUKS-backed).
+  # resumeDevice = the device holding the swapfile (/dev/mapper/cryptroot);
+  # resumeOffset is set by nixos-generate-config or computed with
+  #   `btrfs inspect-internal map-swapfile -r /swap/swapfile`
+  # Fill these in after install, then `nixos-rebuild switch`.
+  # boot.resumeDevice = "/dev/mapper/cryptroot";
+  # boot.kernelParams = [ "resume_offset=<offset>" ];
 
   # AMD GPU / OpenCL
   hardware.graphics.extraPackages = with pkgs; [
@@ -59,6 +64,30 @@
   boot.loader.timeout = 0;
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+
+  # LUKS root with TPM2 auto-unlock (enrol with `systemd-cryptenroll` post-install).
+  boot.initrd.systemd.enable = true;
+  boot.initrd.systemd.tpm2.enable = true;
+  boot.initrd.luks.devices.cryptroot = {
+    device = "/dev/disk/by-partlabel/luks";
+    allowDiscards = true;
+    crypttabExtraOpts = [ "tpm2-device=auto" ];
+  };
+  security.tpm2.enable = true;
+  environment.systemPackages = [ pkgs.tpm2-tools ];
+
+  # Btrfs maintenance
+  services.btrfs.autoScrub = {
+    enable = true;
+    interval = "monthly";
+    fileSystems = [ "/" ];
+  };
+  # discard=async handles TRIM at free-time; fstrim timer is a belt-and-braces
+  # weekly sweep for anything missed (e.g. on /boot vfat).
+  services.fstrim.enable = true;
+
+  # Nix store hardlink dedup — meaningful savings on /nix independent of FS.
+  nix.settings.auto-optimise-store = true;
 
   # Keyboard backlight auto-timeout
   services.keyboard-backlight-timeout = {

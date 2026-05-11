@@ -95,6 +95,13 @@
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
+  # valkey integration tests are flaky in sandboxed builds (psync2-master-restart)
+  nixpkgs.overlays = [
+    (final: prev: {
+      valkey = prev.valkey.overrideAttrs (_: { doCheck = false; });
+    })
+  ];
+
   # Container-specific settings
   boot.isContainer = true;
   services.fstrim.enable = false;

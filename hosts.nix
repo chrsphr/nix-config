@@ -131,9 +131,6 @@ let
       caddy = true;
       subdomain = "paper";
     };
-    claude-agent = {
-      ip = "192.168.1.33";
-    };
     mealie = {
       ip = "192.168.1.34";
       port = 9000;

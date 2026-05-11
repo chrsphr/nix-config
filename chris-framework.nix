@@ -94,6 +94,8 @@
   # Firmware updates
   services.fwupd.enable = true;
 
+  systemd.tmpfiles.rules = [ "d /mnt/Media 0755 root root -" ];
+
   # Enable FUSE user mounts
   programs.fuse.userAllowOther = true;
 

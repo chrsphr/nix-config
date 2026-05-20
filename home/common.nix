@@ -30,6 +30,7 @@
     google-chrome
     pkgs-unstable.darktable
     pkgs-unstable.gemini-cli
+    pkgs-unstable.antigravity
 
     discord
     uv

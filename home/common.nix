@@ -31,6 +31,8 @@
     btop
     pkgs-unstable.darktable
     pkgs-unstable.claude-code
+    pkgs-unstable.gemini-cli
+
     discord
     uv
     amdgpu_top

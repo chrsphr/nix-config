@@ -1,6 +1,10 @@
 { config, pkgs, pkgs-unstable, ... }:
 
 {
+  imports = [
+    ./common-terminal.nix
+  ];
+
   home.username = "chris";
   home.homeDirectory = "/home/chris";
 
@@ -10,16 +14,10 @@
   # Dev-focused packages for WSL
   home.packages = with pkgs; [
     # Development tools
-    git
-    pkgs-unstable.claude-code
     azure-cli
     terraform
 
     # Terminal utilities
-    fastfetch
-    btop
-    dig
-    wget
     jq
     ripgrep
     fd
@@ -40,37 +38,12 @@
 
     # pyenv for managing multiple Python versions
     pyenv
-
-    # Fonts for terminal
-    nerd-fonts.fira-code
-    nerd-fonts.meslo-lg
   ];
 
-  # Git configuration
-  programs.git = {
-    enable = true;
-    settings = {
-      user = {
-        name = "chrsphr";
-        email = "chris@mcneill.fyi";
-      };
-      init.defaultBranch = "main";
-      pull.rebase = false;
-    };
-  };
-
-  # Zsh with oh-my-zsh
+  # WSL-specific shell aliases and init settings (merged with common-terminal)
   programs.zsh = {
-    enable = true;
-    enableCompletion = true;
-    autosuggestion.enable = true;
-    syntaxHighlighting.enable = true;
-
     shellAliases = {
-      ll = "ls -la";
       rebuild-wsl = "sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-wsl";
-      rebuild-framework = "sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-framework";
-      rebuild-desktop = "sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-desktop";
       code = "/mnt/c/Users/Chris.McNeill/AppData/Local/Programs/Microsoft\\ VS\\ Code/bin/code";
     };
 
@@ -82,19 +55,6 @@
       # 1Password SSH agent via Windows bridge
       export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
     '';
-
-    oh-my-zsh = {
-      enable = true;
-      theme = "robbyrussell";
-      plugins = [
-        "git"
-        "sudo"
-        "docker"
-        "kubectl"
-        "colored-man-pages"
-        "command-not-found"
-      ];
-    };
   };
 
   # 1Password SSH agent bridge (connects Windows SSH agent to WSL)

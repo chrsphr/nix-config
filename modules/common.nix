@@ -1,6 +1,10 @@
 { config, pkgs, pkgs-unstable ? pkgs, deploy-rs-pkg ? null, ... }:
 
 {
+  imports = [
+    ./locale.nix
+  ];
+
   # Disable documentation to speed up evaluation
   documentation.enable = false;
 
@@ -27,21 +31,6 @@
 
   # Networking
   networking.networkmanager.enable = true;
-
-  # Localization
-  time.timeZone = "Europe/London";
-  i18n.defaultLocale = "en_GB.UTF-8";
-  i18n.extraLocaleSettings = {
-    LC_ADDRESS = "en_GB.UTF-8";
-    LC_IDENTIFICATION = "en_GB.UTF-8";
-    LC_MEASUREMENT = "en_GB.UTF-8";
-    LC_MONETARY = "en_GB.UTF-8";
-    LC_NAME = "en_GB.UTF-8";
-    LC_NUMERIC = "en_GB.UTF-8";
-    LC_PAPER = "en_GB.UTF-8";
-    LC_TELEPHONE = "en_GB.UTF-8";
-    LC_TIME = "en_GB.UTF-8";
-  };
 
   # X11 and GNOME Desktop
   services.xserver.enable = true;

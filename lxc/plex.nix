@@ -2,7 +2,7 @@
 
 {
   imports = [
-    ./common.nix
+    ./common-lxc.nix
   ];
   
   networking.hostName = "plex";

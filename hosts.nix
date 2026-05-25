@@ -125,18 +125,7 @@ let
       port = 3001;
       caddy = true;
     };
-    paperless = {
-      ip = "192.168.1.32";
-      port = 28981;
-      caddy = true;
-      subdomain = "paper";
-    };
-    mealie = {
-      ip = "192.168.1.34";
-      port = 9000;
-      caddy = true;
-      subdomain = "food";
-    };
+
     desktop = {
       ip = "192.168.1.181";
     };

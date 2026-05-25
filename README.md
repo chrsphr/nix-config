@@ -27,10 +27,7 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `prowlarr` | 192.168.1.75 | Indexer manager (co-located on sonarr host) |
 | `grafana` | 192.168.1.122 | Metrics dashboard |
 | `uptime` | 192.168.1.31 | Uptime monitoring (Gatus, declarative via `hosts.nix`). External access via Cloudflare tunnel is **TODO** — currently only reachable on the LAN at `http://192.168.1.31:3001`. |
-| `paperless` | 192.168.1.32 | Document management |
 | `tailscale` | 192.168.1.207 | VPN exit node |
-| `claude-agent` | 192.168.1.33 | Remote Claude Code agent |
-| `mealie` | 192.168.1.34 | Recipe manager |
 | `gb-grid` | 192.168.1.28 | GB power grid Postgres + BMRS ingester |
 
 All host IPs and Caddy routing are defined in `hosts.nix` — the single source of truth for network topology.
@@ -268,21 +265,27 @@ hosts.nix                  # Network topology — IPs, ports, Caddy routing
 deploy-all.sh              # Deploy all servers (with confirmation prompt)
 .sops.yaml                 # Age encryption rules per host
 
-<hostname>.nix             # Top-level config for each host
+chris-desktop.nix          # Top-level config for desktop
+chris-framework.nix        # Top-level config for Framework laptop
+chris-wsl.nix              # Top-level config for WSL
 hardware/                  # Hardware-specific configs (Framework, desktop)
+lxc/                       # Proxmox LXC container configurations
+  common-lxc.nix           # Base for all server/LXC containers
+  caddy.nix                # Reverse proxy
+  immich.nix               # Photo management
+  ...
 modules/                   # Reusable NixOS modules
-  common.nix               # Base for desktop machines (GNOME, Tailscale, etc.)
+  common-desktop.nix       # Base for desktop machines (GNOME, Tailscale, etc.)
   cloudflare-tunnel.nix    # Cloudflare tunnel service wrapper
   nfs-home-automount.nix   # Smart NFS mount (WiFi/Tailscale aware)
   keyboard-backlight-timeout.nix  # Framework keyboard backlight
   locale.nix               # Locale/timezone
 home/                      # Home Manager profiles
-  common.nix               # Shared: Git, zsh, GNOME extensions
+  common-home.nix          # Shared: Git, zsh, GNOME extensions
   framework.nix            # Framework-specific user packages
   desktop.nix              # Desktop-specific user packages
   wsl.nix                  # WSL: Python, 1Password SSH bridge
 secrets/                   # sops-nix encrypted YAML files
-common.nix                 # Base for all server/LXC containers
 ```
 
 ---

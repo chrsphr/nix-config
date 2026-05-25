@@ -55,95 +55,82 @@
       pihole-1 = nixpkgs-unstable.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./pihole-1.nix
+          ./lxc/pihole-1.nix
         ];
       };
       pihole-2 = nixpkgs-unstable.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./pihole-2.nix
+          ./lxc/pihole-2.nix
         ];
       };
       immich = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
         modules = [
-          ./immich.nix
+          ./lxc/immich.nix
           sops-nix.nixosModules.sops
         ];
       };
       caddy = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./caddy.nix
+          ./lxc/caddy.nix
           sops-nix.nixosModules.sops
         ];
       };
       transcode = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./transcode.nix
+          ./lxc/transcode.nix
         ];
       };   
       plex = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
         modules = [
-          ./plex.nix
+          ./lxc/plex.nix
         ];
       };
       tailscale = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./tailscale.nix
+          ./lxc/tailscale.nix
         ];
       };
       transmission = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./transmission.nix
+          ./lxc/transmission.nix
         ];
       };
       sonarr = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./sonarr.nix
+          ./lxc/sonarr.nix
         ];
       };
       grafana = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./grafana.nix
+          ./lxc/grafana.nix
         ];
       };
       photosdotmcneill = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./photosdotmcneill.nix
+          ./lxc/photosdotmcneill.nix
           sops-nix.nixosModules.sops
         ];
       };
       uptime = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ./uptime.nix
+          ./lxc/uptime.nix
           sops-nix.nixosModules.sops
         ];
       };
-      paperless = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; }; };
-        modules = [
-          ./paperless.nix
-          sops-nix.nixosModules.sops
-        ];
-      };
-      mealie = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./mealie.nix
-        ];
-      };
+
 
       gb-grid = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
@@ -151,7 +138,7 @@
           gb-grid-pkg = gb-grid.packages.x86_64-linux.default;
         };
         modules = [
-          ./gb-grid.nix
+          ./lxc/gb-grid.nix
           gb-grid.nixosModules.default
           sops-nix.nixosModules.sops
         ];

@@ -2,7 +2,7 @@
 
 {
   imports = [
-    ./common.nix
+    ./common-home.nix
   ];
 
   # User identity

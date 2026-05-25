@@ -3,7 +3,7 @@
 {
   imports = [
     ./hardware/framework.nix
-    ./modules/common.nix
+    ./modules/common-desktop.nix
     ./modules/keyboard-backlight-timeout.nix
     ./modules/nfs-home-automount.nix
   ];

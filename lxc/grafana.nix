@@ -1,11 +1,11 @@
 { config, pkgs, lib, ... }:
 
 let
-  hostsLib = import ./hosts.nix { inherit lib; };
+  hostsLib = import ../hosts.nix { inherit lib; };
 in
 {
   imports = [
-    ./common.nix
+    ./common-lxc.nix
   ];
 
   networking = hostsLib.mkStaticNetwork "grafana" // {

@@ -3,7 +3,7 @@
 {
   imports = [
     ./hardware/desktop.nix
-    ./modules/common.nix
+    ./modules/common-desktop.nix
   ];
 
   # Hostname

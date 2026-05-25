@@ -1,11 +1,11 @@
 { config, pkgs, lib, ... }:
 
 let
-  hostsLib = import ./hosts.nix { inherit lib; };
+  hostsLib = import ../hosts.nix { inherit lib; };
 in
 {
   imports = [
-    ./common.nix
+    ./common-lxc.nix
   ];
 
   ### Networking
@@ -16,7 +16,7 @@ in
 
   # Configure sops for secrets management
   sops = {
-    defaultSopsFile = ./secrets/caddy.yaml;
+    defaultSopsFile = ../secrets/caddy.yaml;
     age.keyFile = "/home/deploy/.config/sops/age/keys.txt";
     secrets = {
       cloudflare_api_token = {

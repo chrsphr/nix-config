@@ -1,12 +1,12 @@
 { config, pkgs, lib, ... }:
 
 let
-  hostsLib = import ./hosts.nix { inherit lib; };
+  hostsLib = import ../hosts.nix { inherit lib; };
 in
 {
   imports = [
-    ./common.nix
-    ./modules/cloudflare-tunnel.nix
+    ./common-lxc.nix
+    ../modules/cloudflare-tunnel.nix
   ];
 
   networking = hostsLib.mkStaticNetwork "photosdotmcneill" // {
@@ -15,7 +15,7 @@ in
   };
 
   sops = {
-    defaultSopsFile = ./secrets/photosdotmcneill.yaml;
+    defaultSopsFile = ../secrets/photosdotmcneill.yaml;
     age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
     secrets.cloudflare_tunnel_token = {};
   };

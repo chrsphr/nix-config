@@ -1,10 +1,13 @@
 { config, pkgs, lib, ... }:
 
 {
-  # Open firewall ports
-  networking.firewall = {
-    allowedTCPPorts = [ 22 53 80 ];
-    allowedUDPPorts = [ 53 ];
+  # Open firewall ports and set custom DNS to avoid loops
+  networking = {
+    nameservers = lib.mkForce [ "1.1.1.1" ];
+    firewall = {
+      allowedTCPPorts = [ 22 53 80 ];
+      allowedUDPPorts = [ 53 ];
+    };
   };
 
 

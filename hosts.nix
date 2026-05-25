@@ -5,7 +5,7 @@
 let
   # Network defaults
   gateway = "192.168.1.1";
-  nameservers = [ "192.168.1.9" "192.168.1.10" ];
+  nameservers = [ "192.168.1.1" ];
   domain = "mcneill.fyi";
 
   # Host definitions

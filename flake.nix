@@ -52,13 +52,13 @@
       ) (lib.filterAttrs (name: _: hostsConfig.hosts ? ${name}) configs);
   in {
     nixosConfigurations = {
-      pihole-1 = nixpkgs.lib.nixosSystem {
+      pihole-1 = nixpkgs-unstable.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./pihole-1.nix
         ];
       };
-      pihole-2 = nixpkgs.lib.nixosSystem {
+      pihole-2 = nixpkgs-unstable.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./pihole-2.nix

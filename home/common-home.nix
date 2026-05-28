@@ -29,6 +29,8 @@
     drawio
     google-chrome
     pkgs-unstable.darktable
+    pkgs-unstable.siril
+    python3
     exiftool
     enblend-enfuse  # provides enfuse
     hugin           # provides align_image_stack

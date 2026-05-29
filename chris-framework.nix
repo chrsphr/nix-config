@@ -48,9 +48,8 @@
   services.logind.settings.Login.HandlePowerKey = "suspend-then-hibernate";
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
 
-  systemd.sleep.extraConfig = ''
-    HibernateDelaySec=30min
-  '';
+  systemd.sleep.settings.Sleep = { HibernateDelaySec="30min";};
+  
 
   #boot settings
   boot.loader.timeout = 0;

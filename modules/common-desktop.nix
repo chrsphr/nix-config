@@ -36,11 +36,11 @@
   services.xserver.enable = true;
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
-  services.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
-  services.desktopManager.gnome.extraGSettingsOverrides = ''
-    [org.gnome.mutter]
-    experimental-features=['scale-monitor-framebuffer','variable-refresh-rate','autoclose-xwayland']
-  '';
+  #services.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
+  #services.desktopManager.gnome.extraGSettingsOverrides = ''
+  #  [org.gnome.mutter]
+  #  experimental-features=['scale-monitor-framebuffer','variable-refresh-rate','autoclose-xwayland']
+  #'';
 
   # Keymap configuration
   services.xserver.xkb = {
@@ -149,5 +149,5 @@
   ] ++ pkgs.lib.optional (deploy-rs-pkg != null) deploy-rs-pkg;
 
   # State version
-  system.stateVersion = "25.11";
+  system.stateVersion = "26.05";
 }

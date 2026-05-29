@@ -20,6 +20,7 @@ in
         http_addr = "0.0.0.0";
         http_port = 3000;
       };
+      security.secret_key = "SW2YcwTIb9zpOOhoPsMm";
     };
   };
 }

@@ -34,7 +34,6 @@ in
     host  all ${dbUser} 192.168.1.0/24 scram-sha-256
     host  all ${dbUser} 192.168.4.0/24 scram-sha-256
   '';
-
   # Apply the password from sops to the gb_grid role on each boot.
   # Idempotent — rotating the password is just `sops secrets/gb-grid.yaml` + redeploy.
   systemd.services.gb-grid-set-password = {

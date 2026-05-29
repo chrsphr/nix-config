@@ -19,9 +19,9 @@
   };
 
   # Use Mesa from unstable for GFX12/RDNA4 Rusticl OpenCL support
-  hardware.graphics.package = pkgs-unstable.mesa;
-  hardware.graphics.package32 = pkgs-unstable.pkgsi686Linux.mesa;
-  hardware.graphics.extraPackages = [ pkgs-unstable.mesa.opencl ];
+  #hardware.graphics.package = pkgs-unstable.mesa;
+  #hardware.graphics.package32 = pkgs-unstable.pkgsi686Linux.mesa;
+  #hardware.graphics.extraPackages = [ pkgs-unstable.mesa.opencl ];
 
   # Enable Rusticl OpenCL backend for radeonsi (GFX12/RDNA4)
   environment.variables.RUSTICL_ENABLE = "radeonsi";
@@ -69,7 +69,7 @@
   # Gamescope configuration
   programs.gamescope = {
     enable = true;
-    capSysNice = true;
+    capSysNice = false; # workaround for nixpkgs#523200, re-enable when #524488 lands
   };
   programs.steam.gamescopeSession.enable = true;
 

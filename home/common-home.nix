@@ -32,7 +32,7 @@
     python3
     pkgs-unstable.gemini-cli
     pkgs-unstable.antigravity
-
+    gh
     discord
     uv
     amdgpu_top

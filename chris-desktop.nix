@@ -18,8 +18,13 @@
     opencl.enable = true;
   };
 
-  hardware.graphics.package = pkgs.mesa;
-  hardware.graphics.package32 = pkgs.pkgsi686Linux.mesa;
+  # Use Mesa from unstable for GFX12/RDNA4 Rusticl OpenCL support
+  hardware.graphics.package = pkgs-unstable.mesa;
+  hardware.graphics.package32 = pkgs-unstable.pkgsi686Linux.mesa;
+  hardware.graphics.extraPackages = [ pkgs-unstable.mesa.opencl ];
+
+  # Enable Rusticl OpenCL backend for radeonsi (GFX12/RDNA4)
+  environment.variables.RUSTICL_ENABLE = "radeonsi";
 
   # PipeWire wireplumber
   services.pipewire.wireplumber.enable = true;

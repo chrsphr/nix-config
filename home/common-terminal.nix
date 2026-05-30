@@ -9,7 +9,7 @@
     dig
     wget
     pkgs-unstable.claude-code
-
+    pkgs._1password-cli
     # Fonts for Oh-My-Zsh / terminals
     nerd-fonts.fira-code
     nerd-fonts.meslo-lg

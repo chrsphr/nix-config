@@ -11,6 +11,9 @@
   # Hostname
   networking.hostName = "chris-desktop";
 
+  # Skip the systemd-boot menu on boot.
+  boot.loader.timeout = 0;
+
   # Desktop-specific kernel modules
   boot.kernelModules = [ "sg" ];
 

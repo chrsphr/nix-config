@@ -12,6 +12,26 @@
   # Desktop-specific kernel modules
   boot.kernelModules = [ "sg" ];
 
+  # LUKS root with TPM2 auto-unlock (enrol with `systemd-cryptenroll` post-install).
+  boot.initrd.systemd.enable = true;
+  boot.initrd.systemd.tpm2.enable = true;
+  boot.initrd.luks.devices.cryptroot = {
+    device = "/dev/disk/by-partlabel/luks";
+    allowDiscards = true;
+    crypttabExtraOpts = [ "tpm2-device=auto" ];
+  };
+  security.tpm2.enable = true;
+  environment.systemPackages = [ pkgs.tpm2-tools ];
+
+  # Btrfs maintenance
+  services.btrfs.autoScrub = {
+    enable = true;
+    interval = "monthly";
+    fileSystems = [ "/" ];
+  };
+  services.fstrim.enable = true;
+  nix.settings.auto-optimise-store = true;
+
   # AMD GPU configuration
   hardware.amdgpu = {
     initrd.enable = true;

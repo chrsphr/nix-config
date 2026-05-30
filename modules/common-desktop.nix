@@ -154,6 +154,7 @@ in
   environment.systemPackages = with pkgs; [
     vim
     htop
+    geary  # mail client (Fastmail via IMAP/SMTP); see Settings → Online Accounts
   ] ++ pkgs.lib.optional (deploy-rs-pkg != null) deploy-rs-pkg;
 
   # State version

@@ -1,5 +1,8 @@
 { config, modulesPath, pkgs, lib, ... }:
 
+let
+  keys = import ../modules/keys.nix;
+in
 {
   imports = [
     (modulesPath + "/virtualisation/proxmox-lxc.nix")
@@ -63,15 +66,11 @@
   users.users.deploy = {
     isNormalUser = true;
     extraGroups = [ "wheel" ];
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"
-    ];
+    openssh.authorizedKeys.keys = [ keys.chris ];
   };
 
   # Add SSH key to root user too (for initial deployment)
-  users.users.root.openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"
-  ];
+  users.users.root.openssh.authorizedKeys.keys = [ keys.chris ];
 
   # Passwordless sudo for wheel group
   security.sudo.wheelNeedsPassword = false;

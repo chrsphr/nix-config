@@ -1,5 +1,8 @@
 { config, pkgs, pkgs-unstable ? pkgs, deploy-rs-pkg ? null, ... }:
 
+let
+  keys = import ./keys.nix;
+in
 {
   imports = [
     ./locale.nix
@@ -95,9 +98,7 @@
   users.users.chris = {
     isNormalUser = true;
     shell = pkgs.zsh;
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh"
-    ];
+    openssh.authorizedKeys.keys = [ keys.chris ];
     description = "Chris";
     extraGroups = [ "networkmanager" "wheel" ];
   };

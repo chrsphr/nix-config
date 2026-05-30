@@ -11,8 +11,6 @@
 
   # Desktop-specific packages
   home.packages = with pkgs; [
-    powertop
-    fprintd
     gnome-boxes
     gamescope
     vulkan-tools

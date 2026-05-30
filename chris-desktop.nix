@@ -20,29 +20,17 @@
     opencl.enable = true;
   };
 
-  # Use Mesa from unstable for GFX12/RDNA4 Rusticl OpenCL support
-  #hardware.graphics.package = pkgs-unstable.mesa;
-  #hardware.graphics.package32 = pkgs-unstable.pkgsi686Linux.mesa;
-  #hardware.graphics.extraPackages = [ pkgs-unstable.mesa.opencl ];
-
   # Enable Rusticl OpenCL backend for radeonsi (GFX12/RDNA4)
   environment.variables.RUSTICL_ENABLE = "radeonsi";
 
   # PipeWire wireplumber
   services.pipewire.wireplumber.enable = true;
 
-  # CIFS mount to media server
-  fileSystems."/home/chris/Media" = {
-    device = "//lilnas.mcneill.fyi/Media";
-    fsType = "cifs";
-    options = let
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,mount-timeout=5s";
-    in ["${automount_opts},username=chris,uid=1000,gid=100,vers=3.0"];
-  };
-
-  # NFS configuration
+  # NFS media share — x-systemd.automount in mount options is sufficient;
+  # it auto-generates the .automount unit. Idle timeout is set inline.
   boot.supportedFilesystems = [ "nfs" ];
   services.rpcbind.enable = true;
+  systemd.tmpfiles.rules = [ "d /mnt/Media 0755 root root -" ];
   fileSystems."/mnt/Media" = {
     device = "192.168.1.12:/mnt/Hutch/Media";
     fsType = "nfs";
@@ -60,13 +48,6 @@
       "_netdev"
     ];
   };
-  systemd.automounts = [{
-    wantedBy = [ "multi-user.target" ];
-    automountConfig = {
-      TimeoutIdleSec = "600";
-    };
-    where = "/mnt/Media";
-  }];
 
   # Gamescope configuration
   programs.gamescope = {

@@ -4,6 +4,8 @@
   imports = [
     ./hardware/framework.nix
     ./modules/common-desktop.nix
+    ./modules/luks-tpm.nix
+    ./modules/btrfs-maintenance.nix
     ./modules/keyboard-backlight-timeout.nix
     ./modules/nfs-home-automount.nix
   ];
@@ -49,36 +51,9 @@
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
 
   systemd.sleep.settings.Sleep = { HibernateDelaySec="30min";};
-  
 
-  #boot settings
+  # Skip the systemd-boot menu on cold boot (laptop only — no dual-boot).
   boot.loader.timeout = 0;
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # LUKS root with TPM2 auto-unlock (enrol with `systemd-cryptenroll` post-install).
-  boot.initrd.systemd.enable = true;
-  boot.initrd.systemd.tpm2.enable = true;
-  boot.initrd.luks.devices.cryptroot = {
-    device = "/dev/disk/by-partlabel/luks";
-    allowDiscards = true;
-    crypttabExtraOpts = [ "tpm2-device=auto" ];
-  };
-  security.tpm2.enable = true;
-  environment.systemPackages = [ pkgs.tpm2-tools ];
-
-  # Btrfs maintenance
-  services.btrfs.autoScrub = {
-    enable = true;
-    interval = "monthly";
-    fileSystems = [ "/" ];
-  };
-  # discard=async handles TRIM at free-time; fstrim timer is a belt-and-braces
-  # weekly sweep for anything missed (e.g. on /boot vfat).
-  services.fstrim.enable = true;
-
-  # Nix store hardlink dedup — meaningful savings on /nix independent of FS.
-  nix.settings.auto-optimise-store = true;
 
   # Keyboard backlight auto-timeout
   services.keyboard-backlight-timeout = {

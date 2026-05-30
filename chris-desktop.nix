@@ -4,6 +4,8 @@
   imports = [
     ./hardware/desktop.nix
     ./modules/common-desktop.nix
+    ./modules/luks-tpm.nix
+    ./modules/btrfs-maintenance.nix
   ];
 
   # Hostname
@@ -11,25 +13,6 @@
 
   # Desktop-specific kernel modules
   boot.kernelModules = [ "sg" ];
-
-  # LUKS root with TPM2 auto-unlock (enrol with `systemd-cryptenroll` post-install).
-  boot.initrd.systemd.enable = true;
-  boot.initrd.systemd.tpm2.enable = true;
-  boot.initrd.luks.devices.cryptroot = {
-    device = "/dev/disk/by-partlabel/luks";
-    allowDiscards = true;
-    crypttabExtraOpts = [ "tpm2-device=auto" ];
-  };
-  security.tpm2.enable = true;
-
-  # Btrfs maintenance
-  services.btrfs.autoScrub = {
-    enable = true;
-    interval = "monthly";
-    fileSystems = [ "/" ];
-  };
-  services.fstrim.enable = true;
-  nix.settings.auto-optimise-store = true;
 
   # AMD GPU configuration
   hardware.amdgpu = {
@@ -133,7 +116,6 @@
 
   # System packages for desktop
   environment.systemPackages = with pkgs; [
-    tpm2-tools
     ffmpeg-full
     liquidctl
   ];

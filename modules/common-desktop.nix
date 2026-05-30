@@ -23,8 +23,19 @@
   # Use latest kernel
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  # Plymouth boot splash
+  # Plymouth boot splash — quiet kernel + initrd so the splash isn't preceded by text.
   boot.plymouth.enable = true;
+  boot.consoleLogLevel = 0;
+  boot.initrd.verbose = false;
+  boot.kernelParams = [
+    "quiet"
+    "splash"
+    "loglevel=3"
+    "rd.systemd.show_status=auto"
+    "rd.udev.log_level=3"
+    "udev.log_priority=3"
+    "vt.global_cursor_default=0"
+  ];
 
   # Power management
   powerManagement.enable = true;
@@ -36,11 +47,8 @@
   services.xserver.enable = true;
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
-  #services.desktopManager.gnome.extraGSettingsOverridePackages = [ pkgs.mutter ];
-  #services.desktopManager.gnome.extraGSettingsOverrides = ''
-  #  [org.gnome.mutter]
-  #  experimental-features=['scale-monitor-framebuffer','variable-refresh-rate','autoclose-xwayland']
-  #'';
+  # Mutter experimental features removed — scale-monitor-framebuffer and
+  # variable-refresh-rate are defaults in Mutter 50.
 
   # Keymap configuration
   services.xserver.xkb = {

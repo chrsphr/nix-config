@@ -21,7 +21,6 @@
     crypttabExtraOpts = [ "tpm2-device=auto" ];
   };
   security.tpm2.enable = true;
-  environment.systemPackages = [ pkgs.tpm2-tools ];
 
   # Btrfs maintenance
   services.btrfs.autoScrub = {
@@ -134,6 +133,7 @@
 
   # System packages for desktop
   environment.systemPackages = with pkgs; [
+    tpm2-tools
     ffmpeg-full
     liquidctl
   ];

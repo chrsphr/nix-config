@@ -25,7 +25,6 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `transmission` | 192.168.1.136 | Torrent client |
 | `sonarr` | 192.168.1.75 | TV automation |
 | `prowlarr` | 192.168.1.75 | Indexer manager (co-located on sonarr host) |
-| `grafana` | 192.168.1.122 | Metrics dashboard |
 | `uptime` | 192.168.1.31 | Uptime monitoring (Gatus, declarative via `hosts.nix`). External access via Cloudflare tunnel is **TODO** — currently only reachable on the LAN at `http://192.168.1.31:3001`. |
 | `tailscale` | 192.168.1.207 | VPN exit node |
 | `gb-grid` | 192.168.1.28 | GB power grid Postgres + BMRS ingester |

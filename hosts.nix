@@ -91,14 +91,6 @@ let
     transcode = {
       ip = "192.168.1.74";
     };
-    photosdotmcneill = {
-      ip = "192.168.1.240";
-    };
-    grafana = {
-      ip = "192.168.1.122";
-      port = 3000;
-      caddy = true;
-    };
     sonarr = {
       ip = "192.168.1.75";
       port = 8989;

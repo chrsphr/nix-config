@@ -45,12 +45,6 @@ in
         }
 
 ${hostsLib.generateCaddyConfig}
-
-        @photos host photos.${hostsLib.domain}
-        handle @photos {
-          root * /srv/sites/photosdotmcneill
-          file_server
-        }
       }
     '';
   };

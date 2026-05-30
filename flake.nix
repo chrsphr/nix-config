@@ -110,19 +110,6 @@
           ./lxc/sonarr.nix
         ];
       };
-      grafana = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/grafana.nix
-        ];
-      };
-      photosdotmcneill = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/photosdotmcneill.nix
-          sops-nix.nixosModules.sops
-        ];
-      };
       uptime = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [

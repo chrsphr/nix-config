@@ -3,7 +3,6 @@ keys:
   - &immich age1lvx0sy27p8gj4e8c4dw3tz5njyk975xtvl5rwr5fvyx7rqzg4uuqv6gkqq
   - &caddy age1h9eg8cl50usge2e5sjr77pes2l0wgl3ypk95jd4w32m88yhpugnsd9dpl4
   - &uptime age1z8939t5qwrcg0huvwhh0ldpzgedl9ugcufm40wj6dnu0cnptte5sw8m9sh
-  - &photosdotmcneill age1rvkhelafufc4l2lc780fp22uw0cckhfam4wrsgdmcr7jk6ctcypqe83787
 
 creation_rules:
   - path_regex: .*secrets/immich\.yaml$
@@ -22,11 +21,6 @@ creation_rules:
           - *laptop
           - *uptime
 
-  - path_regex: .*secrets/photosdotmcneill\.yaml$
-    key_groups:
-      - age:
-          - *laptop
-          - *photosdotmcneill
   - path_regex: .*secrets/gb-grid\.yaml$
     key_groups:
       - age:

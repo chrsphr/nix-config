@@ -118,6 +118,14 @@ let
       caddy = true;
     };
 
+    beeper = {
+      ip = "192.168.1.40";
+      monitor = {
+        type = "port"; targetPort = 22; name = "Beeper bridges";
+        group = "Hutch Primary Services";
+      };
+    };
+
     desktop = {
       ip = "192.168.1.181";
     };

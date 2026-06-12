@@ -118,6 +118,13 @@
         ];
       };
 
+      beeper = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./lxc/beeper.nix
+        ];
+      };
+
 
       gb-grid = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";

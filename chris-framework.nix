@@ -30,6 +30,14 @@
     "amdgpu.cwsr_enable=0"
     "pcie_aspm.policy=powersupersave"
     "resume_offset=533760"
+    # Adaptive Backlight Management — big panel power win on battery; level 1
+    # is barely perceptible (raise toward 3 for more savings, more color shift).
+    "amdgpu.abmlevel=1"
+    # Compressed swap cache in front of the swapfile (hibernate-compatible,
+    # unlike zram) so memory pressure doesn't go straight to NVMe.
+    "zswap.enabled=1"
+    "zswap.compressor=zstd"
+    "zswap.zpool=zsmalloc"
   ];
 
   # AMD GPU / OpenCL
@@ -46,6 +54,23 @@
   # Power management
   services.power-profiles-daemon.enable = true;
   powerManagement.powertop.enable = true;  # Auto-tune power optimizations
+
+  # MT7925 Wi-Fi runtime power management (revert if home Wi-Fi latency spikes)
+  networking.networkmanager.wifi.powersave = true;
+
+  # Cap charge at 90% to extend battery cycle life (framework_laptop EC driver).
+  # Bump to 100 before a trip with: echo 100 | sudo tee /sys/class/power_supply/BAT1/charge_control_end_threshold
+  systemd.services.battery-charge-threshold = {
+    description = "Set battery charge limit";
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      echo 90 > /sys/class/power_supply/BAT1/charge_control_end_threshold
+    '';
+  };
   services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
   services.logind.settings.Login.HandlePowerKey = "suspend-then-hibernate";
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";

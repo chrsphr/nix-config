@@ -56,6 +56,13 @@
     redis.enable = true;
   };
 
+  # The photo library lives on the Media NFS share, bind-mounted from the Proxmox
+  # host as an *optional* mount (lxc.mount.entry … bind,optional in 203.conf) so
+  # the container still boots if the NFS share is unavailable. Guard the server so
+  # it won't run library-less when the mount is absent — it stays down until
+  # /mnt/media/Photos is actually mounted again.
+  systemd.services.immich-server.unitConfig.ConditionPathIsMountPoint = "/mnt/media/Photos";
+
   environment.systemPackages = with pkgs; [
     ffmpeg-full  # Use full ffmpeg for QSV hardware acceleration support
   ];

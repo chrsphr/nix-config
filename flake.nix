@@ -191,7 +191,13 @@
       };
     };
 
-    deploy.nodes = mkDeployNodes self.nixosConfigurations;
+    # beeper's post-activation confirm ping reliably times out (flaky on this
+    # LXC), which would otherwise fail its deploy and — in a fleet deploy-all —
+    # roll back every node. Disable magic-rollback for it; Proxmox console is the
+    # recovery path if a beeper deploy ever goes bad.
+    deploy.nodes = lib.recursiveUpdate (mkDeployNodes self.nixosConfigurations) {
+      beeper.profiles.system.magicRollback = false;
+    };
 
     checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
   };

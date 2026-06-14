@@ -152,6 +152,7 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
+            home-manager.backupFileExtension = "hm-bak";
             home-manager.users.chris = import ./home/framework.nix;
           }
         ];
@@ -169,6 +170,7 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.extraSpecialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
+            home-manager.backupFileExtension = "hm-bak";
             home-manager.users.chris = import ./home/desktop.nix;
           }
         ];

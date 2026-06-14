@@ -97,6 +97,30 @@
     };
   };
 
+  # SSH (desktop + Framework only — WSL bridges 1Password differently and is
+  # left untouched). The 1Password agent holds both personal and work keys and
+  # offered the work one first, which can't push to chrsphr repos. Pin github.com
+  # to the personal (chrsphr) key; identitiesOnly + the public key on disk make
+  # the agent use only that identity.
+  programs.ssh = {
+    enable = true;
+    enableDefaultConfig = false;
+    matchBlocks = {
+      "github.com" = {
+        identityFile = "~/.ssh/id_chrsphr.pub";
+        identitiesOnly = true;
+      };
+      "*" = {
+        identityAgent = "~/.1password/agent.sock";
+      };
+    };
+  };
+
+  # Personal GitHub public key, referenced by the github.com match block above.
+  home.file.".ssh/id_chrsphr.pub".text = ''
+    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO5Kox0nkeljrafIlbuwRKOp+om+ocvpuGOGBBfGyIia GitHub
+  '';
+
   # Allow Home Manager to manage itself
   programs.home-manager.enable = true;
 }

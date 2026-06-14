@@ -17,6 +17,18 @@
   # Desktop-specific kernel modules
   boot.kernelModules = [ "sg" ];
 
+  # Hibernate: resume from the btrfs swapfile inside LUKS. resume_offset is the
+  # physical offset of /swap/swapfile, from `btrfs inspect-internal map-swapfile`.
+  boot.resumeDevice = "/dev/mapper/cryptroot";
+  boot.kernelParams = [
+    "resume_offset=533760"
+    # Compressed swap cache in front of the swapfile (hibernate-compatible,
+    # unlike zram) so memory pressure doesn't go straight to NVMe.
+    "zswap.enabled=1"
+    "zswap.compressor=zstd"
+    "zswap.zpool=zsmalloc"
+  ];
+
   # AMD GPU configuration
   hardware.amdgpu = {
     initrd.enable = true;
@@ -74,13 +86,47 @@
     kvm.members = [ "chris" ];
   };
 
-  # Sunshine streaming
+  # Sunshine streaming. Pull the package from unstable — nixpkgs lags upstream
+  # badly (stable & unstable both sat on 2025.924 for months; see nixpkgs
+  # #524668), so this picks up newer builds on `nix flake update` without moving
+  # the rest of the host off stable.
   services.sunshine = {
     enable = true;
+    package = pkgs-unstable.sunshine;
     autoStart = true;
     capSysAdmin = true;
     openFirewall = true;
   };
+
+  # autoStart wires the user unit to graphical-session.target, which the GDM
+  # greeter session (user "gdm-greeter", a high UID) also reaches — so Sunshine
+  # launches there first, grabs port 48010, and the real login's instance fails
+  # to bind ("RTSP server ... Address already in use"). Restrict it to chris.
+  systemd.user.services.sunshine.unitConfig.ConditionUser = "chris";
+
+  # CPU: keep the amd-pstate-epp powersave governor but bias the EPP hint toward
+  # performance so clocks ramp quickly under load.
+  systemd.services.cpu-epp = {
+    description = "Set AMD P-State energy_performance_preference";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+        echo balance_performance > "$f"
+      done
+    '';
+  };
+
+  # Feral GameMode — on-demand performance for games (opt-in per title).
+  programs.gamemode.enable = true;
+
+  # Wake-on-LAN on the wired NIC. Also enable "Power On by PCIE/LAN" (or
+  # equivalent) in BIOS for wake from full power-off.
+  networking.interfaces.eno1.wakeOnLan.enable = true;
 
   # Disable problematic wake sources
   systemd.services.disable-wake-sources = {
@@ -102,6 +148,7 @@
   environment.systemPackages = with pkgs; [
     ffmpeg-full
     liquidctl
+    ethtool
   ];
 
   # Liquidctl udev rules for NZXT fan/RGB control

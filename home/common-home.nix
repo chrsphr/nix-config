@@ -36,12 +36,14 @@
     discord
     uv
     amdgpu_top
+    libva-utils  # `vainfo` to verify VA-API hardware video decode
     libreoffice-fresh
 
     # GNOME Extensions
     gnomeExtensions.blur-my-shell
     gnomeExtensions.emoji-copy
     gnomeExtensions.appindicator
+    gnomeExtensions.battery-time
   ];
 
   # Start 1Password minimised at login
@@ -87,6 +89,7 @@
         "blur-my-shell@aunetx"
         "emoji-copy@felipeftn"
         "appindicatorsupport@rgcjonas.gmail.com"
+        "batime@martin.zurowietz.de"
       ];
     };
     "org/gnome/desktop/interface" = {

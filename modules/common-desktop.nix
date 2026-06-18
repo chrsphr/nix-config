@@ -105,7 +105,18 @@ in
 
   # Programs
   programs.zsh.enable = true;  # Enable zsh system-wide
-  programs.firefox.enable = true;
+  programs.firefox = {
+    enable = true;
+    # Offload video decode to the iGPU's VCN engine instead of a CPU core
+    # (radeonsi VA-API driver). Big battery win on the AMD laptop; verify
+    # via about:support → "Compositing: WebRender" / "HW_DECODING".
+    preferences = {
+      "media.ffmpeg.vaapi.enabled" = true;
+      "media.hardware-video-decoding.force-enabled" = true;
+      "gfx.webrender.all" = true;
+      "widget.dmabuf.force-enabled" = true;
+    };
+  };
   programs.steam = {
     enable = true;
     remotePlay.openFirewall = true;

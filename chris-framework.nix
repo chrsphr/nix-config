@@ -22,6 +22,10 @@
   # Audio codec power saving (revert to power_save=0 if clicking sounds occur)
   boot.extraModprobeConfig = ''
     options snd_hda_intel power_save=1
+    # Enable U-APSD (trigger-based Wi-Fi power save) on the Intel AX210. Lowers
+    # idle radio power vs. the iwlwifi default of uapsd_disable=3. Revert to 3 if
+    # the AP misbehaves (latency spikes, disconnects on power-save negotiation).
+    options iwlwifi uapsd_disable=0
   '';
 
   boot.resumeDevice = "/dev/mapper/cryptroot";
@@ -32,7 +36,14 @@
     "resume_offset=533760"
     # Adaptive Backlight Management — big panel power win on battery; level 1
     # is barely perceptible (raise toward 3 for more savings, more color shift).
-    "amdgpu.abmlevel=1"
+    "amdgpu.abmlevel=3"
+    # Re-enable Panel Self-Refresh. nixos-hardware's framework-amd-ai-300-series
+    # module disables PSR via dcdebugmask=0x10 (DC_DISABLE_PSR) for historical
+    # panel flicker, but on this kernel/Mesa PSR is reliable and saves ~1W on
+    # static content (reading, light browsing). This lands after nixos-hardware's
+    # param on the cmdline, so last-wins re-enables it. Revert to 0x10 if any
+    # flickering or corruption appears on the internal panel.
+    "amdgpu.dcdebugmask=0x0"
     # Compressed swap cache in front of the swapfile (hibernate-compatible,
     # unlike zram) so memory pressure doesn't go straight to NVMe.
     "zswap.enabled=1"
@@ -55,7 +66,7 @@
   services.power-profiles-daemon.enable = true;
   powerManagement.powertop.enable = true;  # Auto-tune power optimizations
 
-  # MT7925 Wi-Fi runtime power management (revert if home Wi-Fi latency spikes)
+  # Intel AX210 (iwlwifi) Wi-Fi power save (revert if home Wi-Fi latency spikes)
   networking.networkmanager.wifi.powersave = true;
 
   # Cap charge at 90% to extend battery cycle life (framework_laptop EC driver).

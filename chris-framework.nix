@@ -169,4 +169,10 @@
   programs.nix-ld.libraries = with pkgs; [
     cairo  # For remarkable-mcp notebook rendering
   ];
+
+  # Docker engine for local dev. The gb-grid `nix develop` shell brings its
+  # Postgres + Grafana up via `docker compose`; merges with common-desktop's
+  # chris groups.
+  virtualisation.docker.enable = true;
+  users.users.chris.extraGroups = [ "docker" ];
 }

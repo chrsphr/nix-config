@@ -52,14 +52,14 @@
     # ambient): level 3 caused visible backlight flicker / brightness drift on
     # changing content. Confirmed stable with ABM off, so keep it off. Raise to
     # 1 (barely perceptible) if the battery saving is ever worth revisiting.
-    "amdgpu.abmlevel=0"
+    "amdgpu.abmlevel=2"
     # Re-enable Panel Self-Refresh. nixos-hardware's framework-amd-ai-300-series
     # module disables PSR via dcdebugmask=0x10 (DC_DISABLE_PSR) for historical
     # panel flicker, but on this kernel/Mesa PSR is reliable and saves ~1W on
     # static content (reading, light browsing). This lands after nixos-hardware's
     # param on the cmdline, so last-wins re-enables it. Revert to 0x10 if any
     # flickering or corruption appears on the internal panel.
-    #"amdgpu.dcdebugmask=0x0"
+    "amdgpu.dcdebugmask=0x0"
     # Compressed swap cache in front of the swapfile (hibernate-compatible,
     # unlike zram) so memory pressure doesn't go straight to NVMe.
     "zswap.enabled=1"
@@ -112,6 +112,45 @@
     enable = true;
     timeout = 30;  # seconds
     brightnessMax = 100;
+  };
+
+  # Smooth ambient-light brightness, replacing GNOME's choppy auto-brightness
+  # (disabled in home/framework.nix). clight reads the panel ALS (iio:device0)
+  # via clightd and fades the backlight along a tuned curve instead of stepping
+  # it abruptly. Only the backlight module is used — gamma (colour temp),
+  # dimmer, dpms, screen-content and keyboard tools are left to GNOME and the
+  # keyboard-backlight-timeout module. geoclue2 (already enabled) gives clight
+  # the day/night classification it needs to pick its capture timeouts.
+  location.provider = "geoclue2";
+  services.clight = {
+    enable = true;
+    settings = {
+      gamma.disabled = true;
+      dimmer.disabled = true;
+      dpms.disabled = true;
+      screen.disabled = true;
+      keyboard.disabled = true;
+
+      sensor = {
+        # The Framework panel ALS, so clightd doesn't grab the webcam instead.
+        devname = "iio:device0";
+        # Average 5 ALS polls per calibration (AC, BATT) to smooth out noise.
+        captures = [ 5 5 ];
+      };
+
+      backlight = {
+        # The real fix for choppiness: fade every change over a fixed 1.2s
+        # instead of GNOME's coarse jumps (overrides trans_step/trans_timeout).
+        trans_fixed = 1200;
+        # Re-check ambient light every [day, night, event] seconds. Kept equal
+        # per state so day/night classification doesn't alter responsiveness.
+        ac_timeouts = [ 6 6 6 ];
+        batt_timeouts = [ 12 12 12 ];
+        # Discard near-dark captures (e.g. a covered sensor) so brightness
+        # doesn't dip to zero on a spurious reading.
+        shutter_threshold = 0.05;
+      };
+    };
   };
 
   # Fingerprint reader

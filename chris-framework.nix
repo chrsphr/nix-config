@@ -1,4 +1,4 @@
-{ pkgs, pkgs-unstable ? pkgs, ... }:
+{ pkgs, pkgs-unstable ? pkgs, lib, ... }:
 
 {
   imports = [
@@ -12,6 +12,20 @@
 
   # Hostname
   networking.hostName = "chris-framework";
+
+  # CachyOS optimized kernel (x86-64-v4 / AVX-512, matches Zen 5 Strix Point).
+  # Overrides common-desktop.nix's linuxPackages_latest. The cachyosKernels set
+  # comes from the nix-cachyos-kernel `pinned` overlay applied in flake.nix.
+  boot.kernelPackages = lib.mkForce pkgs.cachyosKernels.linuxPackages-cachyos-latest-x86_64-v4;
+
+  # Upstream's binary cache so the kernel is fetched, not compiled from source.
+  # NOTE: these must already be active before the kernel build is evaluated. On
+  # the FIRST switch that introduces both, pass them on the CLI instead, e.g.:
+  #   nixos-rebuild switch --flake .#chris-framework \
+  #     --option extra-substituters https://attic.xuyh0120.win/lantian \
+  #     --option extra-trusted-public-keys lantian:EeAUQ+W+6r7EtwnmYjeVwx5kOGEBpjlBfPlzGlTNvHc=
+  nix.settings.substituters = [ "https://attic.xuyh0120.win/lantian" ];
+  nix.settings.trusted-public-keys = [ "lantian:EeAUQ+W+6r7EtwnmYjeVwx5kOGEBpjlBfPlzGlTNvHc=" ];
 
   # Kernel sysctl settings for battery optimization
   boot.kernel.sysctl = {
@@ -34,16 +48,18 @@
     "amdgpu.cwsr_enable=0"
     "pcie_aspm.policy=powersupersave"
     "resume_offset=533760"
-    # Adaptive Backlight Management — big panel power win on battery; level 1
-    # is barely perceptible (raise toward 3 for more savings, more color shift).
-    "amdgpu.abmlevel=3"
+    # Adaptive Backlight Management — disabled. It's content-adaptive (not
+    # ambient): level 3 caused visible backlight flicker / brightness drift on
+    # changing content. Confirmed stable with ABM off, so keep it off. Raise to
+    # 1 (barely perceptible) if the battery saving is ever worth revisiting.
+    "amdgpu.abmlevel=0"
     # Re-enable Panel Self-Refresh. nixos-hardware's framework-amd-ai-300-series
     # module disables PSR via dcdebugmask=0x10 (DC_DISABLE_PSR) for historical
     # panel flicker, but on this kernel/Mesa PSR is reliable and saves ~1W on
     # static content (reading, light browsing). This lands after nixos-hardware's
     # param on the cmdline, so last-wins re-enables it. Revert to 0x10 if any
     # flickering or corruption appears on the internal panel.
-    "amdgpu.dcdebugmask=0x0"
+    #"amdgpu.dcdebugmask=0x0"
     # Compressed swap cache in front of the swapfile (hibernate-compatible,
     # unlike zram) so memory pressure doesn't go straight to NVMe.
     "zswap.enabled=1"

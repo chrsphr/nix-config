@@ -28,8 +28,13 @@
       url = "github:nix-community/disko";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # CachyOS optimized kernels. `release` branch is built by upstream Hydra and
+    # served from their binary cache (see nix.settings in chris-framework.nix).
+    # No nixpkgs follows: the `pinned` overlay deliberately uses the flake's own
+    # nixpkgs revision so prebuilt kernels are cache hits, not source builds.
+    nix-cachyos-kernel.url = "github:xddxdd/nix-cachyos-kernel/release";
   };
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-wsl, home-manager, sops-nix, deploy-rs, gb-grid, disko }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-wsl, home-manager, sops-nix, deploy-rs, gb-grid, disko, nix-cachyos-kernel }:
   let
     system = "x86_64-linux";
     lib = nixpkgs.lib;
@@ -146,6 +151,7 @@
           ./chris-framework.nix
           ./hardware/framework-disko.nix
           disko.nixosModules.disko
+          { nixpkgs.overlays = [ nix-cachyos-kernel.overlays.pinned ]; }
           nixos-hardware.nixosModules.framework-amd-ai-300-series
           home-manager.nixosModules.home-manager
           {

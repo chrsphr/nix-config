@@ -23,8 +23,8 @@ in
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # Use latest kernel
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  # Use latest kernel from nixpkgs-unstable (newer than the 26.05 base).
+  boot.kernelPackages = pkgs-unstable.linuxPackages_latest;
 
   # Plymouth boot splash — quiet kernel + initrd so the splash isn't preceded by text.
   boot.plymouth.enable = true;

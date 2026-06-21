@@ -53,6 +53,11 @@
     "zswap.enabled=1"
     "zswap.compressor=zstd"
     "zswap.zpool=zsmalloc"
+    # Lazy RCU: offload RCU callbacks and batch non-urgent ones to cut idle
+    # wakeups (reduces idle power; used by ChromeOS). Reported as a measurable
+    # battery win on the Framework AMD battery-tuning thread.
+    "rcu_nocbs=all"
+    "rcutree.enable_rcu_lazy=1"
   ];
 
   # AMD GPU / OpenCL
@@ -69,6 +74,12 @@
   # Power management
   services.power-profiles-daemon.enable = true;
   powerManagement.powertop.enable = true;  # Auto-tune power optimizations
+
+  # Disable avahi/mDNS: it runs constantly and adds idle wakeups for little
+  # benefit here. Trade-off: no .local hostname resolution or auto-discovery of
+  # printers/shares/cast devices. Re-enable if the NFS automount or printing
+  # starts relying on mDNS.
+  services.avahi.enable = false;
 
   # Intel AX210 (iwlwifi) Wi-Fi power save (revert if home Wi-Fi latency spikes)
   networking.networkmanager.wifi.powersave = true;
@@ -97,7 +108,7 @@
 
   # Keyboard backlight auto-timeout
   services.keyboard-backlight-timeout = {
-    enable = true;
+    enable = false;
     timeout = 30;  # seconds
     brightnessMax = 100;
   };

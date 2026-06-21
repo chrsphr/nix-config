@@ -23,8 +23,7 @@
     rebuild = "sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-framework";
   };
 
-  # Disable GNOME's built-in ambient auto-brightness — clight (see
-  # chris-framework.nix) handles it with smooth fades instead, and the two would
-  # otherwise fight over the backlight.
+  # Disable GNOME's ambient auto-brightness so the backlight is fully manual
+  # (it was reacting choppily to the panel ALS).
   dconf.settings."org/gnome/settings-daemon/plugins/power".ambient-enabled = false;
 }

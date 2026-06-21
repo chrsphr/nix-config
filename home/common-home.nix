@@ -1,5 +1,31 @@
 { config, pkgs, pkgs-unstable, ... }:
 
+let
+  # ChromaLeon (formerly "User Accent Colors"), extension id 10070. Not packaged
+  # in nixpkgs, so build it from the extensions.gnome.org zip. Ships an
+  # uncompiled gschema, so compile it during the build.
+  chromaleon = pkgs.stdenvNoCC.mkDerivation {
+    pname = "gnome-shell-extension-chromaleon";
+    version = "35";
+    src = pkgs.fetchzip {
+      url = "https://extensions.gnome.org/download-extension/user-accent-colors@fabito02.shell-extension.zip?version_tag=72021";
+      hash = "sha256-lLdB0f/NVhOY8mN4cj8KdWCN3yoVBp41yj9fTohv6SY=";
+      stripRoot = false;
+      extension = "zip";
+    };
+    nativeBuildInputs = [ pkgs.glib ];
+    dontConfigure = true;
+    dontBuild = true;
+    installPhase = ''
+      runHook preInstall
+      d=$out/share/gnome-shell/extensions/user-accent-colors@fabito02
+      mkdir -p $d
+      cp -r * $d/
+      glib-compile-schemas $d/schemas
+      runHook postInstall
+    '';
+  };
+in
 {
   imports = [
     ./common-terminal.nix
@@ -44,6 +70,7 @@
     gnomeExtensions.emoji-copy
     gnomeExtensions.appindicator
     gnomeExtensions.battery-time
+    chromaleon
   ];
 
   # Start 1Password minimised at login
@@ -90,6 +117,7 @@
         "emoji-copy@felipeftn"
         "appindicatorsupport@rgcjonas.gmail.com"
         "batime@martin.zurowietz.de"
+        "user-accent-colors@fabito02"
       ];
     };
     "org/gnome/desktop/interface" = {

@@ -203,8 +203,16 @@
     # LXC), which would otherwise fail its deploy and — in a fleet deploy-all —
     # roll back every node. Disable magic-rollback for it; Proxmox console is the
     # recovery path if a beeper deploy ever goes bad.
-    deploy.nodes = lib.recursiveUpdate (mkDeployNodes self.nixosConfigurations) {
-      beeper.profiles.system.magicRollback = false;
+    deploy = {
+      # Magic-rollback confirmation needs the deployer to SSH back into the node
+      # and confirm within this window (seconds). The deploy-rs default of 30s is
+      # too tight for this fleet — confirmations regularly time out (slow agent
+      # signing / LXC round-trips) and trigger spurious rollbacks of an otherwise
+      # successful activation. Bump it globally; override per-node if needed.
+      confirmTimeout = 120;
+      nodes = lib.recursiveUpdate (mkDeployNodes self.nixosConfigurations) {
+        beeper.profiles.system.magicRollback = false;
+      };
     };
 
     checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;

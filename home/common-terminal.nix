@@ -8,7 +8,6 @@
     btop
     dig
     wget
-    pkgs-unstable.claude-code
     mcp-nixos-pkg  # MCP server for NixOS/Home Manager search (registered with Claude Code via `claude mcp add`)
     pkgs._1password-cli
     # Fonts for Oh-My-Zsh / terminals

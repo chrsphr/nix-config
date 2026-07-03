@@ -55,6 +55,7 @@ in
     drawio
     google-chrome
     pkgs-unstable.darktable
+    onnxruntime
     python3
     pkgs-unstable.gemini-cli
     pkgs-unstable.antigravity

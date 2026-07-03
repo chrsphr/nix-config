@@ -27,12 +27,20 @@
     # Enable U-APSD (trigger-based Wi-Fi power save) on the Intel AX210. Lowers
     # idle radio power vs. the iwlwifi default of uapsd_disable=3. Revert to 3 if
     # the AP misbehaves (latency spikes, disconnects on power-save negotiation).
-    options iwlwifi uapsd_disable=0
+    options iwlwifi uapsd_disable=3
   '';
 
   boot.resumeDevice = "/dev/mapper/cryptroot";
   boot.kernelParams = [
     "mem_sleep_default=s2idle"
+    # CPPC preferred-core ranking. The firmware advertises differentiated cores
+    # (Zen 5 highest_perf ~196-208 vs Zen 5c ~135), so amd-pstate can steer
+    # bursty/foreground work onto the cores that boost highest. The kernel
+    # parameter is "amd_prefcore" (NOT amd_pstate.prefcore); default is enabled
+    # but /sys/devices/system/cpu/amd_pstate/prefcore read "disabled", so request
+    # it explicitly. If it still reads "disabled" after a rebuild+reboot, it's a
+    # Krackan Point / amd-pstate driver quirk, not this config or the BIOS.
+    "amd_prefcore=enable"
     "amdgpu.cwsr_enable=0"
     "pcie_aspm.policy=powersupersave"
     "resume_offset=533760"

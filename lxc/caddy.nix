@@ -30,7 +30,7 @@ in
     enable = true;
     package = pkgs.caddy.withPlugins {
       plugins = [ "github.com/caddy-dns/cloudflare@v0.2.2" ];
-      hash = "sha256-wHW0l15aLswe7gV9WioXo//abd0sJI82I7zIroRG3uU=";
+      hash = "sha256-7g8zDx5RhbptXFyEPtexxkHX8hw/gF001bZ7wX4Mjhs=";
     };
     email = "cmj2405@gmail.com";
 
@@ -53,8 +53,4 @@ ${hostsLib.generateCaddyConfig}
   systemd.services.caddy.serviceConfig = {
     EnvironmentFile = config.sops.secrets.cloudflare_api_token.path;
   };
-
-  environment.systemPackages = with pkgs; [
-    caddy
-  ];
 }

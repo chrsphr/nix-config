@@ -26,8 +26,14 @@ in
   };
   proxmoxLXC = {
     manageNetwork = false;
-    privileged = true;
+    # All containers run unprivileged on the Proxmox side (unprivileged: 1 in
+    # every /etc/pve/lxc/*.conf) — don't claim otherwise here.
+    privileged = false;
   };
+
+  # No interactive docs needed in containers; trims closure size and eval time
+  # (same rationale as common-desktop.nix).
+  documentation.enable = false;
 
   # Suppress problematic units in LXC
   systemd.suppressedSystemUnits = [
@@ -93,13 +99,6 @@ in
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
-
-  # valkey integration tests are flaky in sandboxed builds (psync2-master-restart)
-  nixpkgs.overlays = [
-    (final: prev: {
-      valkey = prev.valkey.overrideAttrs (_: { doCheck = false; });
-    })
-  ];
 
   # Container-specific settings
   boot.isContainer = true;

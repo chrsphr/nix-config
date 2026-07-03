@@ -103,10 +103,13 @@
         prefetch-key     = true;
         num-threads      = 2;       # bump to match CPU cores on beefy hardware
 
-        # Cache sizing (tune to available RAM)
-        msg-cache-size   = "128m";
-        rrset-cache-size = "256m";
-        cache-min-ttl    = 3600;
+        # Cache sizing — unbound's resident footprint runs ~2x the configured
+        # caches, and these LXCs only have 2G. A home LAN's hot DNS set fits in
+        # a few MB, so keep this small.
+        msg-cache-size   = "16m";
+        rrset-cache-size = "32m";
+        # No cache-min-ttl: forcing a floor serves stale records for CDNs /
+        # failover names, and prefetch already keeps popular names warm.
         cache-max-ttl    = 86400;
 
         # EDNS / upstream buffer
@@ -128,8 +131,13 @@
     };
   };
 
-  # Ensure unbound starts before pihole
-  systemd.services.unbound.before = [ "pihole.service" ];
+  # Ensure unbound starts before pihole (the unit is pihole-ftl.service —
+  # a bare "pihole.service" reference orders against nothing).
+  systemd.services.unbound.before = [ "pihole-ftl.service" ];
+  systemd.services.pihole-ftl = {
+    wants = [ "unbound.service" ];
+    after = [ "unbound.service" ];
+  };
 
   # ── Disable systemd-resolved (conflicts on port 53) ─────────────────────────
   services.resolved.enable = false;

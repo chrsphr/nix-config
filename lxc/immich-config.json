@@ -7,7 +7,7 @@
     }
   },
   "ffmpeg": {
-    "accel": "qsv",
+    "accel": "vaapi",
     "accelDecode": true,
     "acceptedAudioCodecs": [
       "aac",
@@ -63,7 +63,7 @@
       "concurrency": 5
     },
     "faceDetection": {
-      "concurrency": 100
+      "concurrency": 10
     },
     "library": {
       "concurrency": 20
@@ -84,13 +84,13 @@
       "concurrency": 5
     },
     "sidecar": {
-      "concurrency": 50
+      "concurrency": 5
     },
     "smartSearch": {
       "concurrency": 5
     },
     "thumbnailGeneration": {
-      "concurrency": 50
+      "concurrency": 5
     },
     "videoConversion": {
       "concurrency": 2

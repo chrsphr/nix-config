@@ -104,22 +104,9 @@
   # to bind ("RTSP server ... Address already in use"). Restrict it to chris.
   systemd.user.services.sunshine.unitConfig.ConditionUser = "chris";
 
-  # CPU: keep the amd-pstate-epp powersave governor but bias the EPP hint toward
-  # performance so clocks ramp quickly under load.
-  systemd.services.cpu-epp = {
-    description = "Set AMD P-State energy_performance_preference";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-    };
-    script = ''
-      for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
-        echo balance_performance > "$f"
-      done
-    '';
-  };
+  # CPU EPP: GNOME's power-profiles-daemon already sets balance_performance on
+  # the default "balanced" profile (and re-asserts it on profile changes), so no
+  # custom oneshot is needed here.
 
   # Feral GameMode — on-demand performance for games (opt-in per title).
   programs.gamemode.enable = true;

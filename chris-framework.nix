@@ -24,10 +24,12 @@
   # Audio codec power saving (revert to power_save=0 if clicking sounds occur)
   boot.extraModprobeConfig = ''
     options snd_hda_intel power_save=1
-    # Enable U-APSD (trigger-based Wi-Fi power save) on the Intel AX210. Lowers
-    # idle radio power vs. the iwlwifi default of uapsd_disable=3. Revert to 3 if
-    # the AP misbehaves (latency spikes, disconnects on power-save negotiation).
-    options iwlwifi uapsd_disable=3
+    # Enable U-APSD (trigger-based Wi-Fi power save) on the Intel AX210 (swapped
+    # in for the stock MT7925). uapsd_disable is a bitmask: 3 = disabled on
+    # BSS+P2P (the driver default), 0 = enabled. Lowers idle radio power; revert
+    # to 3 if the AP misbehaves (latency spikes, disconnects on power-save
+    # negotiation).
+    options iwlwifi uapsd_disable=0
   '';
 
   boot.resumeDevice = "/dev/mapper/cryptroot";
@@ -79,9 +81,11 @@
   hardware.firmware = [ pkgs-unstable.linux-firmware ];
   boot.kernelModules = [ "btusb" "btrtl" ];
 
-  # Power management
+  # Power management. powertop auto-tune deliberately NOT enabled: it blanket-
+  # enables USB autosuspend (input-device stutter after idle) and re-applies
+  # knobs that power-profiles-daemon then manages differently — let ppd own
+  # runtime power policy.
   services.power-profiles-daemon.enable = true;
-  powerManagement.powertop.enable = true;  # Auto-tune power optimizations
 
   # Disable avahi/mDNS: it runs constantly and adds idle wakeups for little
   # benefit here. Trade-off: no .local hostname resolution or auto-discovery of

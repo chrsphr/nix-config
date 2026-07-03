@@ -40,6 +40,11 @@
     lib = nixpkgs.lib;
     hostsConfig = import ./hosts.nix { inherit lib; };
 
+    # Single shared unstable instance. Each `import nixpkgs { … }` evaluates a
+    # whole nixpkgs; instantiating it once here instead of per-specialArgs site
+    # is the biggest eval-time/memory win in this flake.
+    pkgs-unstable = import nixpkgs-unstable { inherit system; config.allowUnfree = true; };
+
     # Generate deploy-rs nodes for all hosts that exist in both hosts.nix and nixosConfigurations
     mkDeployNodes = configs:
       lib.mapAttrs (name: cfg:
@@ -71,7 +76,7 @@
       };
       immich = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
+        specialArgs = { inherit pkgs-unstable; };
         modules = [
           ./lxc/immich.nix
           sops-nix.nixosModules.sops
@@ -92,7 +97,7 @@
       };   
       plex = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; };
+        specialArgs = { inherit pkgs-unstable; };
         modules = [
           ./lxc/plex.nix
         ];
@@ -146,7 +151,7 @@
 
       chris-framework = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
+        specialArgs = { inherit pkgs-unstable; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
         modules = [
           ./chris-framework.nix
           ./hardware/framework-disko.nix
@@ -156,7 +161,7 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; mcp-nixos-pkg = mcp-nixos.packages.${system}.default; };
+            home-manager.extraSpecialArgs = { inherit pkgs-unstable; mcp-nixos-pkg = mcp-nixos.packages.${system}.default; };
             home-manager.backupFileExtension = "hm-bak";
             home-manager.users.chris = import ./home/framework.nix;
           }
@@ -165,7 +170,7 @@
 
       chris-desktop = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
+        specialArgs = { inherit pkgs-unstable; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
         modules = [
           ./chris-desktop.nix
           ./hardware/desktop-disko.nix
@@ -174,7 +179,7 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; mcp-nixos-pkg = mcp-nixos.packages.${system}.default; };
+            home-manager.extraSpecialArgs = { inherit pkgs-unstable; mcp-nixos-pkg = mcp-nixos.packages.${system}.default; };
             home-manager.backupFileExtension = "hm-bak";
             home-manager.users.chris = import ./home/desktop.nix;
           }
@@ -183,7 +188,7 @@
 
       chris-wsl = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        specialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
+        specialArgs = { inherit pkgs-unstable; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
         modules = [
           nixos-wsl.nixosModules.default
           ./chris-wsl.nix
@@ -191,7 +196,7 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = { pkgs-unstable = import nixpkgs-unstable { system = "x86_64-linux"; config = { allowUnfree = true; }; }; mcp-nixos-pkg = mcp-nixos.packages.${system}.default; };
+            home-manager.extraSpecialArgs = { inherit pkgs-unstable; mcp-nixos-pkg = mcp-nixos.packages.${system}.default; };
             home-manager.users.chris = import ./home/wsl.nix;
           }
         ];
@@ -214,6 +219,8 @@
       };
     };
 
-    checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
+    # Only check the platform we actually build/deploy from — evaluating
+    # deployChecks for every deploy-rs platform quadruples `nix flake check`.
+    checks.${system} = deploy-rs.lib.${system}.deployChecks self.deploy;
   };
 }

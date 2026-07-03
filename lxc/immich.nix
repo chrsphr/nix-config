@@ -54,7 +54,21 @@
     # Database and Redis are managed automatically by the Immich module
     database.enable = true;
     redis.enable = true;
+
+    # Default is [] which sets PrivateDevices and blocks all device access —
+    # QSV needs the render node visible inside the unit's sandbox.
+    accelerationDevices = [ "/dev/dri/renderD128" ];
   };
+
+  # QSV userspace stack. The container gets /dev/dri via dev0/dev1 entries in
+  # the Proxmox config (203.conf); these provide the iHD VA-API driver and
+  # oneVPL runtime at /run/opengl-driver that jellyfin-ffmpeg loads.
+  hardware.graphics = {
+    enable = true;
+    extraPackages = with pkgs; [ intel-media-driver vpl-gpu-rt ];
+  };
+  users.users.immich.extraGroups = [ "video" "render" ];
+  environment.systemPackages = [ pkgs.libva-utils ];  # `vainfo` to verify QSV
 
   # The photo library lives on the Media NFS share, bind-mounted from the Proxmox
   # host as an *optional* mount (lxc.mount.entry … bind,optional in 203.conf) so
@@ -62,10 +76,6 @@
   # it won't run library-less when the mount is absent — it stays down until
   # /mnt/media/Photos is actually mounted again.
   systemd.services.immich-server.unitConfig.ConditionPathIsMountPoint = "/mnt/media/Photos";
-
-  environment.systemPackages = with pkgs; [
-    ffmpeg-full  # Use full ffmpeg for QSV hardware acceleration support
-  ];
 
   services.cloudflare-tunnel = {
     enable = true;

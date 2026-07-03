@@ -34,4 +34,11 @@ echo ""
 
 # deploy-rs builds locally, copies closures to remotes, activates with magic rollback.
 # Pass extra flags through, e.g.: ./deploy-all.sh --dry-activate
-exec nix run github:serokell/deploy-rs -- "$FLAKE" "$@"
+# Use the installed deploy binary (from the flake's pinned deploy-rs input, via
+# common-desktop.nix) — `nix run github:serokell/deploy-rs` fetched and
+# evaluated an unpinned copy on every run.
+if ! command -v deploy >/dev/null; then
+  echo "deploy not found — rebuild this machine first (it ships deploy-rs-pkg)." >&2
+  exit 1
+fi
+exec deploy "$FLAKE" "$@"

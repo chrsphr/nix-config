@@ -57,6 +57,14 @@
             sshUser = "deploy";
             path = deploy-rs.lib.${targetSystem}.activate.nixos configs.${name};
             remoteBuild = targetSystem != system;
+            # Magic rollback's confirmation SSH hangs intermittently on this
+            # fleet (immich/caddy/sonarr all hit it 2026-07-03; activation
+            # itself succeeded every time, then the confirm round-trip stalled
+            # and triggered a spurious rollback — one interrupted run even left
+            # beeper half-activated with sshd down). Disable it fleet-wide and
+            # verify deploys by checking services instead; Proxmox console is
+            # the recovery path if an activation ever goes bad.
+            magicRollback = false;
           };
         }
       ) (lib.filterAttrs (name: _: hostsConfig.hosts ? ${name}) configs);
@@ -203,21 +211,7 @@
       };
     };
 
-    # beeper's post-activation confirm ping reliably times out (flaky on this
-    # LXC), which would otherwise fail its deploy and — in a fleet deploy-all —
-    # roll back every node. Disable magic-rollback for it; Proxmox console is the
-    # recovery path if a beeper deploy ever goes bad.
-    deploy = {
-      # Magic-rollback confirmation needs the deployer to SSH back into the node
-      # and confirm within this window (seconds). The deploy-rs default of 30s is
-      # too tight for this fleet — confirmations regularly time out (slow agent
-      # signing / LXC round-trips) and trigger spurious rollbacks of an otherwise
-      # successful activation. Bump it globally; override per-node if needed.
-      confirmTimeout = 120;
-      nodes = lib.recursiveUpdate (mkDeployNodes self.nixosConfigurations) {
-        beeper.profiles.system.magicRollback = false;
-      };
-    };
+    deploy.nodes = mkDeployNodes self.nixosConfigurations;
 
     # Only check the platform we actually build/deploy from — evaluating
     # deployChecks for every deploy-rs platform quadruples `nix flake check`.

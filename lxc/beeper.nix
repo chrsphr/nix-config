@@ -7,15 +7,38 @@ let
   bbctlConfig = "${stateDir}/bbctl.json";
   bbctl = "${pkgs.beeper-bridge-manager}/bin/bbctl";
 
-  # Beeper's sh-telegram is the *Python* mautrix-telegram bridge (the Go rewrite
-  # isn't what Beeper provisions). bbctl launches the custom command python-style:
-  #   <cmd> -m mautrix_telegram -c config.yaml
-  # i.e. it expects <cmd> to be a Python interpreter. We instead wrap the nixpkgs
-  # bridge: drop the leading "-m mautrix_telegram" and forward the rest to its
-  # real entrypoint, which takes the same -c config.yaml.
+  # Telegram: as of v26.04 (calver tag v0.26xx.0) the bridge is a Go bridgev2
+  # rewrite, so — like signal/whatsapp — it speaks the /provision/v3 API, reports
+  # remote-connection state to Beeper (shows up + manageable in the app), and
+  # needs no Python-interpreter wrapper. nixpkgs still only ships the old Python
+  # 0.15.3, so build the Go bridge from the upstream tagged release, same pattern
+  # as bluesky below. The Go bridge auto-migrates the Python DB/config in place on
+  # first start (cmd/mautrix-telegram/legacymigrate.{go,sql}). Bump version + both
+  # hashes to upgrade.
+  mautrix-telegram = pkgs.buildGoModule rec {
+    pname = "mautrix-telegram";
+    version = "0.2606.0";
+    src = pkgs.fetchFromGitHub {
+      owner = "mautrix";
+      repo = "telegram";
+      rev = "v${version}";
+      hash = "sha256-tKoqtGCkUtCT/SMxRX6LzivGu0p/AM6TPDQoW9plTyE=";
+    };
+    vendorHash = "sha256-+VDdJg5RZzMrphJ5SK+YbdENhPiHJpwGY/JqBJewtUo=";
+    subPackages = [ "cmd/mautrix-telegram" ];
+    tags = [ "goolm" ];
+    ldflags = [ "-s" "-w" "-X" "main.Tag=v${version}" "-X" "main.Commit=${src.rev}" ];
+  };
+
+  # bbctl still classifies `sh-telegram` as the *Python* bridge server-side, so it
+  # launches the custom command python-style: `<cmd> -m mautrix_telegram -c config.yaml`.
+  # The Go binary doesn't understand `-m` (it exits with "Unknown flag: m"), so we
+  # keep a thin wrapper that strips the leading `-m <module>` and forwards the rest
+  # (`-c config.yaml`) to the real Go entrypoint. Same trick as before, now pointing
+  # at the Go bridge instead of Python.
   telegramCmd = pkgs.writeShellScript "mautrix-telegram-bbctl" ''
     if [ "$1" = "-m" ]; then shift 2; fi
-    exec ${pkgs.mautrix-telegram}/bin/mautrix-telegram "$@"
+    exec ${mautrix-telegram}/bin/mautrix-telegram "$@"
   '';
 
   # Bluesky is a Go bridgev2 bridge but isn't packaged in nixpkgs, so build it
@@ -38,14 +61,30 @@ let
     ldflags = [ "-s" "-w" "-X" "main.Tag=v${version}" "-X" "main.Commit=${src.rev}" ];
   };
 
+  # mautrix-signal v26.06 declares only {attachmentBackfill, spqr} device
+  # capabilities (pkg/signalmeow/provisioning.go), but current Signal apps also
+  # advertise usernameChangeSyncMessage. Signal's server rejects linking a new
+  # device that is "missing a capability supported by all other devices on the
+  # account" with `409 Conflict` — which breaks (re)linking once the account's
+  # phone/desktop have upgraded. Upstream `main` adds the capability and the Go
+  # deps are unchanged from v26.06, so patch it into the nixpkgs build (vendorHash
+  # unaffected). Drop this override once a tagged release ships it.
+  mautrix-signal = pkgs.mautrix-signal.overrideAttrs (old: {
+    postPatch = (old.postPatch or "") + ''
+      substituteInPlace pkg/signalmeow/provisioning.go \
+        --replace-fail '"attachmentBackfill": true,' '"attachmentBackfill": true,
+        "usernameChangeSyncMessage": true,'
+    '';
+  });
+
   # Self-hosted Beeper bridges, as name -> the command bbctl should launch via
   # --custom-startup-command (which disables all downloads — nothing non-Nix ever
-  # runs). signal/whatsapp are the modern Go bridgev2 binaries from nixpkgs;
-  # telegram is the Python bridge via the wrapper above; bluesky is the Go bridge
-  # built from source above. See the README "Beeper bridges" section for how to
-  # add/remove a bridge and the one-time login bootstrap.
+  # runs). signal (capability-patched above) and whatsapp are Go bridgev2 binaries
+  # from nixpkgs; telegram/bluesky are Go bridgev2 bridges built from source above.
+  # See the README "Beeper bridges" section for how to add/remove a bridge and the
+  # one-time login bootstrap.
   bridges = {
-    signal    = "${pkgs.mautrix-signal}/bin/mautrix-signal";
+    signal    = "${mautrix-signal}/bin/mautrix-signal";
     whatsapp  = "${pkgs.mautrix-whatsapp}/bin/mautrix-whatsapp";
     telegram  = "${telegramCmd}";
     bluesky   = "${mautrix-bluesky}/bin/mautrix-bluesky";
@@ -94,12 +133,10 @@ in
     "d ${stateDir} 0750 beeper beeper - -"
   ];
 
-  environment.systemPackages = with pkgs; [
+  environment.systemPackages = (with pkgs; [
     beeper-bridge-manager
-    mautrix-signal
     mautrix-whatsapp
-    mautrix-telegram
-  ] ++ [ mautrix-bluesky ];
+  ]) ++ [ mautrix-signal mautrix-telegram mautrix-bluesky ];
 
   systemd.services = lib.mapAttrs'
     (name: command: lib.nameValuePair "mautrix-${name}" (mkBridgeService name command))

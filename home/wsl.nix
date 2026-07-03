@@ -9,7 +9,7 @@
   home.homeDirectory = "/home/chris";
 
   # Home Manager state version
-  home.stateVersion = "25.11";
+  home.stateVersion = "26.05";
 
   # Dev-focused packages for WSL
   home.packages = with pkgs; [
@@ -25,7 +25,7 @@
     unzip
     socat      # For 1Password SSH agent bridge
     sshpass    # For SSH with passwords
-
+    pkgs-unstable.github-copilot-cli
     # Python with data science packages and virtualenv support
     (python3.withPackages (ps: with ps; [
       requests

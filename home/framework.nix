@@ -16,6 +16,8 @@
     moonlight-qt
     lm_sensors
     trayscale  # Tailscale GUI tray app
+    pkgs-unstable.claude-code
+
   ];
 
   # Framework-specific bash aliases

@@ -20,6 +20,8 @@
     sysstat
     handbrake
     filebot
+    pkgs-unstable.claude-code
+
   ];
 
   # Desktop-specific bash aliases

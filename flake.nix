@@ -22,7 +22,7 @@
     };
     gb-grid = {
       url = "github:chrsphr/gb-grid";
-      inputs.nixpkgs.follows = "nixpkgs-unstable";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
     disko = {
       url = "github:nix-community/disko";

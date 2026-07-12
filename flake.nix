@@ -97,12 +97,6 @@
           sops-nix.nixosModules.sops
         ];
       };
-      transcode = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/transcode.nix
-        ];
-      };   
       plex = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { inherit pkgs-unstable; };

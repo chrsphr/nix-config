@@ -88,9 +88,6 @@ let
         group = "Hutch Primary Services";
       };
     };
-    transcode = {
-      ip = "192.168.1.74";
-    };
     sonarr = {
       ip = "192.168.1.75";
       port = 8989;

@@ -37,7 +37,7 @@ in
   # Shared GUI packages for both desktop and framework laptop
   home.packages = with pkgs; [
     pkgs-unstable.beeper
-    pkgs-unstable.qgis
+    qgis
     vscode
     spotify
     conda

@@ -109,11 +109,16 @@
       echo 90 > /sys/class/power_supply/BAT1/charge_control_end_threshold
     '';
   };
-  services.logind.settings.Login.HandleLidSwitch = "suspend-then-hibernate";
-  services.logind.settings.Login.HandlePowerKey = "suspend-then-hibernate";
+  # Hibernate disabled 2026-07-12: resume-from-hibernate corrupts amdgpu's TTM
+  # LRU bulk-move state, hard-locking the machine on a later GPU submission
+  # (ttm_lru_bulk_move_tail oops / list_del corruption in amdgpu_cs_ioctl).
+  # 16 identical crashes since suspend-then-hibernate was enabled on 2026-05-29,
+  # across kernels 7.0.10 through 7.1.3 — an upstream amdgpu bug, not a kernel
+  # regression. pstore dumps: /var/lib/systemd/pstore/. Restore
+  # suspend-then-hibernate + HibernateDelaySec once fixed upstream.
+  services.logind.settings.Login.HandleLidSwitch = "suspend";
+  services.logind.settings.Login.HandlePowerKey = "suspend";
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
-
-  systemd.sleep.settings.Sleep = { HibernateDelaySec="30min";};
 
   # Skip the systemd-boot menu on cold boot (laptop only — no dual-boot).
   boot.loader.timeout = 0;

@@ -54,7 +54,7 @@ in
     nixos-generators
     drawio
     google-chrome
-    (pkgs-unstable.darktable.override { withAi = true; })
+    pkgs-unstable.darktable
     onnxruntime
     python3
     pkgs-unstable.gemini-cli

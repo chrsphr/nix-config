@@ -54,11 +54,14 @@ in
     nixos-generators
     drawio
     google-chrome
-    pkgs-unstable.darktable
+    # Pinned to stable: unstable's darktable 5.6.0 aborts at launch with a
+    # gflags "flagfile ... linked both statically and dynamically" conflict
+    # (opencv/gmic/glog pull in gflags). Revisit when nixpkgs unstable fixes it.
+    darktable
     onnxruntime
     python3
-    pkgs-unstable.gemini-cli
-    pkgs-unstable.antigravity
+    gemini-cli
+    antigravity
     gh
     discord
     uv
@@ -71,7 +74,7 @@ in
     gnomeExtensions.emoji-copy
     gnomeExtensions.appindicator
     gnomeExtensions.battery-time
-    chromaleon
+    #chromaleon
   ];
 
   # Start 1Password minimised at login

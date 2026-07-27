@@ -18,6 +18,11 @@ in
     dates = "weekly";
     options = "--delete-older-than 14d";
   };
+  # GC walks the whole store and unlinks a lot — don't do it on battery.
+  # No-op on the desktop (systemd treats "no battery" as on AC).
+  # unitConfig: ConditionACPower is a [Unit] directive (matches how the
+  # upstream nix-optimise unit sets it).
+  systemd.services.nix-gc.unitConfig.ConditionACPower = true;
 
   # Bootloader
   boot.loader.systemd-boot.enable = true;

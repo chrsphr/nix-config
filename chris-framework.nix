@@ -35,14 +35,20 @@
   boot.resumeDevice = "/dev/mapper/cryptroot";
   boot.kernelParams = [
     "mem_sleep_default=s2idle"
-    # CPPC preferred-core ranking. The firmware advertises differentiated cores
-    # (Zen 5 highest_perf ~196-208 vs Zen 5c ~135), so amd-pstate can steer
-    # bursty/foreground work onto the cores that boost highest. The kernel
-    # parameter is "amd_prefcore" (NOT amd_pstate.prefcore); default is enabled
-    # but /sys/devices/system/cpu/amd_pstate/prefcore read "disabled", so request
-    # it explicitly. If it still reads "disabled" after a rebuild+reboot, it's a
-    # Krackan Point / amd-pstate driver quirk, not this config or the BIOS.
-    "amd_prefcore=enable"
+    # No amd_prefcore= param here. It was tried and is a confirmed no-op on this
+    # platform: amd-pstate isn't the preferred-core mechanism on Krackan Point —
+    # amd_hfi (AMD Hardware Feedback Interface) is, and it binds fine here
+    # (AMDI0104:00). Neither one is actually feeding core ranking to the
+    # scheduler though:
+    #   /proc/sys/kernel/sched_itmt_enabled  -> does not exist
+    #   cpu_capacity (all 16 CPUs)           -> uniform 1024
+    #   amd_hfi kernel messages              -> none
+    # despite CONFIG_SCHED_MC_PRIO=y + CONFIG_AMD_HFI=y and a clearly hybrid
+    # topology (amd_pstate_highest_perf alternates 196 / 135 across the 16
+    # policies). sched_itmt_enabled only appears once a driver calls
+    # sched_set_itmt_support(), so nothing has registered ranking. That's an
+    # upstream driver gap, not something a kernel param fixes — recheck after
+    # kernel bumps by looking for sched_itmt_enabled.
     "amdgpu.cwsr_enable=0"
     "pcie_aspm.policy=powersupersave"
     "resume_offset=533760"
@@ -86,6 +92,35 @@
   # knobs that power-profiles-daemon then manages differently — let ppd own
   # runtime power policy.
   services.power-profiles-daemon.enable = true;
+
+  # Targeted PCI runtime PM. The NVMe comes up with power/control=on and never
+  # idles its link. Scoped by driver rather than blanket-tuned so USB is
+  # untouched (all USB devices already read `auto` anyway) and so ppd keeps
+  # owning everything else. amdgpu is deliberately excluded — `on` is correct
+  # for an iGPU.
+  #
+  # No iwlwifi rule: it was tried and the driver overrides it. udevadm test
+  # confirms the rule matches and writes "auto", but the AX210 reports
+  # runtime_enabled=forbidden with runtime_usage=2 — iwlwifi holds PM references
+  # and doesn't support PCI runtime PM on this device (d0i3 was removed from the
+  # driver years ago). No udev rule can win that.
+  #
+  # NVMe status is unproven: control=auto took, but check
+  # /sys/bus/pci/devices/0000:bf:00.0/power/runtime_suspended_time after a few
+  # hours of light use — if it's still 0, the root fs never idles long enough
+  # and this rule can go too.
+  services.udev.extraRules = ''
+    ACTION=="add", SUBSYSTEM=="pci", DRIVERS=="nvme", ATTR{power/control}="auto"
+  '';
+
+  # GNOME's file indexer. It re-scans on every large tree change (nix-config
+  # checkouts, builds) and costs CPU + NVMe wakeups for a search feature that
+  # isn't used here. Filename search in Files still works; full-text/content
+  # search does not.
+  services.gnome.localsearch.enable = false;
+
+  # Firmware metadata refresh pulls over the network on a timer — on AC only.
+  systemd.services.fwupd-refresh.unitConfig.ConditionACPower = true;
 
   # Disable avahi/mDNS: it runs constantly and adds idle wakeups for little
   # benefit here. Trade-off: no .local hostname resolution or auto-discovery of
@@ -151,5 +186,14 @@
   # Postgres + Grafana up via `docker compose`; merges with common-desktop's
   # chris groups.
   virtualisation.docker.enable = true;
+  # Socket-activated rather than started at boot: dockerd is only wanted inside
+  # the gb-grid dev shell, so it comes up on the first `docker` call instead of
+  # idling every session. Containers with `--restart=always` won't survive a
+  # reboot under this — flip back to true if that's ever needed.
+  virtualisation.docker.enableOnBoot = false;
   users.users.chris.extraGroups = [ "docker" ];
+
+  # Journal was at 2.1 GB uncapped — steady write amplification on a compressed
+  # btrfs root, which works against vm.dirty_writeback_centisecs above.
+  services.journald.extraConfig = "SystemMaxUse=500M";
 }

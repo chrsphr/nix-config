@@ -68,6 +68,7 @@ in
     amdgpu_top
     libva-utils  # `vainfo` to verify VA-API hardware video decode
     libreoffice-fresh
+    firefox-gnome-theme
 
     # GNOME Extensions
     gnomeExtensions.blur-my-shell

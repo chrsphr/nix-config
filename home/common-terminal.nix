@@ -13,6 +13,7 @@
     # Fonts for Oh-My-Zsh / terminals
     nerd-fonts.fira-code
     nerd-fonts.meslo-lg
+    gh
   ];
 
   # Git configuration

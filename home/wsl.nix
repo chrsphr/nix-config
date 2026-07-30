@@ -38,6 +38,7 @@
 
     # pyenv for managing multiple Python versions
     pyenv
+    wsl-open
   ];
 
   # WSL-specific shell aliases and init settings (merged with common-terminal)

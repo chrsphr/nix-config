@@ -128,8 +128,19 @@
   # starts relying on mDNS.
   services.avahi.enable = false;
 
-  # Intel AX210 (iwlwifi) Wi-Fi power save (revert if home Wi-Fi latency spikes)
-  networking.networkmanager.wifi.powersave = true;
+  # Intel AX210 (iwlwifi) Wi-Fi power save: OFF. Enabled 2026-07-27, reverted
+  # 2026-07-30 — it caused exactly the latency spikes the old comment warned
+  # about, surfacing as randomly slow page loads. A sleeping radio can only
+  # wake on a beacon (beacon int 100 ≈ 102ms), and a page load is a chain of
+  # serialized round trips (DNS, SYN, TLS) that each pay that wait. Measured
+  # against the router (one hop, no DNS): sparse `ping -i 1` avg 31ms/max
+  # 112ms vs continuous `ping -i 0.02` avg 1.9ms/max 6ms; with powersave off,
+  # sparse drops to avg 1.9ms/max 3.5ms. Signal was never the issue (-59 dBm,
+  # HE-MCS 7/9, 0% loss). To re-test: compare sparse vs continuous ping to the
+  # router — jitter that vanishes under load is power save, not DNS or the ISP.
+  # U-APSD (uapsd_disable=0, above) is deliberately left on: it's the more
+  # selective mechanism and keeps some idle-power benefit without this cost.
+  networking.networkmanager.wifi.powersave = false;
 
   # Cap charge at 90% to extend battery cycle life (framework_laptop EC driver).
   # Bump to 100 before a trip with: echo 100 | sudo tee /sys/class/power_supply/BAT1/charge_control_end_threshold

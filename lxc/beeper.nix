@@ -61,30 +61,20 @@ let
     ldflags = [ "-s" "-w" "-X" "main.Tag=v${version}" "-X" "main.Commit=${src.rev}" ];
   };
 
-  # mautrix-signal v26.06 declares only {attachmentBackfill, spqr} device
-  # capabilities (pkg/signalmeow/provisioning.go), but current Signal apps also
-  # advertise usernameChangeSyncMessage. Signal's server rejects linking a new
-  # device that is "missing a capability supported by all other devices on the
-  # account" with `409 Conflict` — which breaks (re)linking once the account's
-  # phone/desktop have upgraded. Upstream `main` adds the capability and the Go
-  # deps are unchanged from v26.06, so patch it into the nixpkgs build (vendorHash
-  # unaffected). Drop this override once a tagged release ships it.
-  mautrix-signal = pkgs.mautrix-signal.overrideAttrs (old: {
-    postPatch = (old.postPatch or "") + ''
-      substituteInPlace pkg/signalmeow/provisioning.go \
-        --replace-fail '"attachmentBackfill": true,' '"attachmentBackfill": true,
-        "usernameChangeSyncMessage": true,'
-    '';
-  });
+  # (Dropped 2026-07-30) v26.06 needed a postPatch adding the
+  # usernameChangeSyncMessage device capability, without which Signal's server
+  # rejected linking a new device with `409 Conflict`. v26.07 declares it
+  # upstream in signalCapabilities (pkg/signalmeow/provisioning.go), so plain
+  # pkgs.mautrix-signal is used below.
 
   # Self-hosted Beeper bridges, as name -> the command bbctl should launch via
   # --custom-startup-command (which disables all downloads — nothing non-Nix ever
-  # runs). signal (capability-patched above) and whatsapp are Go bridgev2 binaries
-  # from nixpkgs; telegram/bluesky are Go bridgev2 bridges built from source above.
+  # runs). signal and whatsapp are Go bridgev2 binaries straight from nixpkgs;
+  # telegram/bluesky are Go bridgev2 bridges built from source above.
   # See the README "Beeper bridges" section for how to add/remove a bridge and the
   # one-time login bootstrap.
   bridges = {
-    signal    = "${mautrix-signal}/bin/mautrix-signal";
+    signal    = "${pkgs.mautrix-signal}/bin/mautrix-signal";
     whatsapp  = "${pkgs.mautrix-whatsapp}/bin/mautrix-whatsapp";
     telegram  = "${telegramCmd}";
     bluesky   = "${mautrix-bluesky}/bin/mautrix-bluesky";
@@ -136,7 +126,8 @@ in
   environment.systemPackages = (with pkgs; [
     beeper-bridge-manager
     mautrix-whatsapp
-  ]) ++ [ mautrix-signal mautrix-telegram mautrix-bluesky ];
+    mautrix-signal
+  ]) ++ [ mautrix-telegram mautrix-bluesky ];
 
   systemd.services = lib.mapAttrs'
     (name: command: lib.nameValuePair "mautrix-${name}" (mkBridgeService name command))

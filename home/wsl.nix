@@ -14,7 +14,7 @@
   # Dev-focused packages for WSL
   home.packages = with pkgs; [
     # Development tools
-    azure-cli
+    pkgs-unstable.azure-cli
     terraform
 
     # Terminal utilities
@@ -38,6 +38,7 @@
 
     # pyenv for managing multiple Python versions
     pyenv
+    wsl-open
   ];
 
   # WSL-specific shell aliases and init settings (merged with common-terminal)

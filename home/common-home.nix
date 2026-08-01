@@ -69,6 +69,7 @@ in
     libva-utils  # `vainfo` to verify VA-API hardware video decode
     libreoffice-fresh
     firefox-gnome-theme
+    resources
 
     # GNOME Extensions
     gnomeExtensions.blur-my-shell

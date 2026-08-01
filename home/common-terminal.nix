@@ -14,6 +14,8 @@
     nerd-fonts.fira-code
     nerd-fonts.meslo-lg
     gh
+    pkgs-unstable.ghostty
+    pkgs-unstable.opencode
   ];
 
   # Git configuration

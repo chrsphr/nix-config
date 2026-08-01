@@ -123,7 +123,6 @@ in
         "emoji-copy@felipeftn"
         "appindicatorsupport@rgcjonas.gmail.com"
         "batime@martin.zurowietz.de"
-        "user-accent-colors@fabito02"
       ];
     };
     "org/gnome/desktop/interface" = {

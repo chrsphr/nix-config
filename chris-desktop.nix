@@ -25,14 +25,11 @@
     # Compressed swap cache in front of the swapfile (hibernate-compatible,
     # unlike zram) so memory pressure doesn't go straight to NVMe.
     "zswap.enabled=1"
-    "zswap.compressor=zstd"
-    "zswap.zpool=zsmalloc"
   ];
 
   # AMD GPU configuration
   hardware.amdgpu = {
     initrd.enable = true;
-    opencl.enable = true;
   };
 
   # Enable Rusticl OpenCL backend for radeonsi (GFX12/RDNA4)

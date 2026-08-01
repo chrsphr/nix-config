@@ -1,4 +1,4 @@
-{ pkgs, pkgs-unstable ? pkgs, ... }:
+{ pkgs, ... }:
 
 {
   imports = [
@@ -67,8 +67,6 @@
     # Compressed swap cache in front of the swapfile (hibernate-compatible,
     # unlike zram) so memory pressure doesn't go straight to NVMe.
     "zswap.enabled=1"
-    "zswap.compressor=zstd"
-    "zswap.zpool=zsmalloc"
     # Lazy RCU: offload RCU callbacks and batch non-urgent ones to cut idle
     # wakeups (reduces idle power; used by ChromeOS). Reported as a measurable
     # battery win on the Framework AMD battery-tuning thread.
@@ -78,13 +76,11 @@
 
   # AMD GPU / OpenCL
   hardware.graphics.extraPackages = with pkgs; [
-    rocmPackages.clr.icd
     libvdpau-va-gl
   ];
 
   # Bluetooth firmware and driver support
   hardware.enableRedistributableFirmware = true;
-  hardware.firmware = [ pkgs-unstable.linux-firmware ];
   boot.kernelModules = [ "btusb" "btrtl" ];
 
   # Power management. powertop auto-tune deliberately NOT enabled: it blanket-

@@ -45,6 +45,22 @@
     # is the biggest eval-time/memory win in this flake.
     pkgs-unstable = import nixpkgs-unstable { inherit system; config.allowUnfree = true; };
 
+    # Home-manager integration shared by the personal machines. Only the home
+    # profile path differs per host, so the rest is factored out here.
+    mkHomeModules = homeProfile: [
+      home-manager.nixosModules.home-manager
+      {
+        home-manager.useGlobalPkgs = true;
+        home-manager.useUserPackages = true;
+        home-manager.extraSpecialArgs = {
+          inherit pkgs-unstable;
+          mcp-nixos-pkg = mcp-nixos.packages.${system}.default;
+        };
+        home-manager.backupFileExtension = "hm-bak";
+        home-manager.users.chris = import homeProfile;
+      }
+    ];
+
     # Generate deploy-rs nodes for all hosts that exist in both hosts.nix and nixosConfigurations
     mkDeployNodes = configs:
       lib.mapAttrs (name: cfg:
@@ -70,13 +86,13 @@
       ) (lib.filterAttrs (name: _: hostsConfig.hosts ? ${name}) configs);
   in {
     nixosConfigurations = {
-      pihole-1 = nixpkgs-unstable.lib.nixosSystem {
+      pihole-1 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./lxc/pihole-1.nix
         ];
       };
-      pihole-2 = nixpkgs-unstable.lib.nixosSystem {
+      pihole-2 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./lxc/pihole-2.nix
@@ -159,15 +175,7 @@
           ./hardware/framework-disko.nix
           disko.nixosModules.disko
           nixos-hardware.nixosModules.framework-amd-ai-300-series
-          home-manager.nixosModules.home-manager
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = { inherit pkgs-unstable; mcp-nixos-pkg = mcp-nixos.packages.${system}.default; };
-            home-manager.backupFileExtension = "hm-bak";
-            home-manager.users.chris = import ./home/framework.nix;
-          }
-        ];
+        ] ++ mkHomeModules ./home/framework.nix;
       };
 
       chris-desktop = nixpkgs.lib.nixosSystem {
@@ -177,15 +185,7 @@
           ./chris-desktop.nix
           ./hardware/desktop-disko.nix
           disko.nixosModules.disko
-          home-manager.nixosModules.home-manager
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = { inherit pkgs-unstable; mcp-nixos-pkg = mcp-nixos.packages.${system}.default; };
-            home-manager.backupFileExtension = "hm-bak";
-            home-manager.users.chris = import ./home/desktop.nix;
-          }
-        ];
+        ] ++ mkHomeModules ./home/desktop.nix;
       };
 
       chris-wsl = nixpkgs.lib.nixosSystem {
@@ -194,14 +194,7 @@
         modules = [
           nixos-wsl.nixosModules.default
           ./chris-wsl.nix
-          home-manager.nixosModules.home-manager
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.extraSpecialArgs = { inherit pkgs-unstable; mcp-nixos-pkg = mcp-nixos.packages.${system}.default; };
-            home-manager.users.chris = import ./home/wsl.nix;
-          }
-        ];
+        ] ++ mkHomeModules ./home/wsl.nix;
       };
     };
 

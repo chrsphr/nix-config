@@ -17,6 +17,9 @@ in
     wslConf.interop.appendWindowsPath = false;
   };
 
+  # No interactive docs needed in WSL; trims closure size (same rationale as common-desktop.nix).
+  documentation.enable = false;
+
   # Nix configuration
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nix.gc = {

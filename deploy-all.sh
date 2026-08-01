@@ -7,9 +7,10 @@ FLAKE="/home/chris/nix-config"
 echo "Reading hosts from hosts.nix..."
 servers=$(nix eval --impure --raw --expr '
   let
-    lib = import <nixpkgs/lib>;
+    f = builtins.getFlake (toString '"${FLAKE}"');
+    lib = f.inputs.nixpkgs.lib;
     hosts = (import '"${FLAKE}"'/hosts.nix { inherit lib; }).hosts;
-    flakeConfigs = builtins.attrNames (builtins.getFlake (toString '"${FLAKE}"')).nixosConfigurations;
+    flakeConfigs = builtins.attrNames f.nixosConfigurations;
     remoteServers = lib.filterAttrs (name: _: builtins.elem name flakeConfigs) hosts;
   in lib.concatStringsSep "\n" (lib.mapAttrsToList (name: cfg: "${name} ${cfg.ip}") remoteServers)
 ')

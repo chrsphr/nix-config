@@ -1,11 +1,11 @@
 { config, pkgs, ... }:
 
 let
-  keys = import ./modules/keys.nix;
+  keys = import ../modules/keys.nix;
 in
 {
   imports = [
-    ./modules/locale.nix
+    ../modules/locale.nix
   ];
 
   # WSL-specific configuration

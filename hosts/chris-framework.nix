@@ -2,12 +2,12 @@
 
 {
   imports = [
-    ./hardware/framework.nix
-    ./modules/common-desktop.nix
-    ./modules/luks-tpm.nix
-    ./modules/btrfs-maintenance.nix
-    ./modules/keyboard-backlight-timeout.nix
-    ./modules/nfs-home-automount.nix
+    ../hardware/framework.nix
+    ../modules/common-desktop.nix
+    ../modules/luks-tpm.nix
+    ../modules/btrfs-maintenance.nix
+    ../modules/keyboard-backlight-timeout.nix
+    ../modules/nfs-home-automount.nix
   ];
 
   # Hostname

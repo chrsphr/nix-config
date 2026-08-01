@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
 let
-  hostsLib = import ../hosts.nix { inherit lib; };
+  hostsLib = import ../../lib/network.nix { inherit lib; };
   dbUser = "gb_grid";
 in
 {
@@ -19,7 +19,7 @@ in
   # Decrypt sops secrets with the laptop age key copied onto this host
   # (out of band from 1Password) at /var/lib/sops-nix/key.txt.
   sops = {
-    defaultSopsFile = ../secrets/gb-grid.yaml;
+    defaultSopsFile = ../../secrets/gb-grid.yaml;
     age.keyFile = "/var/lib/sops-nix/key.txt";
     secrets.postgres_password = {
       owner = "postgres";

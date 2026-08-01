@@ -3,14 +3,14 @@
 {
   imports = [
     ./common-lxc.nix
-    ../modules/cloudflare-tunnel.nix
+    ../../modules/cloudflare-tunnel.nix
   ];
 
   networking.hostName = "immich";
 
   # Configure sops for secrets management
   sops = {
-    defaultSopsFile = ../secrets/immich.yaml;
+    defaultSopsFile = ../../secrets/immich.yaml;
     age.keyFile = "/home/deploy/.config/sops/age/keys.txt";
     secrets = {
       oauth_client_id = {

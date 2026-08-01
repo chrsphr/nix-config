@@ -259,7 +259,7 @@ ${headersConfig}${tlsConfig}      }'' else "";
           url = "tcp://${hostCfg.ip}:${toString targetPort}";
           conditions = [ "[CONNECTED] == true" ];
         }
-      else throw "hosts.nix: unknown monitor type '${type}' for ${hostName}";
+      else throw "lib/network.nix: unknown monitor type '${type}' for ${hostName}";
 
   # Expand a host's monitor field (attrset or list) into a list of endpoints
   mkHostEndpoints = defaultAlerts: hostName: hostCfg:

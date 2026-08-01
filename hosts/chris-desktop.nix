@@ -2,10 +2,10 @@
 
 {
   imports = [
-    ./hardware/desktop.nix
-    ./modules/common-desktop.nix
-    ./modules/luks-tpm.nix
-    ./modules/btrfs-maintenance.nix
+    ../hardware/desktop.nix
+    ../modules/common-desktop.nix
+    ../modules/luks-tpm.nix
+    ../modules/btrfs-maintenance.nix
   ];
 
   # Hostname

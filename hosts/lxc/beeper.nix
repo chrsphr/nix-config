@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
 let
-  hostsLib = import ../hosts.nix { inherit lib; };
+  hostsLib = import ../../lib/network.nix { inherit lib; };
 
   stateDir = "/var/lib/beeper";
   bbctlConfig = "${stateDir}/bbctl.json";

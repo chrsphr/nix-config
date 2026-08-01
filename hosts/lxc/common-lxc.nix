@@ -1,7 +1,7 @@
 { config, modulesPath, pkgs, lib, ... }:
 
 let
-  keys = import ../modules/keys.nix;
+  keys = import ../../modules/keys.nix;
 in
 {
   imports = [

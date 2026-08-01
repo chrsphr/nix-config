@@ -24,12 +24,12 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `transmission` | 192.168.1.136 | Torrent client |
 | `sonarr` | 192.168.1.75 | TV automation |
 | `prowlarr` | 192.168.1.75 | Indexer manager (co-located on sonarr host) |
-| `uptime` | 192.168.1.31 | Uptime monitoring (Gatus, declarative via `hosts.nix`). External access via Cloudflare tunnel is **TODO** — currently only reachable on the LAN at `http://192.168.1.31:3001`. |
+| `uptime` | 192.168.1.31 | Uptime monitoring (Gatus, declarative via `lib/network.nix`). External access via Cloudflare tunnel is **TODO** — currently only reachable on the LAN at `http://192.168.1.31:3001`. |
 | `tailscale` | 192.168.1.207 | VPN exit node |
 | `gb-grid` | 192.168.1.28 | GB power grid Postgres + BMRS ingester |
-| `beeper` | 192.168.1.40 | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp are Go bridgev2 binaries; Telegram is the nixpkgs Python bridge (Beeper's `sh-telegram` is Python) launched via a small wrapper; Bluesky is the Go bridge built from a pinned upstream release. One-time `bbctl login` bootstrap required; see `lxc/beeper.nix`. |
+| `beeper` | 192.168.1.40 | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp are Go bridgev2 binaries; Telegram is the nixpkgs Python bridge (Beeper's `sh-telegram` is Python) launched via a small wrapper; Bluesky is the Go bridge built from a pinned upstream release. One-time `bbctl login` bootstrap required; see `hosts/lxc/beeper.nix`. |
 
-All host IPs and Caddy routing are defined in `hosts.nix` — the single source of truth for network topology.
+All host IPs and Caddy routing are defined in `lib/network.nix` — the single source of truth for network topology.
 
 ---
 
@@ -49,7 +49,7 @@ sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-framework
 
 ### Remote deployment with deploy-rs
 
-Remote deploys use [deploy-rs](https://github.com/serokell/deploy-rs). Deploy nodes are auto-generated from `hosts.nix` — any host that exists in both `hosts.nix` and `nixosConfigurations` gets a deploy node. All builds happen locally and closures are copied to the target.
+Remote deploys use [deploy-rs](https://github.com/serokell/deploy-rs). Deploy nodes are auto-generated from `lib/network.nix` — any host that exists in both `lib/network.nix` and `nixosConfigurations` gets a deploy node. All builds happen locally and closures are copied to the target.
 
 Deploy all servers (shows a confirmation prompt first):
 
@@ -182,11 +182,11 @@ sops updatekeys secrets/<name>.yaml
 
 ## Monitoring (Gatus)
 
-The `uptime` host runs [Gatus](https://gatus.io). Monitor definitions live next to each host entry in `hosts.nix`, so a single source of truth covers IP, port, Caddy routing, and uptime checks. `uptime.nix` is just a thin shell that calls `hostsLib.generateGatusEndpoints`.
+The `uptime` host runs [Gatus](https://gatus.io). Monitor definitions live next to each host entry in `lib/network.nix`, so a single source of truth covers IP, port, Caddy routing, and uptime checks. `uptime.nix` is just a thin shell that calls `hostsLib.generateGatusEndpoints`.
 
 ### How to add or change a monitor
 
-Add a `monitor` field to any entry in `hosts.nix`. It can be a single attrset or a list (for hosts that need multiple checks, e.g. v4 + v6 DNS):
+Add a `monitor` field to any entry in `lib/network.nix`. It can be a single attrset or a list (for hosts that need multiple checks, e.g. v4 + v6 DNS):
 
 ```nix
 immich = {
@@ -232,7 +232,7 @@ endpoints = hostsLib.generateGatusEndpoints {
 
 ### Authenticated checks (secrets)
 
-For monitors that need credentials (e.g. Proxmox API token), put only the secret value in `secrets/uptime.yaml` and reference it via `${ENV_VAR}` interpolation. The non-secret prefix (user/realm/token-name) stays in `hosts.nix`. See the `proxmox`/`minimox` entries for a working example.
+For monitors that need credentials (e.g. Proxmox API token), put only the secret value in `secrets/uptime.yaml` and reference it via `${ENV_VAR}` interpolation. The non-secret prefix (user/realm/token-name) stays in `lib/network.nix`. See the `proxmox`/`minimox` entries for a working example.
 
 ```bash
 # Add or edit a secret
@@ -257,13 +257,13 @@ Gatus reloads on activation. State (uptime history) lives in `/var/lib/gatus/dat
 
 ## Beeper bridges (`beeper`)
 
-The `beeper` LXC (192.168.1.40, on **minimox**) self-hosts [mautrix](https://github.com/mautrix) chat bridges connected to a personal **Beeper** account. Config is in `lxc/beeper.nix`.
+The `beeper` LXC (192.168.1.40, on **minimox**) self-hosts [mautrix](https://github.com/mautrix) chat bridges connected to a personal **Beeper** account. Config is in `hosts/lxc/beeper.nix`.
 
 ### How it works
 
 Each bridge runs on this box and dials **outbound** over a websocket to Beeper's hosted Matrix server (`matrix.beeper.com`); messages are then read in the normal **Beeper app** on any device. Consequences:
 
-- **No inbound anything** — no Caddy entry, no Cloudflare tunnel, no port forwarding. The only listening port is SSH (admin via Tailscale/LAN). That's why `beeper` has just a port-22 Gatus monitor and no `caddy` flag in `hosts.nix`.
+- **No inbound anything** — no Caddy entry, no Cloudflare tunnel, no port forwarding. The only listening port is SSH (admin via Tailscale/LAN). That's why `beeper` has just a port-22 Gatus monitor and no `caddy` flag in `lib/network.nix`.
 - Self-hosting keeps your **third-party credentials/sessions** (WhatsApp link, Signal reg, etc.) on this box, never on Beeper. Message **content** can be end-to-bridge encrypted so Beeper stores only ciphertext; **metadata** still transits Beeper, and you trust their closed server.
 - [`bbctl`](https://github.com/beeper/bridge-manager) (the Beeper Bridge Manager, `beeper-bridge-manager` in nixpkgs) handles provisioning + config generation against Beeper. Each bridge is a systemd service running `bbctl run --no-update --custom-startup-command <our binary> sh-<name>` — the `--custom-startup-command` flag makes bbctl launch **our** Nix-built binary instead of downloading one, so nothing non-Nix ever executes.
 
@@ -276,7 +276,7 @@ Each bridge runs on this box and dials **outbound** over a websocket to Beeper's
 | Telegram | **built from source** (`mautrix/telegram`, Go bridgev2) via a thin wrapper | Not in nixpkgs (which still ships the old Python 0.15.3). Since v26.04 the bridge is a Go bridgev2 rewrite. Pinned to an upstream calver tag via `buildGoModule` with `tags = [ "goolm" ]`; auto-migrates the old Python DB in place on first start. bbctl still classifies `sh-telegram` as Python server-side, so it launches the command as `-m mautrix_telegram -c config.yaml`; the Go binary rejects `-m`, so `telegramCmd` strips the leading `-m <module>` and forwards `-c config.yaml`. |
 | Bluesky | **built from source** (`mautrix/bluesky`, Go bridgev2) | Not in nixpkgs. Pinned to an upstream tag via `buildGoModule` with `tags = [ "goolm" ]` (pure-Go olm, no libolm/CGO). |
 
-The bridges are defined as a `name -> command` attrset in `lxc/beeper.nix`; one systemd unit per entry is generated by `mkBridgeService`. Each unit has `ConditionPathExists = /var/lib/beeper/bbctl.json`, so it stays inactive (no fail-loop) until the one-time login below.
+The bridges are defined as a `name -> command` attrset in `hosts/lxc/beeper.nix`; one systemd unit per entry is generated by `mkBridgeService`. Each unit has `ConditionPathExists = /var/lib/beeper/bbctl.json`, so it stays inactive (no fail-loop) until the one-time login below.
 
 ### One-time bootstrap (imperative)
 
@@ -323,21 +323,22 @@ Build and deploy like any other host (`deploy .#beeper`). **Caveat:** deploy-rs'
 ## Repository structure
 
 ```
-flake.nix                  # Flake inputs, NixOS configs, deploy-rs nodes
+flake.nix                  # Flake inputs, host table (one line per machine), deploy-rs nodes
 flake.lock                 # Pinned dependency versions
-hosts.nix                  # Network topology — IPs, ports, Caddy routing
+lib/network.nix            # Network topology — IPs, ports, Caddy routing, Gatus monitors
 deploy-all.sh              # Deploy all servers (with confirmation prompt)
 .sops.yaml                 # Age encryption rules per host
 
-chris-desktop.nix          # Top-level config for desktop
-chris-framework.nix        # Top-level config for Framework laptop
-chris-wsl.nix              # Top-level config for WSL
+hosts/                     # One file per machine
+  chris-framework.nix      # Framework laptop
+  chris-desktop.nix        # Desktop (gaming/workstation)
+  chris-wsl.nix            # WSL
+  lxc/                     # Proxmox LXC container configurations
+    common-lxc.nix         # Base for all server/LXC containers
+    caddy.nix              # Reverse proxy
+    immich.nix             # Photo management
+    ...
 hardware/                  # Hardware-specific configs (Framework, desktop)
-lxc/                       # Proxmox LXC container configurations
-  common-lxc.nix           # Base for all server/LXC containers
-  caddy.nix                # Reverse proxy
-  immich.nix               # Photo management
-  ...
 modules/                   # Reusable NixOS modules
   common-desktop.nix       # Base for desktop machines (GNOME, Tailscale, etc.)
   cloudflare-tunnel.nix    # Cloudflare tunnel service wrapper
@@ -358,9 +359,9 @@ secrets/                   # sops-nix encrypted YAML files
 
 ### Add a new server
 
-1. Create `<hostname>.nix` importing `common.nix` and any relevant modules.
-2. Add the host to `flake.nix` under `nixosConfigurations`.
-3. Add the host to `hosts.nix` with its IP (and `caddy = true` if it needs a reverse proxy entry).
+1. Create `hosts/lxc/<hostname>.nix` importing `./common-lxc.nix` and any relevant modules.
+2. Add one line to `flake.nix` under `nixosConfigurations` — `mkLxc ./hosts/lxc/<hostname>.nix;` (or `mkSopsLxc` if it has secrets).
+3. Add the host to `lib/network.nix` with its IP (and `caddy = true` if it needs a reverse proxy entry).
 4. If it needs secrets, add its age key to `.sops.yaml` and create `secrets/<hostname>.yaml`.
 5. Boot the server with a NixOS installer, then deploy:
 

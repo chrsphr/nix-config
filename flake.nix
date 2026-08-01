@@ -38,12 +38,24 @@
   let
     system = "x86_64-linux";
     lib = nixpkgs.lib;
-    hostsConfig = import ./hosts.nix { inherit lib; };
+    network = import ./lib/network.nix { inherit lib; };
 
     # Single shared unstable instance. Each `import nixpkgs { … }` evaluates a
     # whole nixpkgs; instantiating it once here instead of per-specialArgs site
     # is the biggest eval-time/memory win in this flake.
     pkgs-unstable = import nixpkgs-unstable { inherit system; config.allowUnfree = true; };
+
+    # Base builder: every host gets pkgs-unstable in specialArgs — harmless
+    # where unused (only immich, plex and chris-desktop consume it).
+    mkHost = { modules, specialArgs ? {} }: lib.nixosSystem {
+      inherit system modules;
+      specialArgs = { inherit pkgs-unstable; } // specialArgs;
+    };
+
+    # Proxmox LXC container; the sops variant adds sops-nix for hosts with
+    # secrets/<hostname>.yaml.
+    mkLxc = path: mkHost { modules = [ path ]; };
+    mkSopsLxc = path: mkHost { modules = [ path sops-nix.nixosModules.sops ]; };
 
     # Home-manager integration shared by the personal machines. Only the home
     # profile path differs per host, so the rest is factored out here.
@@ -61,13 +73,19 @@
       }
     ];
 
-    # Generate deploy-rs nodes for all hosts that exist in both hosts.nix and nixosConfigurations
+    # Personal machine: home-manager plus the pinned deploy-rs CLI.
+    mkMachine = { host, home, extraModules ? [] }: mkHost {
+      modules = [ host ] ++ extraModules ++ mkHomeModules home;
+      specialArgs.deploy-rs-pkg = deploy-rs.packages.${system}.default;
+    };
+
+    # Generate deploy-rs nodes for all hosts that exist in both lib/network.nix and nixosConfigurations
     mkDeployNodes = configs:
       lib.mapAttrs (name: cfg:
         let
           targetSystem = configs.${name}.pkgs.stdenv.hostPlatform.system;
         in {
-          hostname = hostsConfig.hosts.${name}.ip;
+          hostname = network.hosts.${name}.ip;
           profiles.system = {
             user = "root";
             sshUser = "deploy";
@@ -83,118 +101,51 @@
             magicRollback = false;
           };
         }
-      ) (lib.filterAttrs (name: _: hostsConfig.hosts ? ${name}) configs);
+      ) (lib.filterAttrs (name: _: network.hosts ? ${name}) configs);
   in {
     nixosConfigurations = {
-      pihole-1 = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
+      ### Proxmox LXC containers (hosts/lxc/)
+      pihole-1 = mkLxc ./hosts/lxc/pihole-1.nix;
+      pihole-2 = mkLxc ./hosts/lxc/pihole-2.nix;
+      plex = mkLxc ./hosts/lxc/plex.nix;
+      tailscale = mkLxc ./hosts/lxc/tailscale.nix;
+      transmission = mkLxc ./hosts/lxc/transmission.nix;
+      sonarr = mkLxc ./hosts/lxc/sonarr.nix;
+      beeper = mkLxc ./hosts/lxc/beeper.nix;
+      immich = mkSopsLxc ./hosts/lxc/immich.nix;
+      caddy = mkSopsLxc ./hosts/lxc/caddy.nix;
+      uptime = mkSopsLxc ./hosts/lxc/uptime.nix;
+      gb-grid = mkHost {
         modules = [
-          ./lxc/pihole-1.nix
-        ];
-      };
-      pihole-2 = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/pihole-2.nix
-        ];
-      };
-      immich = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { inherit pkgs-unstable; };
-        modules = [
-          ./lxc/immich.nix
-          sops-nix.nixosModules.sops
-        ];
-      };
-      caddy = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/caddy.nix
-          sops-nix.nixosModules.sops
-        ];
-      };
-      plex = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { inherit pkgs-unstable; };
-        modules = [
-          ./lxc/plex.nix
-        ];
-      };
-      tailscale = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/tailscale.nix
-        ];
-      };
-      transmission = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/transmission.nix
-        ];
-      };
-      sonarr = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/sonarr.nix
-        ];
-      };
-      uptime = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/uptime.nix
-          sops-nix.nixosModules.sops
-        ];
-      };
-
-      beeper = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./lxc/beeper.nix
-        ];
-      };
-
-
-      gb-grid = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = {
-          gb-grid-pkg = gb-grid.packages.x86_64-linux.default;
-        };
-        modules = [
-          ./lxc/gb-grid.nix
+          ./hosts/lxc/gb-grid.nix
           gb-grid.nixosModules.default
           sops-nix.nixosModules.sops
         ];
+        specialArgs.gb-grid-pkg = gb-grid.packages.${system}.default;
       };
 
-
-      chris-framework = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { inherit pkgs-unstable; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
-        modules = [
-          ./chris-framework.nix
+      ### Personal machines (hosts/)
+      chris-framework = mkMachine {
+        host = ./hosts/chris-framework.nix;
+        home = ./home/framework.nix;
+        extraModules = [
           ./hardware/framework-disko.nix
           disko.nixosModules.disko
           nixos-hardware.nixosModules.framework-amd-ai-300-series
-        ] ++ mkHomeModules ./home/framework.nix;
+        ];
       };
-
-      chris-desktop = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { inherit pkgs-unstable; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
-        modules = [
-          ./chris-desktop.nix
+      chris-desktop = mkMachine {
+        host = ./hosts/chris-desktop.nix;
+        home = ./home/desktop.nix;
+        extraModules = [
           ./hardware/desktop-disko.nix
           disko.nixosModules.disko
-        ] ++ mkHomeModules ./home/desktop.nix;
+        ];
       };
-
-      chris-wsl = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { inherit pkgs-unstable; deploy-rs-pkg = deploy-rs.packages.${system}.default; };
-        modules = [
-          nixos-wsl.nixosModules.default
-          ./chris-wsl.nix
-        ] ++ mkHomeModules ./home/wsl.nix;
+      chris-wsl = mkMachine {
+        host = ./hosts/chris-wsl.nix;
+        home = ./home/wsl.nix;
+        extraModules = [ nixos-wsl.nixosModules.default ];
       };
     };
 

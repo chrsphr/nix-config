@@ -3,13 +3,13 @@ set -euo pipefail
 
 FLAKE="/home/chris/nix-config"
 
-# Extract remote servers from hosts.nix, filtered to only those with a nixosConfiguration.
-echo "Reading hosts from hosts.nix..."
+# Extract remote servers from lib/network.nix, filtered to only those with a nixosConfiguration.
+echo "Reading hosts from lib/network.nix..."
 servers=$(nix eval --impure --raw --expr '
   let
     f = builtins.getFlake (toString '"${FLAKE}"');
     lib = f.inputs.nixpkgs.lib;
-    hosts = (import '"${FLAKE}"'/hosts.nix { inherit lib; }).hosts;
+    hosts = (import '"${FLAKE}"'/lib/network.nix { inherit lib; }).hosts;
     flakeConfigs = builtins.attrNames f.nixosConfigurations;
     remoteServers = lib.filterAttrs (name: _: builtins.elem name flakeConfigs) hosts;
   in lib.concatStringsSep "\n" (lib.mapAttrsToList (name: cfg: "${name} ${cfg.ip}") remoteServers)

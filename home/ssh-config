@@ -1,0 +1,78 @@
+Host beeper
+  HostName 192.168.1.40
+  User deploy
+
+Host caddy
+  HostName 192.168.1.239
+  User deploy
+
+Host desktop
+  HostName 192.168.1.181
+  User chris
+
+Host gb-grid
+  HostName 192.168.1.28
+  User deploy
+
+Host github.com
+  IdentitiesOnly yes
+  IdentityFile ~/.ssh/id_chrsphr.pub
+
+Host ha
+  HostName 192.168.1.11
+  User root
+
+Host immich
+  HostName 192.168.1.127
+  User deploy
+
+Host lilnas
+  HostName 192.168.1.12
+  User root
+
+Host minimox
+  HostName 192.168.1.30
+  User root
+
+Host pihole-1
+  HostName 192.168.1.9
+  User deploy
+
+Host pihole-2
+  HostName 192.168.1.10
+  User deploy
+
+Host plex
+  HostName 192.168.1.209
+  User deploy
+
+Host prowlarr
+  HostName 192.168.1.75
+  User deploy
+
+Host proxmox
+  HostName 192.168.1.2
+  User root
+
+Host sonarr
+  HostName 192.168.1.75
+  User deploy
+
+Host tailscale
+  HostName 192.168.1.207
+  User deploy
+
+Host transmission
+  HostName 192.168.1.136
+  User deploy
+
+Host unifi
+  HostName 192.168.1.1
+  User root
+
+Host uptime
+  HostName 192.168.1.31
+  User deploy
+
+Host *
+  IdentityAgent ~/.1password/agent.sock

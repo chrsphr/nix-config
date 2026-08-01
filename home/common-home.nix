@@ -1,4 +1,4 @@
-{ config, pkgs, pkgs-unstable, ... }:
+{ config, lib, pkgs, pkgs-unstable, ... }:
 
 let
   # ChromaLeon (formerly "User Accent Colors"), extension id 10070. Not packaged
@@ -25,6 +25,9 @@ let
       runHook postInstall
     '';
   };
+
+  # Host inventory, single source of truth for IPs, Caddy, monitoring, SSH.
+  network = import ../lib/network.nix { inherit lib; };
 in
 {
   imports = [
@@ -141,7 +144,11 @@ in
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
-    matchBlocks = {
+    matchBlocks = (lib.mapAttrs' (name: cfg:
+      lib.nameValuePair name {
+        hostname = cfg.ip;
+        user = cfg.sshUser;
+      }) network.hosts) // {
       "github.com" = {
         identityFile = "~/.ssh/id_chrsphr.pub";
         identitiesOnly = true;
@@ -155,6 +162,11 @@ in
   # Personal GitHub public key, referenced by the github.com match block above.
   home.file.".ssh/id_chrsphr.pub".text = ''
     ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO5Kox0nkeljrafIlbuwRKOp+om+ocvpuGOGBBfGyIia GitHub
+  '';
+
+  # Keep a copy of the generated ~/.ssh/config in this repo after each switch.
+  home.activation.writeSshConfigToRepo = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    install -Dm600 "$HOME/.ssh/config" "/home/chris/nix-config/home/ssh-config"
   '';
 
   # Allow Home Manager to manage itself

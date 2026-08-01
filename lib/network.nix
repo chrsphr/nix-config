@@ -39,6 +39,7 @@ let
   hosts = {
     pihole-1 = {
       ip = "192.168.1.9";
+      sshUser = "deploy";
       port = 80;
       caddy = true;
       monitor = [
@@ -48,6 +49,7 @@ let
     };
     pihole-2 = {
       ip = "192.168.1.10";
+      sshUser = "deploy";
       port = 80;
       caddy = true;
       monitor = [
@@ -57,6 +59,7 @@ let
     };
     immich = {
       ip = "192.168.1.127";
+      sshUser = "deploy";
       port = 2283;
       caddy = true;
       monitor = {
@@ -66,6 +69,7 @@ let
     };
     caddy = {
       ip = "192.168.1.239";
+      sshUser = "deploy";
       monitor = {
         type = "http"; name = "caddy"; url = "https://caddy.${domain}";
         group = "Hutch Primary Services";
@@ -73,6 +77,7 @@ let
     };
     tailscale = {
       ip = "192.168.1.207";
+      sshUser = "deploy";
       port = 8080;
       monitor = {
         type = "http"; name = "Tailscale"; path = "/health";
@@ -81,6 +86,7 @@ let
     };
     plex = {
       ip = "192.168.1.209";
+      sshUser = "deploy";
       port = 32400;
       caddy = true;
       monitor = {
@@ -90,6 +96,7 @@ let
     };
     sonarr = {
       ip = "192.168.1.75";
+      sshUser = "deploy";
       port = 8989;
       caddy = true;
       monitor = {
@@ -98,11 +105,13 @@ let
     };
     prowlarr = {
       ip = "192.168.1.75";
+      sshUser = "deploy";
       port = 9696;
       caddy = true;
     };
     transmission = {
       ip = "192.168.1.136";
+      sshUser = "deploy";
       port = 9091;
       caddy = true;
       monitor = {
@@ -111,12 +120,14 @@ let
     };
     uptime = {
       ip = "192.168.1.31";
+      sshUser = "deploy";
       port = 3001;
       caddy = true;
     };
 
     beeper = {
       ip = "192.168.1.40";
+      sshUser = "deploy";
       monitor = {
         type = "port"; targetPort = 22; name = "Beeper bridges";
         group = "Hutch Primary Services";
@@ -125,9 +136,11 @@ let
 
     desktop = {
       ip = "192.168.1.181";
+      sshUser = "chris";
     };
     gb-grid = {
       ip = "192.168.1.28";
+      sshUser = "deploy";
       port = 3000;
       caddy = true;
       subdomain = "grid";
@@ -136,6 +149,7 @@ let
     # Non-NixOS hosts (for Caddy config + monitoring)
     ha = {
       ip = "192.168.1.11";
+      sshUser = "root";
       port = 8123;
       caddy = true;
       subdomain = "ha";
@@ -147,6 +161,7 @@ let
     };
     lilnas = {
       ip = "192.168.1.12";
+      sshUser = "root";
       port = 443;
       caddy = true;
       https = true;
@@ -157,6 +172,7 @@ let
     };
     proxmox = {
       ip = "192.168.1.2";
+      sshUser = "root";
       port = 8006;
       monitor = {
         type = "http"; name = "Proxmox"; scheme = "https";
@@ -167,6 +183,7 @@ let
     };
     minimox = {
       ip = "192.168.1.30";
+      sshUser = "root";
       port = 8006;
       monitor = {
         type = "http"; name = "Minimox"; scheme = "https";
@@ -177,6 +194,7 @@ let
     };
     unifi = {
       ip = "192.168.1.1";
+      sshUser = "root";
       monitor = [
         { type = "dns"; name = "UniFi DNS";       family = "v4"; }
         { type = "dns"; name = "UniFi DNS (v6)";  family = "v6"; }

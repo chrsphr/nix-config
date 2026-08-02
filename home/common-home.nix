@@ -69,6 +69,7 @@ in
     discord
     uv
     amdgpu_top
+    clinfo       # `clinfo` to verify OpenCL (Rusticl) GPU detection
     libva-utils  # `vainfo` to verify VA-API hardware video decode
     libreoffice-fresh
     firefox-gnome-theme

@@ -77,7 +77,11 @@
   # AMD GPU / OpenCL
   hardware.graphics.extraPackages = with pkgs; [
     libvdpau-va-gl
+    mesa.opencl  # Rusticl ICD — makes the AMD GPU visible to OpenCL apps (darktable)
   ];
+
+  # Rusticl needs the gallium driver selection; radeonsi covers RDNA iGPUs.
+  environment.variables.RUSTICL_ENABLE = "radeonsi";
 
   # Bluetooth firmware and driver support
   hardware.enableRedistributableFirmware = true;

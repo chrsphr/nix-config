@@ -32,7 +32,12 @@
     initrd.enable = true;
   };
 
-  # Enable Rusticl OpenCL backend for radeonsi (GFX12/RDNA4)
+  # Enable Rusticl OpenCL backend for radeonsi (GFX12/RDNA4). The RUSTICL_ENABLE
+  # env var is useless without the ICD, so also ship mesa.opencl so the loader
+  # (ocl-icd, used by darktable) can find it under /run/opengl-driver.
+  hardware.graphics.extraPackages = with pkgs; [
+    mesa.opencl
+  ];
   environment.variables.RUSTICL_ENABLE = "radeonsi";
 
   # PipeWire wireplumber

@@ -135,6 +135,14 @@ in
       icon-theme = "Adwaita";
       cursor-theme = "Adwaita";
     };
+    "org/gnome/desktop/applications/terminal" = {
+      exec = "ghostty";
+      exec-arg = "";
+    };
+    "org/gnome/desktop/default-applications/terminal" = {
+      exec = "ghostty";
+      exec-arg = "";
+    };
   };
 
   # SSH (desktop + Framework only — WSL bridges 1Password differently and is

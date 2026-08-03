@@ -124,6 +124,16 @@
         specialArgs.gb-grid-pkg = gb-grid.packages.${system}.default;
       };
 
+      ### Test VM (containers prototype)
+      # hutch-test: VM that runs services as NixOS containers (see hosts/containers/).
+      hutch-test = mkHost {
+        modules = [
+          ./hosts/hutch-test.nix
+          ./hardware/hutch-test-disko.nix
+          disko.nixosModules.disko
+        ];
+      };
+
       ### Personal machines (hosts/)
       chris-framework = mkMachine {
         host = ./hosts/chris-framework.nix;

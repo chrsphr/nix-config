@@ -146,6 +146,26 @@ let
       subdomain = "grid";
     };
 
+    # hutch-test: VM prototype for a future "hutch" host running services as
+    # NixOS containers instead of Proxmox LXC. Containers (hosts with a
+    # `parent` field) are defined on their parent's config.
+    hutch-test = {
+      ip = "192.168.1.240";
+      sshUser = "deploy";
+    };
+    pihole-test = {
+      ip = "192.168.1.241";
+      sshUser = "deploy";
+      parent = "hutch-test";
+      port = 80;
+    };
+    immich-test = {
+      ip = "192.168.1.242";
+      sshUser = "deploy";
+      parent = "hutch-test";
+      port = 2283;
+    };
+
     # Non-NixOS hosts (for Caddy config + monitoring)
     ha = {
       ip = "192.168.1.11";
@@ -291,6 +311,9 @@ ${headersConfig}${tlsConfig}      }'' else "";
 
 in {
   inherit gateway nameservers domain hosts;
+
+  # Hosts that run as NixOS containers on a given parent host
+  getContainers = parent: lib.filterAttrs (name: cfg: (cfg.parent or null) == parent) hosts;
 
   # Generate static network config for a host
   mkStaticNetwork = hostname: {

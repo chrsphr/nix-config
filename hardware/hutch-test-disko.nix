@@ -3,7 +3,7 @@
   # with subvolumes. Verify the device with `lsblk` before running disko.
   disko.devices.disk.main = {
     type = "disk";
-    device = "/dev/vda";
+    device = "/dev/sda";
     content = {
       type = "gpt";
       partitions = {

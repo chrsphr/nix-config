@@ -129,6 +129,7 @@
       hutch-test = mkHost {
         modules = [
           ./hosts/hutch-test.nix
+          ./hardware/hutch-test.nix
           ./hardware/hutch-test-disko.nix
           disko.nixosModules.disko
         ];
@@ -156,6 +157,13 @@
         host = ./hosts/chris-wsl.nix;
         home = ./home/wsl.nix;
         extraModules = [ nixos-wsl.nixosModules.default ];
+      };
+
+      ### Installer ISO (build only, not deployed)
+      # Minimal SSH-enabled live ISO for key-only remote installs.
+      # Build: nix build .#nixosConfigurations.install-iso.config.system.build.isoImage
+      install-iso = mkHost {
+        modules = [ ./hosts/install-iso.nix ];
       };
     };
 

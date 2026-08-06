@@ -309,6 +309,8 @@ Build and deploy like any other host (`deploy .#beeper`). **Caveat:** deploy-rs'
 3. Build, deploy, `systemctl start mautrix-<name>`, then `login` via `@sh-<name>bot` in the app.
 
 > Note: Beeper's registry still classifies `sh-telegram` as the Python bridge, so bbctl invokes the command python-style as `-m mautrix_telegram -c config.yaml`. `--custom-startup-command` runs our Go binary regardless, but the Go binary rejects the `-m` flag — hence the `telegramCmd` wrapper strips the leading `-m <module>` before forwarding `-c config.yaml`. The Go bridge migrates the legacy Python DB in place on first start.
+>
+> The same Python classification also means bbctl runs `sh-telegram` with its own **appservice-websocket→HTTP proxy** (`needsWebsocketProxy`, unlike the Go bridges which hold the websocket themselves). bbctl 0.13.0's proxy hardcodes `PUT` for every proxied request (`proxyWebsocketRequest` in `cmd/bbctl/proxy.go`), which breaks every provisioning API call the app makes (`GET /v3/capabilities`, `GET /v3/whoami`, …) with 405 — symptom: **Telegram never appears under Settings → Networks** even though messages bridge fine. `beeper.nix` therefore patches bbctl to forward the real method (`bbctl-patched`); still unfixed in bbctl `main` as of 2026-08. If bbctl is ever bumped to ≥0.14 (which treats Telegram as Go bridgev2 and drops the proxy), the on-box `config.yaml` must be regenerated instead of patched around — delete `/var/lib/beeper/.local/share/bbctl/prod/sh-telegram/config.yaml` and restart the unit, then re-`login`.
 
 ### Removing a bridge
 

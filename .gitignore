@@ -1,2 +1,4 @@
 result
 secrets/*.tmp
+# TrueNAS config exports contain secrets (host keys, cloud credentials)
+*.db

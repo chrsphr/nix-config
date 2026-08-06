@@ -2,6 +2,7 @@
 
 let
   keys = import ../../modules/keys.nix;
+  hostsLib = import ../../lib/network.nix { inherit lib; };
 in
 {
   # Shared base for NixOS containers (systemd-nspawn) running on hutch-test.
@@ -24,8 +25,15 @@ in
 
   documentation.enable = false;
 
-  # Networking defaults
+  # Networking defaults. The default gateway is required: hostBridge puts the
+  # container straight on the LAN, but without a default route it can't reply
+  # to (or reach) anything off-subnet.
   networking = {
+    inherit (hostsLib) nameservers;
+    defaultGateway = {
+      address = hostsLib.gateway;
+      interface = "eth0";
+    };
     firewall = {
       enable = true;
       allowedTCPPorts = [ 22 ];

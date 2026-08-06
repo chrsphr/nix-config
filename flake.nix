@@ -125,7 +125,9 @@
       };
 
       ### Test VM (containers prototype)
-      # hutch-test: VM that runs services as NixOS containers (see hosts/containers/).
+      # hutch-test: VM that runs services as NixOS containers (see hosts/containers/)
+      # and takes over the TrueNAS storage role (see modules/nas.nix). sops-nix is
+      # passed through for container configs that need it (immich).
       hutch-test = mkHost {
         modules = [
           ./hosts/hutch-test.nix
@@ -133,6 +135,7 @@
           ./hardware/hutch-test-disko.nix
           disko.nixosModules.disko
         ];
+        specialArgs = { inherit sops-nix; };
       };
 
       ### Personal machines (hosts/)

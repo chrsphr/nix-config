@@ -60,6 +60,9 @@ let
     immich = {
       ip = "192.168.1.127";
       sshUser = "deploy";
+      # Proxmox LXC today; moves to a container on hutch-test at NAS cutover
+      # (autoStart = false in hosts/hutch-test.nix until then).
+      parent = "hutch-test";
       port = 2283;
       caddy = true;
       monitor = {

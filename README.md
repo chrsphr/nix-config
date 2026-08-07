@@ -14,8 +14,14 @@ Personal NixOS configuration for all machines and services — managed as a sing
 
 ### Servers / LXC containers (Proxmox)
 
+> **Migration in progress:** every service below is staged as a NixOS container
+> on `hutch` (`hosts/containers/`, `autoStart = false` until its cutover).
+> The LXCs stay live and deployable until each one is migrated — see
+> [docs/lxc-migration.md](docs/lxc-migration.md).
+
 | Host | IP | Role |
 |------|----|------|
+| `hutch` | 192.168.1.240 | Baremetal NAS (TrueNAS replacement) + container host |
 | `caddy` | 192.168.1.239 | Reverse proxy + TLS (Cloudflare DNS) |
 | `pihole-1` | 192.168.1.9 | Primary DNS |
 | `pihole-2` | 192.168.1.10 | Secondary DNS |
@@ -338,6 +344,9 @@ hosts/                     # One file per machine
     caddy.nix              # Reverse proxy
     immich.nix             # Photo management
     ...
+  containers/              # NixOS containers on hutch (LXC replacements,
+                           # docs/lxc-migration.md); common.nix is the base
+  hutch.nix                # Baremetal NAS + container host
 hardware/                  # Hardware-specific configs (Framework, desktop)
 modules/                   # Reusable NixOS modules
   common-desktop.nix       # Base for desktop machines (GNOME, Tailscale, etc.)

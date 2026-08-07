@@ -1,16 +1,15 @@
 { config, pkgs, lib, ... }:
 
 # The NAS role: replaces the TrueNAS "lilnas" VM (192.168.1.12).
-# Imported by hutch-test, which takes over storage + containers on one host.
-# Source: lilnas-25.10.5-20260806203849.db (TrueNAS config export).
+# Imported by hutch (baremetal), which takes over storage + containers on one
+# host. Source: lilnas-25.10.5-20260806203849.db (TrueNAS config export).
 #
-# Migration model: pass the two 8TB disks (serials VKHWUELX, VKHNN8PX) through
-# to the hutch-test VM in Proxmox and import the existing pool "Hutch" in
-# place — no reformatting; dataset properties and snapshots travel with the
-# pool.
+# Migration model: move the two 8TB disks (serials VKHWUELX, VKHNN8PX) into
+# the hutch chassis and import the existing pool "Hutch" in place — no
+# reformatting; dataset properties and snapshots travel with the pool.
 #
 # Still needed before cutover:
-#   - Attach the disks to the VM (Proxmox: qm set 102 --scsi1 /dev/disk/by-id/...)
+#   - Physically install the two 8TB disks in hutch
 #   - Write /var/lib/rclone/rclone.conf with a "b2" remote (see rclone section)
 #   - Verify pool vdev layout on TrueNAS (zpool status) — expected mirror
 #   - Repoint NFS clients (desktop fstab, modules/nfs-home-automount.nix use
@@ -25,9 +24,9 @@ in
   # TrueNAS: pool "Hutch" (guid 5739333095810664970), 2x 8TB drives.
   # Datasets (Hutch/Media, Hutch/Backups, ...) mount themselves via their
   # own mountpoint properties under /mnt/Hutch/.
-  # Until the disks are attached, zfs-import-Hutch will fail at boot — the
-  # system still boots, and the immich container's mount guard (see
-  # hosts/hutch-test.nix) keeps it from starting against an empty library.
+  # Until the disks are installed, zfs-import-Hutch will fail at boot — the
+  # system still boots, and the media containers' mount guard (see
+  # hosts/hutch.nix) keeps them from starting against an empty library.
   # ---------------------------------------------------------------------------
   networking.hostId = "a8f3c1d2";  # Required by ZFS. Arbitrary; must differ from TrueNAS's.
   boot.supportedFilesystems = [ "zfs" ];
@@ -118,7 +117,7 @@ in
   #   type = b2
   #   account = <B2 keyID>
   #   key = <B2 applicationKey>
-  # TODO: move to sops once hutch-test has its own age key enrolled in .sops.yaml.
+  # TODO: move to sops once hutch has its own age key enrolled in .sops.yaml.
   # ---------------------------------------------------------------------------
   systemd.tmpfiles.rules = [
     "d /var/lib/rclone 0700 root root -"
@@ -166,9 +165,9 @@ in
   services.smartd = {
     enable = true;
     devices = [
-      # Match by serial — device letters change when disks move between VMs.
-      # Verify the by-id names after attaching the disks to the VM; whether
-      # SMART data passes through depends on the Proxmox disk attachment type.
+      # Match by serial — device letters can change when the disks move to the
+      # new machine. Verify the by-id names after installing them in hutch
+      # (baremetal, so SMART works natively — no passthrough quirks).
       {
         device = "/dev/disk/by-id/ata-VKHWUELX";  # 8TB
         options = "-a -s (S/../../3/00|L/../01/./04)";

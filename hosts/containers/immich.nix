@@ -1,8 +1,8 @@
 { config, pkgs, pkgs-unstable, sops-nix, lib, ... }:
 
-# Production immich as a NixOS container on hutch-test — replaces the Proxmox
+# Production immich as a NixOS container on hutch — replaces the Proxmox
 # LXC (hosts/lxc/immich.nix). Media comes from the local ZFS pool via a bind
-# mount (hostPath /mnt/Hutch/Media/Photos, see hosts/hutch-test.nix) instead
+# mount (hostPath /mnt/Hutch/Media/Photos, see hosts/hutch.nix) instead
 # of the NFS share the Proxmox host mounted into the LXC. Internal paths are
 # identical to the LXC (/mnt/media/Photos), so the library and database carry
 # over unchanged.
@@ -17,7 +17,7 @@
   networking.hostName = "immich";
 
   # Same secrets file and age key as the LXC — the key is bind-mounted from
-  # the hutch-test host (/var/lib/sops-nix/immich) at container start.
+  # the hutch host (/var/lib/sops-nix/immich) at container start.
   sops = {
     defaultSopsFile = ../../secrets/immich.yaml;
     age.keyFile = "/var/secrets/age-keys.txt";
@@ -67,9 +67,9 @@
     accelerationDevices = [ "/dev/dri/renderD128" ];
   };
 
-  # QSV userspace stack. Requires /dev/dri inside the container, which needs
-  # (a) the iGPU passed through to the hutch-test VM in Proxmox and
-  # (b) containers.immich.allowedDevices on the host. Until then hardware
+  # QSV userspace stack. Requires /dev/dri inside the container — on baremetal
+  # that's just a bind mount + allowedDevices if hutch's CPU has an Intel iGPU
+  # (commented-out snippet in hosts/hutch.nix). Until then hardware
   # transcoding is unavailable and immich falls back to CPU.
   hardware.graphics = {
     enable = true;
@@ -86,7 +86,7 @@
   # The LXC guarded immich-server with ConditionPathIsMountPoint because its
   # media mount was optional. Here the equivalent guard is on the host:
   # container@immich won't start unless /mnt/Hutch/Media is mounted
-  # (see hosts/hutch-test.nix).
+  # (see hosts/hutch.nix).
 
   services.cloudflare-tunnel = {
     enable = true;

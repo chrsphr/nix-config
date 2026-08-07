@@ -6,7 +6,7 @@ in
 {
   imports = [
     ./common-lxc.nix
-    ./pihole-common.nix
+    ../containers/pihole-common.nix
   ];
 
   networking = hostsLib.mkStaticNetwork "pihole-1" // {

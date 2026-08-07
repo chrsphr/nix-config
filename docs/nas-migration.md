@@ -1,12 +1,12 @@
-# NAS migration: TrueNAS VM → NixOS on hutch-test
+# NAS migration: TrueNAS VM → NixOS on hutch (baremetal)
 
-End state: one NixOS host (`hutch-test`, later renamed `hutch`) that both **is
+End state: one baremetal NixOS host (`hutch`, 192.168.1.240) that both **is
 the NAS** (ZFS pool `Hutch`, NFS, snapshots, B2 offsite sync) and **runs the
 services** as NixOS containers. The TrueNAS VM (lilnas, 192.168.1.12, VMID
-100) goes away, as does the immich Proxmox LXC (192.168.1.127).
+100) goes away, as do the Proxmox LXCs (see docs/lxc-migration.md).
 
-The two physical 8TB disks move from the TrueNAS VM to the hutch-test VM and
-the existing pool is imported in place — no reformatting, no data copy.
+The two physical 8TB disks move into the hutch chassis and the existing pool
+is imported in place — no reformatting, no data copy.
 
 ## Why
 
@@ -22,10 +22,10 @@ the existing pool is imported in place — no reformatting, no data copy.
 
 | Piece | File | Notes |
 | --- | --- | --- |
-| NAS stack | `modules/nas.nix` | ZFS import, scrub, sanoid, NFS, rclone→B2, smartd, users. Imported by `hosts/hutch-test.nix`. |
+| NAS stack | `modules/nas.nix` | ZFS import, scrub, sanoid, NFS, rclone→B2, smartd, users. Imported by `hosts/hutch.nix`. |
 | immich container | `hosts/containers/immich.nix` | Mirror of `hosts/lxc/immich.nix`; same internal paths (`/mnt/media/Photos`), same `secrets/immich.yaml`, so library + DB carry over untouched. |
-| Container wiring | `hosts/hutch-test.nix` | `containers.immich`: bind mounts + `autoStart = false` until cutover; `container@immich` has `ConditionPathIsMountPoint=/mnt/Hutch/Media` so it can't start against an empty library. |
-| Network registry | `lib/network.nix` | `immich` now has `parent = "hutch-test"`. |
+| Container wiring | `hosts/hutch.nix` | `containers.immich`: bind mounts + `autoStart = false` until cutover; `container@immich` has `ConditionPathIsMountPoint=/mnt/Hutch/Media` so it can't start against an empty library. |
+| Network registry | `lib/network.nix` | `immich` now has `parent = "hutch"`. |
 
 TrueNAS → NixOS mapping (all in `modules/nas.nix`):
 
@@ -49,43 +49,43 @@ TrueNAS → NixOS mapping (all in `modules/nas.nix`):
 
 ## Cutover runbook
 
-1. **Attach the disks.** Move the two 8TB drives to the hutch-test VM
-   (Proxmox: `qm set 102 --scsi1 /dev/disk/by-id/...` etc.). Until this
-   happens, `zfs-import-Hutch`, `nfs-server` and `smartd` fail on boot —
-   harmless, the host still boots and the test containers keep running.
+1. **Install the disks.** Physically move the two 8TB drives into the hutch
+   chassis. Until this happens, `zfs-import-Hutch`, `nfs-server` and `smartd`
+   fail on boot — harmless, the host still boots and containers keep running.
 2. **Verify the pool imported:** `zpool status Hutch`, check datasets mounted
    under `/mnt/Hutch/`. Confirm the smartd by-id paths (`ls /dev/disk/by-id/`)
-   — adjust `modules/nas.nix` if Proxmox presents different names, and check
-   SMART actually passes through the virtio/scsi layer.
+   — adjust `modules/nas.nix` if the new machine presents different names.
+   Baremetal, so SMART reads the disks natively.
 3. **B2 credentials.** The app key in the TrueNAS DB is encrypted and not
    portable. Write `/var/lib/rclone/rclone.conf` (mode 0600) with a fresh
    `b2` remote, then test: `systemctl start rclone-photos-backup`.
 4. **immich age key.** Copy `keys.txt` from the LXC's
    `/home/deploy/.config/sops/age/keys.txt` into `/var/lib/sops-nix/immich/`
-   on hutch-test (bind-mounted to `/var/secrets` in the container).
+   on hutch (bind-mounted to `/var/secrets` in the container).
 5. **Copy immich state** from the LXC: stop immich on the LXC, copy
    `/var/lib/immich` (database/config — *not* the media, that comes with the
    pool) to the container's `/var/lib/immich` on the host
    (`/var/lib/nixos-containers/immich/var/lib/immich`), preserving ownership.
-6. **Flip immich:** shut down the LXC, set `autoStart = true` for the immich
-   container in `hosts/hutch-test.nix`, deploy hutch-test. Verify
+6. **Flip immich:** shut down the LXC, remove `immich` from the
+   `cutoverPending` list in `hosts/hutch.nix`, deploy hutch. Verify
    https://immich.mcneill.fyi (cloudflare tunnel token is the same secret).
    Then remove `immich` from `nixosConfigurations` (the LXC definition) and
    delete `hosts/lxc/immich.nix`.
 7. **Repoint NFS clients** — desktop fstab and `modules/nfs-home-automount.nix`
-   hardcode `192.168.1.12`. Either update them to the hutch-test IP, or add
+   hardcode `192.168.1.12`. Either update them to the hutch IP, or add
    `192.168.1.12/24` as a secondary address on `br0` and change nothing.
 8. **Decommission TrueNAS** once everything checks out; clean up the `lilnas`
    entry in `lib/network.nix` (caddy/monitor references).
 
 ## Caveats / open items
 
-- **QSV:** the LXC got `/dev/dri` from bare metal. In the VM, hardware
-  transcoding needs iGPU passthrough (Proxmox `hostpci`) plus
-  `containers.immich.allowedDevices` in `hosts/hutch-test.nix`. Until then
-  immich transcodes on CPU.
+- **QSV:** the LXC got `/dev/dri` via Proxmox device passthrough. On hutch
+  (baremetal) there's nothing to pass through — if the CPU has an Intel iGPU,
+  `/dev/dri` is already on the host; exposing it to the immich/plex containers
+  is a bind mount + `allowedDevices` (commented-out snippet in
+  `hosts/hutch.nix`). Until then both transcode on CPU.
 - **sops for rclone:** the B2 secret is a plain root-only file for now;
-  TODO in `modules/nas.nix` to move it into sops once hutch-test has its own
+  TODO in `modules/nas.nix` to move it into sops once hutch has its own
   age key enrolled in `.sops.yaml`.
 - **immich uid:** the container pins `users.users.immich.uid = 3000` so files
   it writes match the ownership the NFS mapall produced (chrsphr). nspawn

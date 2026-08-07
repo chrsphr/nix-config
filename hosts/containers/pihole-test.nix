@@ -3,6 +3,6 @@
 {
   imports = [
     ./common.nix
-    ../lxc/pihole-common.nix
+    ./pihole-common.nix
   ];
 }

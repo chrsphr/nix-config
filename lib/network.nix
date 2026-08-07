@@ -40,6 +40,10 @@ let
     pihole-1 = {
       ip = "192.168.1.9";
       sshUser = "deploy";
+      # Proxmox LXC today; container staged on hutch (autoStart = false
+      # until cutover — see docs/lxc-migration.md). Same for every host below
+      # with `parent = "hutch"`.
+      parent = "hutch";
       port = 80;
       caddy = true;
       monitor = [
@@ -50,6 +54,7 @@ let
     pihole-2 = {
       ip = "192.168.1.10";
       sshUser = "deploy";
+      parent = "hutch";
       port = 80;
       caddy = true;
       monitor = [
@@ -60,9 +65,9 @@ let
     immich = {
       ip = "192.168.1.127";
       sshUser = "deploy";
-      # Proxmox LXC today; moves to a container on hutch-test at NAS cutover
-      # (autoStart = false in hosts/hutch-test.nix until then).
-      parent = "hutch-test";
+      # Proxmox LXC today; moves to a container on hutch at NAS cutover
+      # (autoStart = false in hosts/hutch.nix until then).
+      parent = "hutch";
       port = 2283;
       caddy = true;
       monitor = {
@@ -73,6 +78,7 @@ let
     caddy = {
       ip = "192.168.1.239";
       sshUser = "deploy";
+      parent = "hutch";
       monitor = {
         type = "http"; name = "caddy"; url = "https://caddy.${domain}";
         group = "Hutch Primary Services";
@@ -81,6 +87,7 @@ let
     tailscale = {
       ip = "192.168.1.207";
       sshUser = "deploy";
+      parent = "hutch";
       port = 8080;
       monitor = {
         type = "http"; name = "Tailscale"; path = "/health";
@@ -90,6 +97,7 @@ let
     plex = {
       ip = "192.168.1.209";
       sshUser = "deploy";
+      parent = "hutch";
       port = 32400;
       caddy = true;
       monitor = {
@@ -100,12 +108,15 @@ let
     sonarr = {
       ip = "192.168.1.75";
       sshUser = "deploy";
+      parent = "hutch";
       port = 8989;
       caddy = true;
       monitor = {
         type = "http"; name = "Sonarr API"; path = "/ping";
       };
     };
+    # Co-located with sonarr — same LXC today, same container after cutover,
+    # so no `parent` (and no container) of its own.
     prowlarr = {
       ip = "192.168.1.75";
       sshUser = "deploy";
@@ -115,6 +126,7 @@ let
     transmission = {
       ip = "192.168.1.136";
       sshUser = "deploy";
+      parent = "hutch";
       port = 9091;
       caddy = true;
       monitor = {
@@ -124,6 +136,7 @@ let
     uptime = {
       ip = "192.168.1.31";
       sshUser = "deploy";
+      parent = "hutch";
       port = 3001;
       caddy = true;
     };
@@ -131,6 +144,7 @@ let
     beeper = {
       ip = "192.168.1.40";
       sshUser = "deploy";
+      parent = "hutch";
       monitor = {
         type = "port"; targetPort = 22; name = "Beeper bridges";
         group = "Hutch Primary Services";
@@ -144,28 +158,30 @@ let
     gb-grid = {
       ip = "192.168.1.28";
       sshUser = "deploy";
+      parent = "hutch";
       port = 3000;
       caddy = true;
       subdomain = "grid";
     };
 
-    # hutch-test: VM prototype for a future "hutch" host running services as
-    # NixOS containers instead of Proxmox LXC. Containers (hosts with a
-    # `parent` field) are defined on their parent's config.
-    hutch-test = {
+    # hutch: baremetal server replacing both the TrueNAS VM (NAS role — see
+    # modules/nas.nix) and the Proxmox LXCs (services as NixOS containers).
+    # Containers (hosts with a `parent` field) are defined on their parent's
+    # config; docs/lxc-migration.md + docs/nas-migration.md have the runbooks.
+    hutch = {
       ip = "192.168.1.240";
       sshUser = "deploy";
     };
     pihole-test = {
       ip = "192.168.1.241";
       sshUser = "deploy";
-      parent = "hutch-test";
+      parent = "hutch";
       port = 80;
     };
     immich-test = {
       ip = "192.168.1.242";
       sshUser = "deploy";
-      parent = "hutch-test";
+      parent = "hutch";
       port = 2283;
     };
 

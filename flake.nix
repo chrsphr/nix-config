@@ -124,18 +124,23 @@
         specialArgs.gb-grid-pkg = gb-grid.packages.${system}.default;
       };
 
-      ### Test VM (containers prototype)
-      # hutch-test: VM that runs services as NixOS containers (see hosts/containers/)
-      # and takes over the TrueNAS storage role (see modules/nas.nix). sops-nix is
-      # passed through for container configs that need it (immich).
-      hutch-test = mkHost {
+      ### Baremetal server (NAS + containers)
+      # hutch: baremetal box that runs services as NixOS containers (see
+      # hosts/containers/) and takes over the TrueNAS storage role (see
+      # modules/nas.nix). sops-nix and the gb-grid flake are passed through for
+      # the container configs that need them (caddy/uptime/gb-grid/immich and
+      # gb-grid respectively) — see docs/lxc-migration.md.
+      hutch = mkHost {
         modules = [
-          ./hosts/hutch-test.nix
-          ./hardware/hutch-test.nix
-          ./hardware/hutch-test-disko.nix
+          ./hosts/hutch.nix
+          ./hardware/hutch.nix
+          ./hardware/hutch-disko.nix
           disko.nixosModules.disko
         ];
-        specialArgs = { inherit sops-nix; };
+        specialArgs = {
+          inherit sops-nix gb-grid;
+          gb-grid-pkg = gb-grid.packages.${system}.default;
+        };
       };
 
       ### Personal machines (hosts/)

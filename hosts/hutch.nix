@@ -148,7 +148,14 @@ in
           MIIMonitorSec = "100ms";
         };
       };
-      "40-br0".netdevConfig = { Kind = "bridge"; Name = "br0"; };
+      # Same fixed MAC as the bond: without it the bridge adopts the lowest
+      # port MAC, and container veths get random ones — br0's (and so .2's)
+      # MAC would change whenever a container with a low MAC starts/stops.
+      "40-br0".netdevConfig = {
+        Kind = "bridge";
+        Name = "br0";
+        MACAddress = "0c:c4:7a:bd:45:32";
+      };
     };
     networks = {
       # Catch-all: every physical ethernet port becomes a bond slave. Sorts
@@ -177,6 +184,12 @@ in
       hostBridge = "br0";
       localAddress = "${cfg.ip}/24";
       autoStart = !(builtins.elem name cutoverPending);
+      # Don't bind the host's /etc/resolv.conf into containers: the host runs
+      # systemd-resolved, so its resolv.conf is the 127.0.0.53 stub, which is
+      # dead inside a container (resolved isn't running there) — every lookup
+      # fails. Each container generates its own from networking.nameservers
+      # instead (see common.nix).
+      useHostResolvConf = false;
       # gb-grid/gb-grid-pkg are only consumed by the gb-grid container,
       # sops-nix only by the ones in withSecrets — harmless elsewhere.
       specialArgs = { inherit pkgs-unstable sops-nix gb-grid gb-grid-pkg; };

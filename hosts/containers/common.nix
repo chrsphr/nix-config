@@ -34,6 +34,10 @@ in
       address = hostsLib.gateway;
       interface = "eth0";
     };
+    # Deterministic /etc/resolv.conf written straight from networking.nameservers
+    # at activation (no resolvconf tool, no systemd-resolved stub — the host's
+    # stub is what broke resolution; see useHostResolvConf=false in hutch.nix).
+    useResolvconf = lib.mkForce false;
     firewall = {
       enable = true;
       allowedTCPPorts = [ 22 ];

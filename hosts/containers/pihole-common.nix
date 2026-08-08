@@ -31,6 +31,9 @@
         listeningMode = "BIND";
         upstreams = [
             "1.1.1.1#53"
+            "1.0.0.1#53"
+            "2606:4700:4700::1111#53"
+            "2606:4700:4700::1001#53"
         ];
       };
       dhcp = {
@@ -84,7 +87,12 @@
   # (the port-53 listener) is up, so a 127.0.0.1 resolver deadlocks the boot
   # and the container@ service times out (TimeoutStartSec=1min) and restarts
   # forever.
-  networking.nameservers = lib.mkForce [ "1.1.1.1" ];
+  networking.nameservers = lib.mkForce [
+    "1.1.1.1"
+    "1.0.0.1"
+    "2606:4700:4700::1111"
+    "2606:4700:4700::1001"
+  ];
 
 
 

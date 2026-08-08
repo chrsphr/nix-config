@@ -48,11 +48,15 @@ in
   # fails (e.g. caddy: "dial tcp: lookup acme-v02.api.letsencrypt.org: no such
   # host"). Overwrite it with the container's own nameservers at boot: the
   # host's copy lands before nspawn boots, and systemd-tmpfiles runs after.
+  # `f+` (not `f`): plain `f` only writes the file if it doesn't exist, and
+  # the host's copy always does — it must be overwritten.
+  # The content must be a single tmpfiles argument, so newlines are written
+  # as C-style \n escapes (literal newlines would split the directive).
   systemd.tmpfiles.rules = let
-    resolv = builtins.concatStringsSep "\n"
-      (map (n: "nameserver ${n}") config.networking.nameservers) + "\n";
+    resolv = builtins.concatStringsSep "\\n"
+      (map (n: "nameserver ${n}") config.networking.nameservers) + "\\n";
   in [
-    "f /etc/resolv.conf 0644 root root - ${resolv}"
+    "f+ /etc/resolv.conf 0644 root root - ${resolv}"
   ];
 
   # SSH setup

@@ -168,13 +168,16 @@ in
       # Match by serial — device letters can change when the disks move to the
       # new machine. Verify the by-id names after installing them in hutch
       # (baremetal, so SMART works natively — no passthrough quirks).
+      # -d sat: smartd can't auto-detect the device type on hutch's
+      # controller ("unable to autodetect device type"), but explicit SATA
+      # passthrough works — verified with `smartctl -d sat -i/-H`.
       {
         device = "/dev/disk/by-id/ata-VKHWUELX";  # 8TB
-        options = "-a -s (S/../../3/00|L/../01/./04)";
+        options = "-d sat -a -s (S/../../3/00|L/../01/./04)";
       }
       {
         device = "/dev/disk/by-id/ata-VKHNN8PX";  # 8TB
-        options = "-a -s (S/../../3/00|L/../01/./04)";
+        options = "-d sat -a -s (S/../../3/00|L/../01/./04)";
       }
     ];
   };

@@ -1,10 +1,8 @@
 { config, pkgs, sops-nix, lib, ... }:
 
-# Gatus uptime monitoring as a NixOS container on hutch — replaces the
-# Proxmox LXC (hosts/lxc/uptime.nix). Same secrets/uptime.yaml; the LXC
-# decrypts it with its SSH host key, so copy that key from the LXC into
-# /var/lib/sops-nix/uptime/ on the host (bind-mounted to /var/secrets) before
-# cutover. See docs/lxc-migration.md.
+# Gatus uptime monitoring as a NixOS container on hutch. Decrypts
+# secrets/uptime.yaml with the age key at /var/lib/sops-nix/uptime/keys.txt
+# on the host, bind-mounted read-only to /var/secrets.
 
 let
   hostsLib = import ../../lib/network.nix { inherit lib; };
@@ -23,26 +21,21 @@ in
 
   sops = {
     defaultSopsFile = ../../secrets/uptime.yaml;
-    # Originally the LXC's SSH host key (/etc/ssh/ssh_host_ed25519_key) — but
-    # that LXC died with the retired Proxmox node and the key was lost.
-    # uptime.yaml is also encrypted to the *laptop key (recipient age132q904…),
-    # so a copy of THAT key is used here instead (see .sops.yaml). Tradeoff:
-    # the laptop master key now lives on hutch too — a compromise of this box
-    # decrypts every sops secret. Acceptable for the homelab; replace with a
-    # dedicated uptime key + re-encrypt if that ever stops being OK.
+    # The original per-host key (this container's predecessor's SSH host key)
+    # was lost with the hardware it lived on. uptime.yaml is also encrypted to
+    # the *laptop key (recipient age132q904…), so a copy of THAT key is used
+    # here instead (see .sops.yaml). Tradeoff: the laptop master key lives on
+    # hutch too — a compromise of this box decrypts every sops secret.
+    # Acceptable for the homelab; replace with a dedicated uptime key +
+    # re-encrypt if that ever stops being OK.
     age.keyFile = "/var/secrets/keys.txt";
-    # Persistent paths: /run/secrets is tmpfs and containers don't re-run
-    # activation at boot, so the default paths would vanish on every reboot.
+    # Persistent path: /run/secrets is tmpfs and containers don't re-run
+    # activation at boot, so the default path would vanish on every reboot.
     secrets.cloudflare_tunnel_token.path = "/var/lib/sops/cloudflare_tunnel_token";
-    secrets.proxmox_api_token.path = "/var/lib/sops/proxmox_api_token";
-    templates."gatus.env".content = ''
-      PROXMOX_API_TOKEN=${config.sops.placeholder.proxmox_api_token}
-    '';
   };
 
   services.gatus = {
     enable = true;
-    environmentFile = config.sops.templates."gatus.env".path;
     settings = {
       web.port = 3001;
 

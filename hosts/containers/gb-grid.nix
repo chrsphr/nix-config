@@ -1,11 +1,10 @@
 { config, pkgs, sops-nix, gb-grid, lib, ... }:
 
 # GB power grid (Postgres + TimescaleDB + Grafana + BMRS ingester) as a NixOS
-# container on hutch — replaces the Proxmox LXC (hosts/lxc/gb-grid.nix).
-# The gb-grid flake module and package arrive via the container's specialArgs
-# (see hosts/hutch.nix). Same secrets/gb-grid.yaml; the age key is copied
-# from the LXC into /var/lib/sops-nix/gb-grid/ on the host (bind-mounted to
-# /var/secrets) before cutover. See docs/lxc-migration.md.
+# container on hutch. The gb-grid flake module and package arrive via the
+# container's specialArgs (see hosts/hutch.nix). Decrypts secrets/gb-grid.yaml
+# with the age key at /var/lib/sops-nix/gb-grid/key.txt on the host,
+# bind-mounted read-only to /var/secrets.
 
 let
   dbUser = "gb_grid";

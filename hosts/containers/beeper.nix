@@ -1,10 +1,9 @@
 { config, pkgs, lib, ... }:
 
-# Self-hosted Beeper bridges as a NixOS container on hutch — replaces the
-# Proxmox LXC (hosts/lxc/beeper.nix). Outbound-only (no Caddy/tunnel/open
-# ports), so copying /var/lib/beeper (bbctl login token + bridge DBs) at
-# cutover preserves the sessions — no re-login needed. See
-# docs/lxc-migration.md and the README "Beeper bridges" section.
+# Self-hosted Beeper bridges as a NixOS container on hutch. Outbound-only:
+# no Caddy vhost, no tunnel, no open ports. Bridge sessions live in
+# /var/lib/beeper (bbctl login token + bridge DBs) — see the README
+# "Beeper bridges" section for the one-time login bootstrap.
 
 let
   stateDir = "/var/lib/beeper";

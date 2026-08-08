@@ -1,10 +1,7 @@
 { config, pkgs, pkgs-unstable, lib, ... }:
 
-# Plex as a NixOS container on hutch — replaces the Proxmox LXC
-# (hosts/lxc/plex.nix). The LXC got the library as read-only binds at
-# /media/{Movies,Music,TV} (NFS loopback via the Proxmox host); here they're
-# read-only binds of the local ZFS datasets (see hosts/hutch.nix). Same
-# internal paths, so libraries and /var/lib/plex carry over unchanged.
+# Plex as a NixOS container on hutch. The library arrives as read-only binds
+# of the local ZFS datasets at /media/{Movies,Music,TV} (see hosts/hutch.nix).
 
 {
   imports = [

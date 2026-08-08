@@ -12,16 +12,19 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `chris-desktop` | AMD desktop (gaming/workstation) |
 | `chris-wsl` | Windows Subsystem for Linux |
 
-### Servers / LXC containers (Proxmox)
+### Server + services
 
-> **Migration in progress:** every service below is staged as a NixOS container
-> on `hutch` (`hosts/containers/`, `autoStart = false` until its cutover).
-> The LXCs stay live and deployable until each one is migrated — see
-> [docs/lxc-migration.md](docs/lxc-migration.md).
+`hutch` is the only server: baremetal NixOS that both **is the NAS** (ZFS pool
+`Hutch`, NFS, snapshots, B2 sync — `modules/nas.nix`) and **runs every service**
+as a systemd-nspawn container (`hosts/containers/`). Each container keeps its
+own LAN IP on the `br0` bridge, so it looks like a separate host on the network.
+
+Containers have no `nixosConfigurations` entry of their own — **deploying
+`hutch` deploys them all**.
 
 | Host | IP | Role |
 |------|----|------|
-| `hutch` | 192.168.1.2 | Baremetal NAS (TrueNAS replacement) + container host |
+| `hutch` | 192.168.1.2 | Baremetal NAS + container host |
 | `caddy` | 192.168.1.239 | Reverse proxy + TLS (Cloudflare DNS) |
 | `pihole-1` | 192.168.1.9 | Primary DNS |
 | `pihole-2` | 192.168.1.10 | Secondary DNS |
@@ -33,7 +36,7 @@ Personal NixOS configuration for all machines and services — managed as a sing
 | `uptime` | 192.168.1.31 | Uptime monitoring (Gatus, declarative via `lib/network.nix`). External access via Cloudflare tunnel is **TODO** — currently only reachable on the LAN at `http://192.168.1.31:3001`. |
 | `tailscale` | 192.168.1.207 | VPN exit node |
 | `gb-grid` | 192.168.1.28 | GB power grid Postgres + BMRS ingester |
-| `beeper` | 192.168.1.40 | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp are Go bridgev2 binaries; Telegram is the nixpkgs Python bridge (Beeper's `sh-telegram` is Python) launched via a small wrapper; Bluesky is the Go bridge built from a pinned upstream release. One-time `bbctl login` bootstrap required; see `hosts/lxc/beeper.nix`. |
+| `beeper` | 192.168.1.40 | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp are Go bridgev2 binaries; Telegram is the nixpkgs Python bridge (Beeper's `sh-telegram` is Python) launched via a small wrapper; Bluesky is the Go bridge built from a pinned upstream release. One-time `bbctl login` bootstrap required; see `hosts/containers/beeper.nix`. |
 
 All host IPs and Caddy routing are defined in `lib/network.nix` — the single source of truth for network topology.
 
@@ -55,36 +58,23 @@ sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-framework
 
 ### Remote deployment with deploy-rs
 
-Remote deploys use [deploy-rs](https://github.com/serokell/deploy-rs). Deploy nodes are auto-generated from `lib/network.nix` — any host that exists in both `lib/network.nix` and `nixosConfigurations` gets a deploy node. All builds happen locally and closures are copied to the target.
+Remote deploys use [deploy-rs](https://github.com/serokell/deploy-rs). Deploy nodes are auto-generated from `lib/network.nix` — any host that exists in both `lib/network.nix` and `nixosConfigurations` gets a deploy node. In practice that is just `hutch`: the containers have no `nixosConfigurations` entry, so **deploying `hutch` deploys every service with it**. All builds happen locally and closures are copied to the target.
 
-Deploy all servers (shows a confirmation prompt first):
-
-```bash
-./deploy-all.sh
-```
-
-Deploy a single server:
+Deploy the server:
 
 ```bash
-deploy .#caddy
+deploy .#hutch
 ```
 
 Dry run — preview what would change without activating:
 
 ```bash
-./deploy-all.sh --dry-activate
-deploy .#caddy --dry-activate
+deploy .#hutch --dry-activate
 ```
 
-Rollback all servers:
+Magic rollback is **disabled** on this fleet (its confirmation SSH round-trip hung intermittently and triggered spurious rollbacks — see the comment in `flake.nix`). Verify a deploy by checking services afterwards; hutch's physical console is the recovery path if an activation goes bad.
 
-```bash
-./deploy-all.sh --rollback
-```
-
-deploy-rs includes **magic rollback** — if a deployment makes a machine unreachable (e.g. broken networking), it automatically rolls back after a timeout.
-
-The `deploy` user has passwordless sudo configured on all servers. SSH key auth is required.
+The `deploy` user has passwordless sudo configured. SSH key auth is required.
 
 ### Build only (no switch) — test for errors
 
@@ -238,7 +228,7 @@ endpoints = hostsLib.generateGatusEndpoints {
 
 ### Authenticated checks (secrets)
 
-For monitors that need credentials (e.g. Proxmox API token), put only the secret value in `secrets/uptime.yaml` and reference it via `${ENV_VAR}` interpolation. The non-secret prefix (user/realm/token-name) stays in `lib/network.nix`. See the `proxmox`/`minimox` entries for a working example.
+For monitors that need credentials (e.g. an API token), put only the secret value in `secrets/uptime.yaml`, reference it from the monitor's `headers` in `lib/network.nix` via `${ENV_VAR}` interpolation, and render it into a `gatus.env` sops template wired to `services.gatus.environmentFile` in `hosts/containers/uptime.nix`. The non-secret prefix (user/realm/token-name) stays in `lib/network.nix`. No monitor currently needs this — see git history for the retired Proxmox token as a worked example.
 
 ```bash
 # Add or edit a secret
@@ -263,7 +253,7 @@ Gatus reloads on activation. State (uptime history) lives in `/var/lib/gatus/dat
 
 ## Beeper bridges (`beeper`)
 
-The `beeper` LXC (192.168.1.40, on **minimox**) self-hosts [mautrix](https://github.com/mautrix) chat bridges connected to a personal **Beeper** account. Config is in `hosts/lxc/beeper.nix`.
+The `beeper` container on hutch (192.168.1.40) self-hosts [mautrix](https://github.com/mautrix) chat bridges connected to a personal **Beeper** account. Config is in `hosts/containers/beeper.nix`.
 
 ### How it works
 
@@ -282,7 +272,7 @@ Each bridge runs on this box and dials **outbound** over a websocket to Beeper's
 | Telegram | **built from source** (`mautrix/telegram`, Go bridgev2) via a thin wrapper | Not in nixpkgs (which still ships the old Python 0.15.3). Since v26.04 the bridge is a Go bridgev2 rewrite. Pinned to an upstream calver tag via `buildGoModule` with `tags = [ "goolm" ]`; auto-migrates the old Python DB in place on first start. bbctl still classifies `sh-telegram` as Python server-side, so it launches the command as `-m mautrix_telegram -c config.yaml`; the Go binary rejects `-m`, so `telegramCmd` strips the leading `-m <module>` and forwards `-c config.yaml`. |
 | Bluesky | **built from source** (`mautrix/bluesky`, Go bridgev2) | Not in nixpkgs. Pinned to an upstream tag via `buildGoModule` with `tags = [ "goolm" ]` (pure-Go olm, no libolm/CGO). |
 
-The bridges are defined as a `name -> command` attrset in `hosts/lxc/beeper.nix`; one systemd unit per entry is generated by `mkBridgeService`. Each unit has `ConditionPathExists = /var/lib/beeper/bbctl.json`, so it stays inactive (no fail-loop) until the one-time login below.
+The bridges are defined as a `name -> command` attrset in `hosts/containers/beeper.nix`; one systemd unit per entry is generated by `mkBridgeService`. Each unit has `ConditionPathExists = /var/lib/beeper/bbctl.json`, so it stays inactive (no fail-loop) until the one-time login below.
 
 ### One-time bootstrap (imperative)
 
@@ -306,7 +296,7 @@ State (the bbctl login token + each bridge's SQLite DB) lives in **`/var/lib/bee
 
 ### Deploying changes
 
-Build and deploy like any other host (`deploy .#beeper`). **Caveat:** deploy-rs's magic-rollback confirmation reliably times out on this container (it logs `Timeout elapsed for confirmation` / "rolled back") even when the new generation actually activated fine — the post-activation confirm ping is flaky here. If that bites, either verify the box is on the new generation and ignore it, or deploy this host with `--magic-rollback false`.
+The container rides along with the host: `deploy .#hutch`. Magic rollback is disabled fleet-wide (see flake.nix), so verify by checking the `mautrix-*` services inside the container after a deploy.
 
 ### Adding a bridge
 
@@ -332,23 +322,21 @@ Build and deploy like any other host (`deploy .#beeper`). **Caveat:** deploy-rs'
 flake.nix                  # Flake inputs, host table (one line per machine), deploy-rs nodes
 flake.lock                 # Pinned dependency versions
 lib/network.nix            # Network topology — IPs, ports, Caddy routing, Gatus monitors
-deploy-all.sh              # Deploy all servers (with confirmation prompt)
 .sops.yaml                 # Age encryption rules per host
 
 hosts/                     # One file per machine
   chris-framework.nix      # Framework laptop
   chris-desktop.nix        # Desktop (gaming/workstation)
   chris-wsl.nix            # WSL
-  lxc/                     # Proxmox LXC container configurations
-    common-lxc.nix         # Base for all server/LXC containers
+  containers/              # NixOS containers on hutch — one per service
+    common.nix             # Shared base for every container
     caddy.nix              # Reverse proxy
     immich.nix             # Photo management
     ...
-  containers/              # NixOS containers on hutch (LXC replacements,
-                           # docs/lxc-migration.md); common.nix is the base
-  hutch.nix                # Baremetal NAS + container host
+  hutch.nix                # Baremetal NAS + container host (declares them all)
 hardware/                  # Hardware-specific configs (Framework, desktop)
 modules/                   # Reusable NixOS modules
+  nas.nix                  # NAS role: ZFS, NFS, sanoid, smartd, rclone->B2
   common-desktop.nix       # Base for desktop machines (GNOME, Tailscale, etc.)
   cloudflare-tunnel.nix    # Cloudflare tunnel service wrapper
   nfs-home-automount.nix   # Smart NFS mount (WiFi/Tailscale aware)
@@ -367,31 +355,31 @@ secrets/                   # sops-nix encrypted YAML files
 
 ## Common workflows
 
-### Add a new server
+### Add a new service
 
-1. Create `hosts/lxc/<hostname>.nix` importing `./common-lxc.nix` and any relevant modules.
-2. Add one line to `flake.nix` under `nixosConfigurations` — `mkLxc ./hosts/lxc/<hostname>.nix;` (or `mkSopsLxc` if it has secrets).
-3. Add the host to `lib/network.nix` with its IP (and `caddy = true` if it needs a reverse proxy entry).
-4. If it needs secrets, add its age key to `.sops.yaml` and create `secrets/<hostname>.yaml`.
-5. Boot the server with a NixOS installer, then deploy:
+Services run as containers on `hutch`; there is no separate machine to install.
+
+1. Add the host to `lib/network.nix` with its IP and `parent = "hutch"` (plus
+   `caddy = true` for a reverse proxy entry, and a `monitor` spec for Gatus).
+   That one field is what makes `hutch` declare a container for it.
+2. Create `hosts/containers/<name>.nix` importing `./common.nix`.
+3. Add any bind mounts or per-container extras to `perContainer` in
+   `hosts/hutch.nix`.
+4. If it needs secrets, add its age key to `.sops.yaml`, create
+   `secrets/<name>.yaml`, add the name to `withSecrets` in `hosts/hutch.nix`,
+   and put the decryption key at `/var/lib/sops-nix/<name>/` on hutch.
+5. Deploy hutch:
 
 ```bash
-nixos-install --flake /home/chris/nix-config#<hostname>
-```
-
-Or deploy remotely after initial install:
-
-```bash
-deploy .#<hostname>
+deploy .#hutch
 ```
 
 ### Roll back a broken deployment
 
-deploy-rs has **magic rollback** — if the machine becomes unreachable after activation, it rolls back automatically. To manually roll back:
+Magic rollback is disabled on this fleet, so roll back manually:
 
 ```bash
-deploy .#<hostname> --rollback
-./deploy-all.sh --rollback
+deploy .#hutch --rollback
 ```
 
 On the machine directly:

@@ -1,8 +1,7 @@
 { config, pkgs, lib, ... }:
 
-# Pi-hole 1 as a NixOS container on hutch — replaces the Proxmox LXC
-# (hosts/lxc/pihole-1.nix). Config is fully declarative (pihole-common.nix);
-# gravity regenerates itself via the update timer.
+# Pi-hole 1 as a NixOS container on hutch. Config is fully declarative
+# (pihole-common.nix); gravity regenerates itself via the update timer.
 
 {
   imports = [

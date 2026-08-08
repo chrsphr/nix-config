@@ -1,19 +1,13 @@
 { config, pkgs, lib, ... }:
 
-# The NAS role: replaces the TrueNAS "lilnas" VM (192.168.1.12).
-# Imported by hutch (baremetal), which takes over storage + containers on one
-# host. Source: lilnas-25.10.5-20260806203849.db (TrueNAS config export).
+# The NAS role: ZFS pool, NFS exports, snapshots and B2 sync. Imported by
+# hutch, which owns storage and containers on one box.
 #
-# Migration model: move the two 8TB disks (serials VKHWUELX, VKHNN8PX) into
-# the hutch chassis and import the existing pool "Hutch" in place — no
-# reformatting; dataset properties and snapshots travel with the pool.
-#
-# Still needed before cutover:
-#   - Physically install the two 8TB disks in hutch
-#   - Write /var/lib/rclone/rclone.conf with a "b2" remote (see rclone section)
-#   - Verify pool vdev layout on TrueNAS (zpool status) — expected mirror
-#   - Repoint NFS clients (desktop fstab, modules/nfs-home-automount.nix use
-#     192.168.1.12) — or add 192.168.1.12 as a secondary IP on br0 here
+# Took over from the TrueNAS "lilnas" VM (retired 2026-08-08). The two 8TB
+# disks moved into the hutch chassis and pool "Hutch" was imported in place —
+# never reformatted — so dataset properties and snapshots came with it. The
+# settings below were derived from TrueNAS's config export; the "TrueNAS: ..."
+# notes record what each one is reproducing.
 
 let
   keys = import ./keys.nix;
@@ -21,20 +15,20 @@ in
 {
   # ---------------------------------------------------------------------------
   # ZFS: import the existing pool, don't create anything.
-  # TrueNAS: pool "Hutch" (guid 5739333095810664970), 2x 8TB drives.
+  # Pool "Hutch" (guid 5739333095810664970), 2x 8TB drives.
   # Datasets (Hutch/Media, Hutch/Backups, ...) mount themselves via their
-  # own mountpoint properties under /mnt/Hutch/.
-  # Until the disks are installed, zfs-import-Hutch will fail at boot — the
-  # system still boots, and the media containers' mount guard (see
-  # hosts/hutch.nix) keeps them from starting against an empty library.
+  # own mountpoint properties under /mnt/Hutch/. If an import ever fails, the
+  # media containers' mount guard (see hosts/hutch.nix) keeps them from
+  # starting against an empty library.
   # ---------------------------------------------------------------------------
-  networking.hostId = "a8f3c1d2";  # Required by ZFS. Arbitrary; must differ from TrueNAS's.
+  networking.hostId = "a8f3c1d2";  # Required by ZFS. Arbitrary but must not change.
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.extraPools = [ "Hutch" ];
-  # The pool was last imported by TrueNAS (different hostId) — force the first
-  # import. Both flags can be dropped after the first successful boot.
-  # forceImportRoot is a no-op here (root fs is ext4, no ZFS root pool) but
-  # the module requires it alongside forceImportAll.
+  # Needed once, because the pool was last imported by TrueNAS under a
+  # different hostId. Now that hutch has imported it cleanly these can go —
+  # they bypass ZFS's multi-host safety checks, so don't leave them on
+  # indefinitely.
+  # TODO: drop both after confirming a clean boot without them.
   boot.zfs.forceImportAll = true;
   boot.zfs.forceImportRoot = true;
 
@@ -110,8 +104,7 @@ in
   #   VM Image Backup: /mnt/Hutch/Backups      -> B2 Hutch-Backup/backups, Tue 00:00
   # COPY mode => plain `rclone copy` (never deletes at the destination).
   #
-  # The B2 application key lives in the TrueNAS config DB (system_cloudcredentials,
-  # encrypted) and is NOT portable — write a fresh config at
+  # The B2 application key is NOT in this repo — write it by hand at
   # /var/lib/rclone/rclone.conf (mode 0600) with:
   #   [b2]
   #   type = b2

@@ -1,9 +1,8 @@
 { config, pkgs, sops-nix, lib, ... }:
 
-# Caddy reverse proxy as a NixOS container on hutch — replaces the Proxmox
-# LXC (hosts/lxc/caddy.nix). Same secrets/caddy.yaml; the age key is copied
-# from the LXC into /var/lib/sops-nix/caddy/ on the host (bind-mounted to
-# /var/secrets) before cutover. See docs/lxc-migration.md.
+# Caddy reverse proxy as a NixOS container on hutch. Decrypts
+# secrets/caddy.yaml with the age key at /var/lib/sops-nix/caddy/keys.txt on
+# the host, bind-mounted read-only to /var/secrets.
 
 let
   hostsLib = import ../../lib/network.nix { inherit lib; };

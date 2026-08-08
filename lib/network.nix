@@ -40,9 +40,7 @@ let
     pihole-1 = {
       ip = "192.168.1.9";
       sshUser = "deploy";
-      # Proxmox LXC today; container staged on hutch (autoStart = false
-      # until cutover — see docs/lxc-migration.md). Same for every host below
-      # with `parent = "hutch"`.
+      # NixOS container on hutch — same for every host with `parent = "hutch"`.
       parent = "hutch";
       port = 80;
       caddy = true;
@@ -65,8 +63,6 @@ let
     immich = {
       ip = "192.168.1.127";
       sshUser = "deploy";
-      # Proxmox LXC today; moves to a container on hutch at NAS cutover
-      # (autoStart = false in hosts/hutch.nix until then).
       parent = "hutch";
       port = 2283;
       caddy = true;
@@ -115,8 +111,8 @@ let
         type = "http"; name = "Sonarr API"; path = "/ping";
       };
     };
-    # Co-located with sonarr — same LXC today, same container after cutover,
-    # so no `parent` (and no container) of its own.
+    # Co-located with sonarr in the same container, so no `parent` (and no
+    # container) of its own.
     prowlarr = {
       ip = "192.168.1.75";
       sshUser = "deploy";
@@ -164,10 +160,9 @@ let
       subdomain = "grid";
     };
 
-    # hutch: baremetal server replacing both the TrueNAS VM (NAS role — see
-    # modules/nas.nix) and the Proxmox LXCs (services as NixOS containers).
-    # Containers (hosts with a `parent` field) are defined on their parent's
-    # config; docs/lxc-migration.md + docs/nas-migration.md have the runbooks.
+    # hutch: the baremetal server. Runs the NAS role (modules/nas.nix) and
+    # every service as a NixOS container. Containers (hosts with a `parent`
+    # field) are defined on their parent's config, not here.
     hutch = {
       ip = "192.168.1.2";
       sshUser = "deploy";
@@ -186,31 +181,8 @@ let
         group = "Hutch Primary Services";
       };
     };
-    lilnas = {
-      ip = "192.168.1.12";
-      sshUser = "root";
-      port = 443;
-      caddy = true;
-      https = true;
-      monitor = {
-        type = "http"; name = "TrueNAS"; scheme = "https"; insecure = true;
-        group = "Hutch Primary Services";
-      };
-    };
-    # Proxmox retired: hutch took over 192.168.1.2. If the box ever comes
-    # back at a new IP, re-add its entry here (was: port 8006, https monitor
-    # with the PROXMOX_API_TOKEN header — see git history).
-    minimox = {
-      ip = "192.168.1.30";
-      sshUser = "root";
-      port = 8006;
-      monitor = {
-        type = "http"; name = "Minimox"; scheme = "https";
-        path = "/api2/json/version"; insecure = true;
-        headers.Authorization = "PVEAPIToken=root@pam!uptime2=\${PROXMOX_API_TOKEN}";
-        group = "Hutch Primary Services";
-      };
-    };
+    # Retired 2026-08-08: lilnas (TrueNAS VM, .12) and minimox (Proxmox, .30).
+    # hutch took over both roles; see git history if either ever comes back.
     unifi = {
       ip = "192.168.1.1";
       sshUser = "root";
@@ -314,25 +286,8 @@ in {
   # Hosts that run as NixOS containers on a given parent host
   getContainers = parent: lib.filterAttrs (name: cfg: (cfg.parent or null) == parent) hosts;
 
-  # Generate static network config for a host
-  mkStaticNetwork = hostname: {
-    useDHCP = false;
-    interfaces.eth0.ipv4.addresses = [{
-      address = hosts.${hostname}.ip;
-      prefixLength = 24;
-    }];
-    defaultGateway = {
-      address = gateway;
-      interface = "eth0";
-    };
-    inherit nameservers;
-  };
-
   # Get IP for a host
   getIP = hostname: hosts.${hostname}.ip;
-
-  # Get port for a host
-  getPort = hostname: hosts.${hostname}.port or null;
 
   # Generate full Caddy extraConfig
   generateCaddyConfig = lib.concatStringsSep "\n" (lib.mapAttrsToList mkHostBlock caddyHosts);

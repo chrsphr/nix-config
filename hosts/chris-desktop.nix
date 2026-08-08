@@ -49,7 +49,7 @@
   services.rpcbind.enable = true;
   systemd.tmpfiles.rules = [ "d /mnt/Media 0755 root root -" ];
   fileSystems."/mnt/Media" = {
-    device = "192.168.1.12:/mnt/Hutch/Media";
+    device = "192.168.1.2:/mnt/Hutch/Media";
     fsType = "nfs";
     options = [
       "x-systemd.automount"

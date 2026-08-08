@@ -1,11 +1,8 @@
 { config, pkgs, pkgs-unstable, sops-nix, lib, ... }:
 
-# Production immich as a NixOS container on hutch — replaces the Proxmox
-# LXC (hosts/lxc/immich.nix). Media comes from the local ZFS pool via a bind
-# mount (hostPath /mnt/Hutch/Media/Photos, see hosts/hutch.nix) instead
-# of the NFS share the Proxmox host mounted into the LXC. Internal paths are
-# identical to the LXC (/mnt/media/Photos), so the library and database carry
-# over unchanged.
+# Immich as a NixOS container on hutch. Media comes from the local ZFS pool
+# via a bind mount (hostPath /mnt/Hutch/Media/Photos, see hosts/hutch.nix),
+# exposed internally at /mnt/media/Photos.
 
 {
   imports = [
@@ -34,7 +31,7 @@
       owner = "immich";
       content = builtins.toJSON (
         let
-          baseConfig = builtins.fromJSON (builtins.readFile ../lxc/immich-config.json);
+          baseConfig = builtins.fromJSON (builtins.readFile ./immich-config.json);
         in
           lib.recursiveUpdate baseConfig {
             oauth = {

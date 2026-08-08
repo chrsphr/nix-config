@@ -1,8 +1,8 @@
 { config, pkgs, lib, ... }:
 
-# Tailscale exit node as a NixOS container on hutch — replaces the
-# Proxmox LXC (hosts/lxc/tailscale.nix). The host grants /dev/net/tun and
-# CAP_NET_ADMIN via containers.tailscale.enableTun (see hosts/hutch.nix).
+# Tailscale exit node as a NixOS container on hutch. The host grants
+# /dev/net/tun and CAP_NET_ADMIN via containers.tailscale.enableTun
+# (see hosts/hutch.nix).
 
 {
   imports = [

@@ -1,10 +1,7 @@
 { config, pkgs, lib, ... }:
 
-# Transmission as a NixOS container on hutch — replaces the Proxmox LXC
-# (hosts/lxc/transmission.nix). The LXC NFS-mounted the Media share at
-# /mnt/media; here it's a bind of the local ZFS dataset at the same internal
-# path (see hosts/hutch.nix), so /var/lib/transmission carries over
-# unchanged.
+# Transmission as a NixOS container on hutch. The Media dataset is bind
+# mounted at /mnt/media (see hosts/hutch.nix).
 
 {
   imports = [
@@ -31,4 +28,18 @@
 
   # Allow transmission to write to the media bind mount
   users.users.transmission.extraGroups = [ "media" ];
+
+  # The module's chroot sandbox (RootDirectory=/run/transmission +
+  # MountAPIVFS) cannot be set up inside nspawn: MountAPIVFS makes systemd
+  # stage /run/host/.os-release-stage/, but /run/host belongs to nspawn and
+  # is read-only in the container — the unit dies with 226/NAMESPACE before
+  # the daemon runs. Drop the chroot (and the bind mounts that exist only to
+  # populate it); the container is the isolation boundary here anyway.
+  systemd.services.transmission.serviceConfig = {
+    RootDirectory = lib.mkForce "";
+    RootDirectoryStartOnly = lib.mkForce false;
+    MountAPIVFS = lib.mkForce false;
+    BindPaths = lib.mkForce [];
+    BindReadOnlyPaths = lib.mkForce [];
+  };
 }

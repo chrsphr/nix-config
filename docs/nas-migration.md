@@ -1,6 +1,6 @@
 # NAS migration: TrueNAS VM → NixOS on hutch (baremetal)
 
-End state: one baremetal NixOS host (`hutch`, 192.168.1.240) that both **is
+End state: one baremetal NixOS host (`hutch`, 192.168.1.2) that both **is
 the NAS** (ZFS pool `Hutch`, NFS, snapshots, B2 offsite sync) and **runs the
 services** as NixOS containers. The TrueNAS VM (lilnas, 192.168.1.12, VMID
 100) goes away, as do the Proxmox LXCs (see docs/lxc-migration.md).

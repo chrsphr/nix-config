@@ -21,7 +21,7 @@ Personal NixOS configuration for all machines and services — managed as a sing
 
 | Host | IP | Role |
 |------|----|------|
-| `hutch` | 192.168.1.240 | Baremetal NAS (TrueNAS replacement) + container host |
+| `hutch` | 192.168.1.2 | Baremetal NAS (TrueNAS replacement) + container host |
 | `caddy` | 192.168.1.239 | Reverse proxy + TLS (Cloudflare DNS) |
 | `pihole-1` | 192.168.1.9 | Primary DNS |
 | `pihole-2` | 192.168.1.10 | Secondary DNS |

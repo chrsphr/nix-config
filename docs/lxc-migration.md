@@ -1,7 +1,7 @@
 # LXC → container migration: Proxmox LXCs → NixOS containers on hutch
 
 End state: every service that runs as a Proxmox LXC today runs as a
-systemd-nspawn container on `hutch` (192.168.1.240), keeping its existing
+systemd-nspawn container on `hutch` (192.168.1.2), keeping its existing
 LAN IP. Pairs with [nas-migration.md](nas-migration.md), which covers the
 storage side (ZFS pool, NFS, TrueNAS retirement).
 
@@ -63,10 +63,10 @@ ssh deploy@$LXC 'sudo systemctl stop sonarr prowlarr'
 
 # 2. Copy state into the container root on hutch (create dirs first —
 #    the container has never started, so its root doesn't exist yet).
-ssh deploy@192.168.1.240 "sudo mkdir -p /var/lib/nixos-containers/$NAME/var/lib"
+ssh deploy@192.168.1.2 "sudo mkdir -p /var/lib/nixos-containers/$NAME/var/lib"
 rsync -aH --numeric-ids -e ssh --rsync-path='sudo rsync' \
   deploy@$LXC:/var/lib/sonarr/ \
-  deploy@192.168.1.240:/var/lib/nixos-containers/$NAME/var/lib/sonarr/
+  deploy@192.168.1.2:/var/lib/nixos-containers/$NAME/var/lib/sonarr/
 
 # 3. Shut down the LXC (Proxmox: pct shutdown / the web UI).
 
@@ -75,8 +75,8 @@ deploy .#hutch
 
 # 5. Fix ownership from the host (uids inside the container differ from the
 #    LXC's), then restart the service if it crash-looped meanwhile:
-ssh deploy@192.168.1.240 "sudo nixos-container run $NAME -- chown -R sonarr:sonarr /var/lib/sonarr"
-ssh deploy@192.168.1.240 "sudo nixos-container run $NAME -- systemctl restart sonarr"
+ssh deploy@192.168.1.2 "sudo nixos-container run $NAME -- chown -R sonarr:sonarr /var/lib/sonarr"
+ssh deploy@192.168.1.2 "sudo nixos-container run $NAME -- systemctl restart sonarr"
 
 # 6. Verify: the service on its usual IP, its Gatus check, and via Caddy.
 

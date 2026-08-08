@@ -84,17 +84,23 @@ in
 
   networking.hostName = "hutch";
 
-  # The physical NIC is bridged into br0 so NixOS containers get LAN-reachable
-  # IPs via hostBridge (same L2 as the rest of the 192.168.1.0/24 fleet).
-  #
-  # TODO on first boot: confirm the NIC's predictable name with `ip link` and
-  # set it here (baremetal won't have eth0).
+  # The primary NIC (Supermicro onboard, MAC 0c:c4:7a:bd:45:32) is bridged
+  # into br0 so NixOS containers get LAN-reachable IPs via hostBridge (same
+  # L2 as the rest of the 192.168.1.0/24 fleet). The installer environment
+  # called this NIC enx0cc47abd4532; the installed system uses the PCI-path
+  # name enp1s0 — same card, same MAC.
   networking = {
-    bridges.br0.interfaces = [ "enp3s0" ];
+    bridges.br0.interfaces = [ "enp1s0" ];
     interfaces.br0.ipv4.addresses = [{
       address = hostsLib.getIP "hutch";
       prefixLength = 24;
     }];
+    # Second NIC is a plain DHCP client. IPv6 needs nothing extra on either
+    # interface: br0 gets global addresses + default route via SLAAC/RA
+    # (scripted networking leaves kernel autoconf alone), dhcpcd handles v6
+    # on enp3s0. The static default route via br0 (metric 0) always wins
+    # over dhcpcd's (metric 202).
+    interfaces.enp3s0.useDHCP = true;
     defaultGateway = {
       address = hostsLib.gateway;
       interface = "br0";
@@ -143,16 +149,31 @@ in
   };
 
   # SSH + deploy user for deploy-rs
+  # Keys only: PasswordAuthentication off, and KbdInteractiveAuthentication
+  # off too — with UsePAM the latter would otherwise *advertise* a
+  # keyboard-interactive path (blocked only by pam_deny in the sshd PAM
+  # stack). Stating both makes keys-only unambiguous.
   services.openssh = {
     enable = true;
     openFirewall = true;
     settings = {
       PermitRootLogin = "no";
       PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
     };
   };
   users.users.deploy = {
     isNormalUser = true;
+    extraGroups = [ "wheel" ];
+    openssh.authorizedKeys.keys = [ keys.chris ];
+  };
+  # chris: interactive console/SSH login. uid must match the account created
+  # on first setup (useradd -u 1001). No password option here on purpose —
+  # the one set via chpasswd on the live box survives rebuilds, and keeps the
+  # secret out of the repo; add initialHashedPassword if that ever changes.
+  users.users.chris = {
+    isNormalUser = true;
+    uid = 1001;
     extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [ keys.chris ];
   };

@@ -22,6 +22,10 @@ Host ha
   HostName 192.168.1.11
   User root
 
+Host hutch
+  HostName 192.168.1.2
+  User deploy
+
 Host immich
   HostName 192.168.1.127
   User deploy
@@ -49,10 +53,6 @@ Host plex
 Host prowlarr
   HostName 192.168.1.75
   User deploy
-
-Host proxmox
-  HostName 192.168.1.2
-  User root
 
 Host sonarr
   HostName 192.168.1.75

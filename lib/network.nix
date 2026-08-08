@@ -169,7 +169,7 @@ let
     # Containers (hosts with a `parent` field) are defined on their parent's
     # config; docs/lxc-migration.md + docs/nas-migration.md have the runbooks.
     hutch = {
-      ip = "192.168.1.240";
+      ip = "192.168.1.2";
       sshUser = "deploy";
     };
     pihole-test = {
@@ -209,17 +209,9 @@ let
         group = "Hutch Primary Services";
       };
     };
-    proxmox = {
-      ip = "192.168.1.2";
-      sshUser = "root";
-      port = 8006;
-      monitor = {
-        type = "http"; name = "Proxmox"; scheme = "https";
-        path = "/api2/json/version"; insecure = true;
-        headers.Authorization = "PVEAPIToken=root@pam!uptime2=\${PROXMOX_API_TOKEN}";
-        group = "Hutch Primary Services";
-      };
-    };
+    # Proxmox retired: hutch took over 192.168.1.2. If the box ever comes
+    # back at a new IP, re-add its entry here (was: port 8006, https monitor
+    # with the PROXMOX_API_TOKEN header — see git history).
     minimox = {
       ip = "192.168.1.30";
       sshUser = "root";

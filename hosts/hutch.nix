@@ -139,6 +139,12 @@ in
   boot.kernel.sysctl = {
     "net.ipv4.conf.all.arp_ignore" = 1;
     "net.ipv4.conf.all.arp_filter" = 1;
+    # conf/all only defaults for new interfaces; existing ones must be set
+    # per-interface to apply on switch without a reboot.
+    "net.ipv4.conf.br0.arp_ignore" = 1;
+    "net.ipv4.conf.br0.arp_filter" = 1;
+    "net.ipv4.conf.enp3s0.arp_ignore" = 1;
+    "net.ipv4.conf.enp3s0.arp_filter" = 1;
   };
 
   # NixOS containers, one per network.nix host with `parent = "hutch"`.

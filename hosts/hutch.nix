@@ -81,70 +81,69 @@ in
 
   networking.hostName = "hutch";
 
-  # The primary NIC (Supermicro onboard, MAC 0c:c4:7a:bd:45:32) is bridged
-  # into br0 so NixOS containers get LAN-reachable IPs via hostBridge (same
-  # L2 as the rest of the 192.168.1.0/24 fleet). The installer environment
-  # called this NIC enx0cc47abd4532; the installed system uses the PCI-path
-  # name enp1s0 — same card, same MAC.
+  # systemd-networkd. EVERY physical ethernet port is a port of br0 (matched
+  # by Type=ether, not by name — adding a PCI card can renumber enpXsY, and
+  # new ports should just become extra uplinks), and br0 is the only thing on
+  # the LAN: it owns .2, and the containers attach to it via hostBridge. A
+  # bridge port with no carrier is inert, so whichever cable is plugged in
+  # Just Works — today that's the PCIe NIC (enp3s0); at rack time the cable
+  # moves to the Supermicro onboard port (enp1s0, MAC 0c:c4:7a:bd:45:32) with
+  # no config change. STP is on so that having two ports cabled to the same
+  # switch forms no loop (one goes into blocking); it also means a fresh link
+  # waits a few seconds in listening/learning before forwarding.
   #
-  # systemd-networkd. enp1s0 is the intended primary uplink (bridged into
-  # br0 for the containers) but is NOT cabled yet — enp3s0 is the only real
-  # link today and provides IPv4+IPv6 via DHCP/SLAAC.
+  # If a future NIC must NOT be a bridge port (dedicated 10G to another box,
+  # say), give it its own systemd.network.networks unit sorting before
+  # "30-lan-port" with a narrower match — first match wins.
   #
-  # The trap that caused "works on switch, dies on reboot": br0 gets carrier
-  # from the container veths even while enp1s0 is dark, so
-  # ConfigureWithoutCarrier=false does NOT stop it being configured. With
-  # .2 + a metric-100 default route on a bridge that has no physical uplink,
-  # IPv4 was blackholed (IPv6 kept flowing out enp3s0's RA route — hence
-  # google.com v6 pinging while 1.1.1.1 v4 didn't). Fix: br0's default route
-  # carries a HIGH metric (2000, > networkd's DHCP default 1024) so it can
-  # never win while enp1s0 is unplugged — enp3s0's DHCP route always carries
-  # IPv4. When enp1s0 is eventually cabled and br0/.2 become reachable,
-  # promote the metric (< 1024) to make it the true primary again.
+  # History, so this doesn't get "fixed" back: br0 previously held .2 while its
+  # only port (enp1s0) was unplugged, with enp3s0 separately holding a DHCP .124.
+  # br0 still came up (container veths give the bridge carrier, so
+  # ConfigureWithoutCarrier=false does not stop it), and its connected
+  # 192.168.1.0/24 route at metric 0 beat enp3s0's DHCP route at metric 1024 —
+  # so every packet to the LAN, including SSH replies arriving on enp3s0, was
+  # routed into a bridge with no cable and dropped. Raising the *default* route
+  # metric to 2000 never helped, because LAN traffic uses the connected route.
+  # The arp_ignore/arp_filter sysctls that followed were treating symptoms of
+  # that blackhole (and arp_filter additionally stopped .124 answering ARP at
+  # all, since the route lookup for the sender kept returning br0). One
+  # L3 identity on the subnet makes all of it unnecessary.
   networking = {
     useNetworkd = true;
-    bridges.br0.interfaces = [ "enp1s0" ];
-    interfaces.br0.ipv4.addresses = [{
-      address = hostsLib.getIP "hutch";
-      prefixLength = 24;
-    }];
-    interfaces.enp3s0.useDHCP = true;
+    interfaces.br0 = {
+      ipv4.addresses = [{
+        address = hostsLib.getIP "hutch";
+        prefixLength = 24;
+      }];
+      # Belt and braces during the cutover: br0 inherits the DHCP path too, so
+      # the box stays reachable on its old lease if .2 is ever wrong. Drop once
+      # .2 is proven.
+      useDHCP = true;
+    };
     defaultGateway = {
       address = hostsLib.gateway;
       interface = "br0";
-      metric = 2000;
     };
     inherit (hostsLib) nameservers;
     firewall.allowedTCPPorts = [ 22 ];
   };
 
-  # networkd gets IPv6 SLAAC/RA explicitly (defaults aren't guaranteed), and
-  # br0 must not be configured at all while its port has no carrier.
-  systemd.network.networks = {
-    "40-br0" = {
-      networkConfig.ConfigureWithoutCarrier = false;
-      networkConfig.IPv6AcceptRA = true;
+  systemd.network = {
+    # The bridge device itself (networking.bridges is not used — it would
+    # want a fixed port-name list, defeating the catch-all below).
+    netdevs."40-br0" = {
+      netdevConfig = { Kind = "bridge"; Name = "br0"; };
+      bridgeConfig.STP = true;
     };
-    "40-enp3s0" = {
-      networkConfig.IPv6AcceptRA = true;
+    # Catch-all: every physical ethernet port joins br0. Sorts before the
+    # stock 99-ethernet-default-dhcp catch-all, so it wins for physical NICs;
+    # container veths are Kind=veth so neither unit touches them.
+    networks."30-lan-port" = {
+      matchConfig = { Type = "ether"; Kind = "!*"; };
+      networkConfig.Bridge = "br0";
     };
-  };
-
-  # Two NICs share the 192.168.1.0/24 segment (.2 on br0, .124 on enp3s0), so
-  # the kernel must only answer ARP for each IP on the interface that owns it.
-  # With the defaults (arp_ignore=0, arp_filter=0) both br0 and enp3s0 answer
-  # ARP for either IP, the router's neighbor cache flips between the two MACs,
-  # and SSH to .2/.124 randomly times out mid-connection ("ARP flux"). This
-  # also keeps br0/.2 healthy when a container restart blips the veths.
-  boot.kernel.sysctl = {
-    "net.ipv4.conf.all.arp_ignore" = 1;
-    "net.ipv4.conf.all.arp_filter" = 1;
-    # conf/all only defaults for new interfaces; existing ones must be set
-    # per-interface to apply on switch without a reboot.
-    "net.ipv4.conf.br0.arp_ignore" = 1;
-    "net.ipv4.conf.br0.arp_filter" = 1;
-    "net.ipv4.conf.enp3s0.arp_ignore" = 1;
-    "net.ipv4.conf.enp3s0.arp_filter" = 1;
+    # networkd gets IPv6 SLAAC/RA explicitly (defaults aren't guaranteed).
+    networks."40-br0".networkConfig.IPv6AcceptRA = true;
   };
 
   # NixOS containers, one per network.nix host with `parent = "hutch"`.

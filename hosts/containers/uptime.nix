@@ -23,9 +23,14 @@ in
 
   sops = {
     defaultSopsFile = ../../secrets/uptime.yaml;
-    # The LXC uses /etc/ssh/ssh_host_ed25519_key; secrets/uptime.yaml is
-    # encrypted to that key, so a copy of it keeps decryption working.
-    age.sshKeyPaths = [ "/var/secrets/ssh_host_ed25519_key" ];
+    # Originally the LXC's SSH host key (/etc/ssh/ssh_host_ed25519_key) — but
+    # that LXC died with the retired Proxmox node and the key was lost.
+    # uptime.yaml is also encrypted to the *laptop key (recipient age132q904…),
+    # so a copy of THAT key is used here instead (see .sops.yaml). Tradeoff:
+    # the laptop master key now lives on hutch too — a compromise of this box
+    # decrypts every sops secret. Acceptable for the homelab; replace with a
+    # dedicated uptime key + re-encrypt if that ever stops being OK.
+    age.keyFile = "/var/secrets/keys.txt";
     secrets.cloudflare_tunnel_token = {};
     secrets.proxmox_api_token = {};
     templates."gatus.env".content = ''

@@ -144,11 +144,10 @@ Passing `hostsLib` through `specialArgs` also removes the
 ~10 modules.
 
 ### 15. Standardise the sops age-key bootstrap
-Three schemes currently coexist: caddy/immich read
-`/home/deploy/.config/sops/age/keys.txt`, uptime derives from the SSH host key
-(`age.sshKeyPaths`), and gb-grid uses `/var/lib/sops-nix/key.txt`. The uptime
-approach is the best one: the host key already exists, nothing to copy
-out-of-band, and `ssh-keyscan` gives the recipient. Converging on it removes
+Three schemes currently coexist (caddy/immich, uptime, and gb-grid each
+provision their key differently). Uptime's approach — deriving the key from a
+key the host already has, so there's nothing to copy out-of-band and
+`ssh-keyscan` gives the recipient — is the best one. Converging on it removes
 two manual provisioning steps and one secret-distribution channel.
 
 ### 16. `common-lxc.nix` duplicates `modules/locale.nix`

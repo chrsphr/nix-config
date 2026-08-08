@@ -172,18 +172,6 @@ let
       ip = "192.168.1.2";
       sshUser = "deploy";
     };
-    pihole-test = {
-      ip = "192.168.1.241";
-      sshUser = "deploy";
-      parent = "hutch";
-      port = 80;
-    };
-    immich-test = {
-      ip = "192.168.1.242";
-      sshUser = "deploy";
-      parent = "hutch";
-      port = 2283;
-    };
 
     # Non-NixOS hosts (for Caddy config + monitoring)
     ha = {

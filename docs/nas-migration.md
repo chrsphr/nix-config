@@ -59,9 +59,9 @@ TrueNAS → NixOS mapping (all in `modules/nas.nix`):
 3. **B2 credentials.** The app key in the TrueNAS DB is encrypted and not
    portable. Write `/var/lib/rclone/rclone.conf` (mode 0600) with a fresh
    `b2` remote, then test: `systemctl start rclone-photos-backup`.
-4. **immich age key.** Copy `keys.txt` from the LXC's
-   `/home/deploy/.config/sops/age/keys.txt` into `/var/lib/sops-nix/immich/`
-   on hutch (bind-mounted to `/var/secrets` in the container).
+4. **immich age key.** Copy the immich age private key into
+   `/var/lib/sops-nix/immich/` on hutch (bind-mounted to `/var/secrets` in the
+   container).
 5. **Copy immich state** from the LXC: stop immich on the LXC, copy
    `/var/lib/immich` (database/config — *not* the media, that comes with the
    pool) to the container's `/var/lib/immich` on the host

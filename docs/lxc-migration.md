@@ -37,14 +37,14 @@ State copy targets are relative to the container root, e.g. plex state goes to
 
 | Service | State to copy from the LXC | Secrets bootstrap on hutch |
 | --- | --- | --- |
-| `caddy` | `/var/lib/caddy` (optional — DNS-01 re-issues the wildcard cert anyway) | `scp /home/deploy/.config/sops/age/keys.txt` → `/var/lib/sops-nix/caddy/keys.txt` |
+| `caddy` | `/var/lib/caddy` (optional — DNS-01 re-issues the wildcard cert anyway) | copy the `*caddy` age private key → `/var/lib/sops-nix/caddy/keys.txt` |
 | `pihole-1` / `pihole-2` | none required — config is fully declarative; gravity regenerates via the update timer. Optional: `/var/lib/pihole` (query history) | — |
 | `plex` | `/var/lib/plex` (large; `rsync -aH`) | — |
 | `sonarr` | `/var/lib/sonarr` **and** `/var/lib/prowlarr` (on the LXC the latter is a symlink to `/var/lib/private/prowlarr` — copy the real dir) | — |
 | `transmission` | `/var/lib/transmission` | — |
 | `tailscale` | `/var/lib/tailscale` (keeps the node identity; skip it and you re-auth + re-approve the exit node/routes in the admin console) | — |
-| `uptime` | `/var/lib/gatus` (optional — uptime history) | copy `/etc/ssh/ssh_host_ed25519_key` → `/var/lib/sops-nix/uptime/ssh_host_ed25519_key` (secrets are encrypted to that key) |
-| `gb-grid` | `/var/lib/postgresql`, `/var/lib/grafana`, `/var/lib/gb-grid` | copy `/var/lib/sops-nix/key.txt` → `/var/lib/sops-nix/gb-grid/key.txt` |
+| `uptime` | `/var/lib/gatus` (optional — uptime history) | copy the `*laptop` age private key → `/var/lib/sops-nix/uptime/keys.txt`. The original LXC SSH host key died with the Proxmox node; `uptime.yaml` is also encrypted to the laptop key, so the container uses `age.keyFile` instead. |
+| `gb-grid` | `/var/lib/postgresql`, `/var/lib/grafana`, `/var/lib/gb-grid` | copy the gb-grid age private key → `/var/lib/sops-nix/gb-grid/key.txt` |
 | `beeper` | `/var/lib/beeper` (bbctl login + bridge sessions — copying it means **no** re-login) | — |
 | `immich` | per [nas-migration.md](nas-migration.md) — moves with the ZFS pool | per nas-migration.md |
 

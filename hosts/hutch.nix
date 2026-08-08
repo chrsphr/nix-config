@@ -10,16 +10,13 @@ let
   # immediately. See docs/lxc-migration.md.
   cutoverPending = [
     "beeper"
-    "caddy"
     "gb-grid"
     "immich"
-    "pihole-1"
     "pihole-2"
     "plex"
     "sonarr"
     "tailscale"
     "transmission"
-    "uptime"
   ];
 
   # Containers that decrypt the same secrets/<name>.yaml as their LXC. The

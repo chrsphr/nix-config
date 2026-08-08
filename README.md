@@ -164,7 +164,7 @@ nvd diff /run/current-system ./result
 
 ## Secrets management (sops-nix)
 
-Secrets are encrypted with age and stored in `secrets/*.yaml`. Each host can only decrypt its own secrets using its SSH host key.
+Secrets are encrypted with age and stored in `secrets/*.yaml`. Each host only holds the key that decrypts its own secrets; keys are provisioned out-of-band.
 
 ### Edit a secret
 

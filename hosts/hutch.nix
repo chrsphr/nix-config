@@ -81,20 +81,30 @@ in
 
   networking.hostName = "hutch";
 
-  # systemd-networkd. EVERY physical ethernet port is a port of br0 (matched
-  # by Type=ether, not by name — adding a PCI card can renumber enpXsY, and
-  # new ports should just become extra uplinks), and br0 is the only thing on
-  # the LAN: it owns .2, and the containers attach to it via hostBridge. A
-  # bridge port with no carrier is inert, so whichever cable is plugged in
-  # Just Works — today that's the PCIe NIC (enp3s0); at rack time the cable
-  # moves to the Supermicro onboard port (enp1s0, MAC 0c:c4:7a:bd:45:32) with
-  # no config change. STP is on so that having two ports cabled to the same
-  # switch forms no loop (one goes into blocking); it also means a fresh link
-  # waits a few seconds in listening/learning before forwarding.
+  # systemd-networkd. Topology:
   #
-  # If a future NIC must NOT be a bridge port (dedicated 10G to another box,
+  #   physical NICs ─► bond0 (active-backup) ─► br0 (.2) ◄─ container veths
+  #
+  # EVERY physical ethernet port is a slave of bond0, matched by Type=ether
+  # rather than by name — adding a PCI card can renumber enpXsY, and new
+  # ports should just become extra uplink paths. bond0 is br0's single
+  # uplink port; br0 owns .2 and the containers attach to it via hostBridge.
+  #
+  # active-backup means exactly one NIC carries traffic and the rest are hot
+  # standbys: whichever cable is plugged in Just Works, failover on link loss
+  # is ~100ms (MII monitor), and a switching loop is impossible even with
+  # both NICs cabled to the same switch — so NO STP on br0. (STP was tried
+  # first and caused LAN-wide instability: the bridge's random low MAC won
+  # root-bridge election against the UniFi kit, and every container veth
+  # start/stop forced 30s listening/learning plus topology-change FDB
+  # flushes — intermittent multi-second blackholes of established TCP.)
+  #
+  # The bond carries a FIXED MAC (the Supermicro onboard NIC's) so the LAN
+  # identity of .2 never changes across boots, failovers, or cable moves.
+  #
+  # If a future NIC must NOT be an uplink (dedicated 10G to another box,
   # say), give it its own systemd.network.networks unit sorting before
-  # "30-lan-port" with a narrower match — first match wins.
+  # "20-lan-port" with a narrower match — first match wins.
   #
   # History, so this doesn't get "fixed" back: br0 previously held .2 while its
   # only port (enp1s0) was unplugged, with enp3s0 separately holding a DHCP .124.
@@ -110,16 +120,10 @@ in
   # L3 identity on the subnet makes all of it unnecessary.
   networking = {
     useNetworkd = true;
-    interfaces.br0 = {
-      ipv4.addresses = [{
-        address = hostsLib.getIP "hutch";
-        prefixLength = 24;
-      }];
-      # Belt and braces during the cutover: br0 inherits the DHCP path too, so
-      # the box stays reachable on its old lease if .2 is ever wrong. Drop once
-      # .2 is proven.
-      useDHCP = true;
-    };
+    interfaces.br0.ipv4.addresses = [{
+      address = hostsLib.getIP "hutch";
+      prefixLength = 24;
+    }];
     defaultGateway = {
       address = hostsLib.gateway;
       interface = "br0";
@@ -129,21 +133,39 @@ in
   };
 
   systemd.network = {
-    # The bridge device itself (networking.bridges is not used — it would
-    # want a fixed port-name list, defeating the catch-all below).
-    netdevs."40-br0" = {
-      netdevConfig = { Kind = "bridge"; Name = "br0"; };
-      bridgeConfig.STP = true;
+    netdevs = {
+      # networking.bridges/bonds are not used — they want fixed port-name
+      # lists, defeating the catch-all port match below.
+      "20-bond0" = {
+        netdevConfig = {
+          Kind = "bond";
+          Name = "bond0";
+          # Fixed LAN identity for .2 (the Supermicro onboard NIC's MAC).
+          MACAddress = "0c:c4:7a:bd:45:32";
+        };
+        bondConfig = {
+          Mode = "active-backup";
+          MIIMonitorSec = "100ms";
+        };
+      };
+      "40-br0".netdevConfig = { Kind = "bridge"; Name = "br0"; };
     };
-    # Catch-all: every physical ethernet port joins br0. Sorts before the
-    # stock 99-ethernet-default-dhcp catch-all, so it wins for physical NICs;
-    # container veths are Kind=veth so neither unit touches them.
-    networks."30-lan-port" = {
-      matchConfig = { Type = "ether"; Kind = "!*"; };
-      networkConfig.Bridge = "br0";
+    networks = {
+      # Catch-all: every physical ethernet port becomes a bond slave. Sorts
+      # before the stock 99-ethernet-default-dhcp catch-all, so it wins for
+      # physical NICs; bond0/br0/veths all have a Kind, so Kind=!* skips them.
+      "20-lan-port" = {
+        matchConfig = { Type = "ether"; Kind = "!*"; };
+        networkConfig.Bond = "bond0";
+      };
+      # The bond is the bridge's uplink port.
+      "30-bond0" = {
+        matchConfig.Name = "bond0";
+        networkConfig.Bridge = "br0";
+      };
+      # networkd gets IPv6 SLAAC/RA explicitly (defaults aren't guaranteed).
+      "40-br0".networkConfig.IPv6AcceptRA = true;
     };
-    # networkd gets IPv6 SLAAC/RA explicitly (defaults aren't guaranteed).
-    networks."40-br0".networkConfig.IPv6AcceptRA = true;
   };
 
   # NixOS containers, one per network.nix host with `parent = "hutch"`.

@@ -4,25 +4,10 @@ let
   hostsLib = import ../lib/network.nix { inherit lib; };
   keys = import ../modules/keys.nix;
 
-  # Containers replacing live Proxmox LXCs share the LXC's IP, so they must
-  # not start until that service is cut over (shut down the LXC, remove the
-  # name from this list, deploy). Test containers (unique IPs) start
-  # immediately. See docs/lxc-migration.md.
-  cutoverPending = [
-    "beeper"
-    "gb-grid"
-    "immich"
-    "pihole-2"
-    "plex"
-    "sonarr"
-    "tailscale"
-    "transmission"
-  ];
-
-  # Containers that decrypt the same secrets/<name>.yaml as their LXC. The
-  # decryption key (age key or SSH host key, depending on the service) is
-  # copied from the LXC into /var/lib/sops-nix/<name>/ on this host and
-  # bind-mounted into the container at /var/secrets.
+  # Containers that decrypt secrets/<name>.yaml. The decryption key lives at
+  # /var/lib/sops-nix/<name>/ on this host (root-only, NOT in the repo) and
+  # is bind-mounted read-only into the container at /var/secrets. The
+  # filename differs per container — see each container's sops.age.keyFile.
   withSecrets = [ "caddy" "gb-grid" "immich" "uptime" ];
 
   # Containers that read the media library from the local ZFS pool. Guarded
@@ -31,24 +16,20 @@ let
 
   # Per-container extras, merged over the defaults in the containers block.
   perContainer = {
-    # The photo library lives on the local ZFS pool — bind it straight in
-    # instead of the NFS loopback the LXC used (Proxmox host mounted
-    # 192.168.1.12:/mnt/Hutch/Media over NFS, then bind-mounted that).
+    # The photo library, straight off the local ZFS pool.
     immich.bindMounts."/mnt/media/Photos" = {
       hostPath = "/mnt/Hutch/Media/Photos";
       isReadOnly = false;
     };
 
-    # The LXC got the library as read-only binds at /media/{Movies,Music,TV}
-    # (Plex never writes media). Same internal paths here.
+    # Read-only — Plex never writes media.
     plex.bindMounts = {
       "/media/Movies" = { hostPath = "/mnt/Hutch/Media/Movies"; isReadOnly = true; };
       "/media/Music"  = { hostPath = "/mnt/Hutch/Media/Music";  isReadOnly = true; };
       "/media/TV"     = { hostPath = "/mnt/Hutch/Media/TV";     isReadOnly = true; };
     };
 
-    # The LXCs NFS-mounted the whole Media share rw at /mnt/media — keep the
-    # same internal path against the local dataset.
+    # The whole Media dataset, rw, at the path both apps are configured for.
     sonarr.bindMounts."/mnt/media" = {
       hostPath = "/mnt/Hutch/Media";
       isReadOnly = false;
@@ -78,7 +59,9 @@ in
     # btrfs subvolumes + nightly snapshots for the container roots
     ../modules/container-snapshots.nix
   ];
-
+  # Newest kernel that is both supported by ZFS 2.4.3 (max 7.0) and not
+  # EOL-removed in nixpkgs (7.0, 6.19, 6.17 all are; latest is 7.1).
+  boot.kernelPackages = pkgs.linuxPackages_6_18;
   networking.hostName = "hutch";
 
   # systemd-networkd. Topology:
@@ -176,14 +159,13 @@ in
   };
 
   # NixOS containers, one per network.nix host with `parent = "hutch"`.
-  # IPs and bridge derive from lib/network.nix; autostart is gated by the
-  # cutoverPending list above.
+  # IPs and bridge derive from lib/network.nix.
   containers = lib.mapAttrs' (name: cfg:
     lib.nameValuePair name (lib.recursiveUpdate {
       privateNetwork = true;
       hostBridge = "br0";
       localAddress = "${cfg.ip}/24";
-      autoStart = !(builtins.elem name cutoverPending);
+      autoStart = true;
       # gb-grid/gb-grid-pkg are only consumed by the gb-grid container,
       # sops-nix only by the ones in withSecrets — harmless elsewhere.
       specialArgs = { inherit pkgs-unstable sops-nix gb-grid gb-grid-pkg; };

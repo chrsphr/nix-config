@@ -5,8 +5,7 @@ let
   hostsLib = import ../../lib/network.nix { inherit lib; };
 in
 {
-  # Shared base for NixOS containers (systemd-nspawn) running on hutch.
-  # Analogous to common-lxc.nix but without the Proxmox LXC module.
+  # Shared base for every NixOS container (systemd-nspawn) on hutch.
 
   system.stateVersion = "26.05";
 

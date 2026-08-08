@@ -184,12 +184,6 @@ in
       hostBridge = "br0";
       localAddress = "${cfg.ip}/24";
       autoStart = !(builtins.elem name cutoverPending);
-      # Don't bind the host's /etc/resolv.conf into containers: the host runs
-      # systemd-resolved, so its resolv.conf is the 127.0.0.53 stub, which is
-      # dead inside a container (resolved isn't running there) — every lookup
-      # fails. Each container generates its own from networking.nameservers
-      # instead (see common.nix).
-      useHostResolvConf = false;
       # gb-grid/gb-grid-pkg are only consumed by the gb-grid container,
       # sops-nix only by the ones in withSecrets — harmless elsewhere.
       specialArgs = { inherit pkgs-unstable sops-nix gb-grid gb-grid-pkg; };

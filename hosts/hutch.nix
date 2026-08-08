@@ -78,6 +78,8 @@ in
     ../modules/locale.nix
     # NAS role: ZFS pool import, NFS, snapshots, B2 sync (TrueNAS replacement)
     ../modules/nas.nix
+    # btrfs subvolumes + nightly snapshots for the container roots
+    ../modules/container-snapshots.nix
   ];
 
   networking.hostName = "hutch";

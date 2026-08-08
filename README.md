@@ -354,6 +354,7 @@ modules/                   # Reusable NixOS modules
   nfs-home-automount.nix   # Smart NFS mount (WiFi/Tailscale aware)
   keyboard-backlight-timeout.nix  # Framework keyboard backlight
   locale.nix               # Locale/timezone
+  container-snapshots.nix  # btrfs subvolumes + nightly snapshots for hutch's containers
 home/                      # Home Manager profiles
   common-home.nix          # Shared: Git, zsh, GNOME extensions
   framework.nix            # Framework-specific user packages

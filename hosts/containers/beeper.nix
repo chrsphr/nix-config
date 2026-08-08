@@ -8,7 +8,27 @@
 let
   stateDir = "/var/lib/beeper";
   bbctlConfig = "${stateDir}/bbctl.json";
-  bbctl = "${pkgs.beeper-bridge-manager}/bin/bbctl";
+
+  # bbctl 0.13.0 runs sh-telegram in "python bridge" mode (Beeper still
+  # classifies sh-telegram as the legacy Python bridge server-side), so bbctl
+  # holds the appservice websocket itself and proxies provisioning requests to
+  # the bridge's local HTTP listener. Its proxy hardcodes PUT for every
+  # proxied request (proxyWebsocketRequest in cmd/bbctl/proxy.go), so the
+  # app's GET /v3/capabilities, /v3/whoami etc. all fail with 405 and the
+  # Telegram network never appears in the Beeper app. Patch the proxy to
+  # forward the real method from the websocket http_proxy request. (Still
+  # unfixed in bbctl main as of 2026-08; bbctl >=0.14 instead treats telegram
+  # as a Go bridge and skips the proxy entirely, but that path requires
+  # regenerating the on-box config, so patch rather than upgrade.)
+  bbctl-patched = pkgs.beeper-bridge-manager.overrideAttrs (old: {
+    postPatch = (old.postPatch or "") + ''
+      substituteInPlace cmd/bbctl/proxy.go \
+        --replace-fail \
+        'http.NewRequestWithContext(cmd.Ctx, http.MethodPut, fullURL.String(), body)' \
+        'http.NewRequestWithContext(cmd.Ctx, reqData.Method, fullURL.String(), body)'
+    '';
+  });
+  bbctl = "${bbctl-patched}/bin/bbctl";
 
   # Telegram: as of v26.04 (calver tag v0.26xx.0) the bridge is a Go bridgev2
   # rewrite, so — like signal/whatsapp — it speaks the /provision/v3 API, reports
@@ -119,10 +139,9 @@ in
   ];
 
   environment.systemPackages = (with pkgs; [
-    beeper-bridge-manager
     mautrix-whatsapp
     mautrix-signal
-  ]) ++ [ mautrix-telegram mautrix-bluesky ];
+  ]) ++ [ bbctl-patched mautrix-telegram mautrix-bluesky ];
 
   systemd.services = lib.mapAttrs'
     (name: command: lib.nameValuePair "mautrix-${name}" (mkBridgeService name command))

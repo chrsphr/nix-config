@@ -250,6 +250,14 @@ in
   #     keep_firmware_settings, so forcing ALPM globally buys nothing.
   #   - HDD spindown (hdparm -B/-S): plex/sonarr/transmission/sanoid touch the
   #     Media dataset continuously — the drives would thrash, not idle.
+  #
+  # Package C-states are capped at PC2 by HARDWARE, not config (verified
+  # 2026-08-08 with turbostat/lspci): the 82599 10G NIC at 01:00.0 supports
+  # only ASPM L0s, not L1, and ADL needs every PCIe link in L1 for PC3+.
+  # Cores reach CC7, iGPU RC6 works, NVMe L1 is on, MSR 0xE2 is unlimited —
+  # the NIC is the sole blocker, and it costs only ~1-2W at the package
+  # (~2.7W RAPL idle as-is). Fix would be a NIC that supports L1; there is
+  # no software knob. Don't re-investigate.
   # ---------------------------------------------------------------------------
 
   # Alder Lake's hybrid P/E topology; Intel's own daemon handles it better

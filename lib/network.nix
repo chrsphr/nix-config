@@ -136,6 +136,18 @@ let
       port = 3001;
       caddy = true;
     };
+    network-optimizer = {
+      ip = "192.168.1.84";
+      sshUser = "deploy";
+      parent = "hutch";
+      port = 8042;
+      caddy = true;
+      subdomain = "optm";
+      monitor = {
+        type = "http"; name = "Network Optimizer"; path = "/api/health";
+        group = "Hutch Primary Services";
+      };
+    };
 
     beeper = {
       ip = "192.168.1.40";

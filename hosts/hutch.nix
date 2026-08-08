@@ -89,24 +89,42 @@ in
   # L2 as the rest of the 192.168.1.0/24 fleet). The installer environment
   # called this NIC enx0cc47abd4532; the installed system uses the PCI-path
   # name enp1s0 — same card, same MAC.
+  #
+  # systemd-networkd (not the scripted backend) so a dark br0 can't shadow
+  # the backup path: networkd drops a link's routes when it loses carrier,
+  # and ConfigureWithoutCarrier=false (below) stops br0 being configured at
+  # all until enp1s0 has a link — so .2 and its default route only exist
+  # when enp1s0 is actually cabled. enp3s0 is then the automatic fallback via
+  # its DHCP default route (metric 1024). The br0 default route uses metric
+  # 100 (< 1024) so it's primary whenever enp1s0 is up. This is the whole
+  # reason hutch stays online regardless of which NIC is cabled.
   networking = {
+    useNetworkd = true;
     bridges.br0.interfaces = [ "enp1s0" ];
     interfaces.br0.ipv4.addresses = [{
       address = hostsLib.getIP "hutch";
       prefixLength = 24;
     }];
-    # Second NIC is a plain DHCP client. IPv6 needs nothing extra on either
-    # interface: br0 gets global addresses + default route via SLAAC/RA
-    # (scripted networking leaves kernel autoconf alone), dhcpcd handles v6
-    # on enp3s0. The static default route via br0 (metric 0) always wins
-    # over dhcpcd's (metric 202).
     interfaces.enp3s0.useDHCP = true;
     defaultGateway = {
       address = hostsLib.gateway;
       interface = "br0";
+      metric = 100;
     };
     inherit (hostsLib) nameservers;
     firewall.allowedTCPPorts = [ 22 ];
+  };
+
+  # networkd gets IPv6 SLAAC/RA explicitly (defaults aren't guaranteed), and
+  # br0 must not be configured at all while its port has no carrier.
+  systemd.network.networks = {
+    "40-br0" = {
+      networkConfig.ConfigureWithoutCarrier = false;
+      networkConfig.IPv6AcceptRA = true;
+    };
+    "40-enp3s0" = {
+      networkConfig.IPv6AcceptRA = true;
+    };
   };
 
   # NixOS containers, one per network.nix host with `parent = "hutch"`.

@@ -130,6 +130,17 @@ in
     };
   };
 
+  # Two NICs share the 192.168.1.0/24 segment (.2 on br0, .124 on enp3s0), so
+  # the kernel must only answer ARP for each IP on the interface that owns it.
+  # With the defaults (arp_ignore=0, arp_filter=0) both br0 and enp3s0 answer
+  # ARP for either IP, the router's neighbor cache flips between the two MACs,
+  # and SSH to .2/.124 randomly times out mid-connection ("ARP flux"). This
+  # also keeps br0/.2 healthy when a container restart blips the veths.
+  boot.kernel.sysctl = {
+    "net.ipv4.conf.all.arp_ignore" = 1;
+    "net.ipv4.conf.all.arp_filter" = 1;
+  };
+
   # NixOS containers, one per network.nix host with `parent = "hutch"`.
   # IPs and bridge derive from lib/network.nix; autostart is gated by the
   # cutoverPending list above.

@@ -31,8 +31,10 @@ in
     # decrypts every sops secret. Acceptable for the homelab; replace with a
     # dedicated uptime key + re-encrypt if that ever stops being OK.
     age.keyFile = "/var/secrets/keys.txt";
-    secrets.cloudflare_tunnel_token = {};
-    secrets.proxmox_api_token = {};
+    # Persistent paths: /run/secrets is tmpfs and containers don't re-run
+    # activation at boot, so the default paths would vanish on every reboot.
+    secrets.cloudflare_tunnel_token.path = "/var/lib/sops/cloudflare_tunnel_token";
+    secrets.proxmox_api_token.path = "/var/lib/sops/proxmox_api_token";
     templates."gatus.env".content = ''
       PROXMOX_API_TOKEN=${config.sops.placeholder.proxmox_api_token}
     '';

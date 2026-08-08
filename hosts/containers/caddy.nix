@@ -26,6 +26,11 @@ in
     secrets = {
       cloudflare_api_token = {
         owner = "caddy";
+        # Not the default /run/secrets (tmpfs): containers don't re-run their
+        # activation at boot, so files under /run are wiped on every reboot
+        # and never recreated until the next host deploy. /var lives on the
+        # container's persistent btrfs subvolume.
+        path = "/var/lib/sops/cloudflare_api_token";
       };
     };
   };

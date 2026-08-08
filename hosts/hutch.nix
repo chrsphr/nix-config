@@ -64,7 +64,10 @@ in
 {
   imports = [
     ../modules/locale.nix
-    # NAS role: ZFS pool import, NFS, snapshots, B2 sync (TrueNAS replacement)
+    # Host-level secrets. Unlike the containers, hutch decrypts with its own SSH
+    # host key (sops.age.sshKeyPaths default) — nothing to place by hand.
+    sops-nix.nixosModules.sops
+    # NAS role: ZFS pool import, NFS, snapshots, encrypted B2 backup
     ../modules/nas.nix
     # btrfs subvolumes + nightly snapshots for the container roots
     ../modules/container-snapshots.nix

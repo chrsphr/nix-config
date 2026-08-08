@@ -5,6 +5,11 @@ keys:
   # caddy still has a distinct per-container key, at
   # /var/lib/sops-nix/caddy/keys.txt on hutch.
   - &caddy age1h9eg8cl50usge2e5sjr77pes2l0wgl3ypk95jd4w32m88yhpugnsd9dpl4
+  # hutch itself, for host-level secrets (the B2 backup credentials). Derived
+  # from its SSH host key, so there is no separate key file to deploy —
+  # sops-nix reads /etc/ssh/ssh_host_ed25519_key directly. Regenerate with:
+  #   ssh-keyscan -t ed25519 192.168.1.2 | ssh-to-age
+  - &hutch age1lz2haqrsgtm3ug6gh8apapjf8qp608f3xffhrnjuwnargu3rjqlqru0ukx
 
 # immich and uptime used to have per-host keys too, but both died with the
 # hardware they lived on (see hosts/containers/uptime.nix). They now decrypt
@@ -18,6 +23,14 @@ creation_rules:
       - age:
           - *laptop
           - *caddy
+
+  # Host-level secrets for hutch. Must precede the catch-all below —
+  # creation_rules are first-match.
+  - path_regex: .*secrets/hutch\.yaml$
+    key_groups:
+      - age:
+          - *laptop
+          - *hutch
 
   # Everything else: laptop key only.
   - path_regex: .*secrets/.*\.yaml$

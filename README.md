@@ -15,7 +15,7 @@ Personal NixOS configuration for all machines and services — managed as a sing
 ### Server + services
 
 `hutch` is the only server: baremetal NixOS that both **is the NAS** (ZFS pool
-`Hutch`, NFS, snapshots, B2 sync — `modules/nas.nix`) and **runs every service**
+`Hutch`, NFS, snapshots, encrypted B2 backup — `modules/nas.nix`) and **runs every service**
 as a systemd-nspawn container (`hosts/containers/`). Each container keeps its
 own LAN IP on the `br0` bridge, so it looks like a separate host on the network.
 
@@ -338,7 +338,7 @@ hosts/                     # One file per machine
   hutch.nix                # Baremetal NAS + container host (declares them all)
 hardware/                  # Hardware-specific configs (Framework, desktop)
 modules/                   # Reusable NixOS modules
-  nas.nix                  # NAS role: ZFS, NFS, sanoid, smartd, rclone->B2
+  nas.nix                  # NAS role: ZFS, NFS, sanoid, smartd, encrypted rclone->B2
   common-desktop.nix       # Base for desktop machines (GNOME, Tailscale, etc.)
   cloudflare-tunnel.nix    # Cloudflare tunnel service wrapper
   nfs-home-automount.nix   # Smart NFS mount (WiFi/Tailscale aware)

@@ -28,8 +28,8 @@
 #
 # Scope notes:
 #   - Media (Photos/Movies/TV) is NOT in the container roots — it's
-#     bind-mounted from the ZFS pool and already covered by sanoid +
-#     rclone→B2 (modules/nas.nix).
+#     bind-mounted from the ZFS pool and already covered by sanoid + the
+#     encrypted rclone→B2 mirror (modules/nas.nix).
 #   - /var/lib/sops-nix/<name> (host-side keys bind-mounted into containers)
 #     is tiny but NOT captured by these snapshots — fold it in when an
 #     off-disk transport is added.
@@ -68,8 +68,10 @@ lib.mkIf (containerNames != []) {
     '';
   };
 
-  # 03:00: after sanoid's midnight ZFS snapshots, clear of the rclone→B2
-  # jobs (Tue/Wed 00:00). Persistent so a missed run fires at next boot.
+  # 03:00: after sanoid's midnight ZFS snapshots. The rclone→B2 backup starts
+  # at 01:00 and can run for hours, so these do overlap — that's fine, they
+  # touch different disks (NVMe container roots vs the ZFS pool).
+  # Persistent so a missed run fires at next boot.
   systemd.timers.container-snapshot = {
     wantedBy = [ "timers.target" ];
     timerConfig = {

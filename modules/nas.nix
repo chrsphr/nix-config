@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
-# The NAS role: ZFS pool, NFS exports, snapshots and B2 sync. Imported by
-# hutch, which owns storage and containers on one box.
+# The NAS role: ZFS pool, NFS exports, snapshots and the encrypted B2 backup.
+# Imported by hutch, which owns storage and containers on one box.
 #
 # Took over from the TrueNAS "lilnas" VM (retired 2026-08-08). The two 8TB
 # disks moved into the hutch chassis and pool "Hutch" was imported in place —
@@ -11,6 +11,18 @@
 
 let
   keys = import ./keys.nix;
+
+  # What goes offsite, as <remote subdir> -> <local path>. Everything here is
+  # mirrored, so adding a path costs B2 storage and removing one deletes it
+  # from the remote on the next run (subject to the 30-day lifecycle window).
+  backupPaths = {
+    "TV"      = "/mnt/Hutch/Media/TV";
+    "Movies"  = "/mnt/Hutch/Media/Movies";
+    "Photos"  = "/mnt/Hutch/Media/Photos";
+    "Sites"   = "/mnt/Hutch/Media/Sites";
+    "Music"   = "/mnt/Hutch/Media/Music";
+    "Backups" = "/mnt/Hutch/Backups";
+  };
 in
 {
   # ---------------------------------------------------------------------------
@@ -24,13 +36,16 @@ in
   networking.hostId = "a8f3c1d2";  # Required by ZFS. Arbitrary but must not change.
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.extraPools = [ "Hutch" ];
-  # Needed once, because the pool was last imported by TrueNAS under a
-  # different hostId. Now that hutch has imported it cleanly these can go —
-  # they bypass ZFS's multi-host safety checks, so don't leave them on
-  # indefinitely.
-  # TODO: drop both after confirming a clean boot without them.
-  boot.zfs.forceImportAll = true;
-  boot.zfs.forceImportRoot = true;
+  # forceImportAll/forceImportRoot were needed for the first import only, when
+  # the labels still carried TrueNAS's hostId. Both disks' labels now read
+  # hostid a8f3c1d2 / hostname "hutch" (verified 2026-08-08 with zdb -l), so
+  # a normal import succeeds and the multi-host safety checks are back on.
+  # Don't reintroduce them: if an import ever fails, find out why first.
+  #
+  # forceImportRoot must be set explicitly — it still defaults to true here and
+  # only flips to false in 26.11, so dropping the line would have left the
+  # force-import in place while looking like it had been turned off.
+  boot.zfs.forceImportRoot = false;
 
   # TrueNAS scrub: Sunday 00:00, threshold 35 days (i.e. ~monthly).
   services.zfs.autoScrub = {
@@ -99,50 +114,117 @@ in
   };
 
   # ---------------------------------------------------------------------------
-  # Cloud sync to Backblaze B2 (TrueNAS cloudsync tasks, both PUSH/COPY):
-  #   Photos Backup:   /mnt/Hutch/Media/Photos -> B2 Hutch-Backup/images, Wed 00:00
-  #   VM Image Backup: /mnt/Hutch/Backups      -> B2 Hutch-Backup/backups, Tue 00:00
-  # COPY mode => plain `rclone copy` (never deletes at the destination).
+  # Encrypted offsite backup to Backblaze B2.
   #
-  # The B2 application key is NOT in this repo — write it by hand at
-  # /var/lib/rclone/rclone.conf (mode 0600) with:
-  #   [b2]
-  #   type = b2
-  #   account = <B2 keyID>
-  #   key = <B2 applicationKey>
-  # TODO: move to sops once hutch has its own age key enrolled in .sops.yaml.
+  # Replaced the TrueNAS-era cloudsync tasks (plain `rclone copy` of Photos and
+  # Backups, unencrypted, Tue/Wed 00:00). Three things changed:
+  #
+  #   1. Everything goes through an rclone `crypt` remote. File contents AND
+  #      names/directories are encrypted locally; B2 stores opaque blobs under
+  #      opaque paths and never sees the key.
+  #   2. `sync`, not `copy` — the bucket mirrors current on-disk state instead
+  #      of accumulating everything ever written. See the delete guards below.
+  #   3. Credentials come from sops (secrets/hutch.yaml) rather than a
+  #      hand-written /var/lib/rclone/rclone.conf.
+  #
+  # The crypt passwords are ALSO in 1Password ("backblaze hutchv2"). Losing both
+  # them and secrets/hutch.yaml makes every byte in B2 permanently unreadable —
+  # B2 cannot help, that is the point of client-side encryption.
+  #
+  # Bucket setup that is NOT expressed here (done by hand in the B2 console):
+  #   - bucket `hutch-v2`, private, app key scoped to just that bucket
+  #   - lifecycle: keepDaysAfterHide = 30, keepDaysAfterUpload = null
+  # That lifecycle rule IS the undo window. Without it a bad sync is final.
+  # Nothing in this file enforces either — check them if restores misbehave.
   # ---------------------------------------------------------------------------
-  systemd.tmpfiles.rules = [
-    "d /var/lib/rclone 0700 root root -"
-  ];
+  # hutch decrypts with its own SSH host key (sops.age.sshKeyPaths default), so
+  # unlike the containers there is no key file to place at /var/secrets. The
+  # default /run/secrets tmpfs is fine here: the host re-runs activation at boot.
+  sops.defaultSopsFile = ../secrets/hutch.yaml;
+  sops.secrets.b2_account = { };
+  sops.secrets.b2_key = { };
+  sops.secrets.rclone_crypt_password = { };
+  sops.secrets.rclone_crypt_password2 = { };
 
-  systemd.services.rclone-photos-backup = {
-    description = "Sync Photos to B2 Hutch-Backup/images";
+  sops.templates."rclone.conf".content = ''
+    [b2]
+    type = b2
+    account = ${config.sops.placeholder.b2_account}
+    key = ${config.sops.placeholder.b2_key}
+    # Soft-delete: removals become "hidden" versions, which is what lets the
+    # bucket lifecycle rule hold them for 30 days. Do not set this to true.
+    hard_delete = false
+
+    [b2crypt]
+    type = crypt
+    remote = b2:hutch-v2
+    filename_encryption = standard
+    directory_name_encryption = true
+    password = ${config.sops.placeholder.rclone_crypt_password}
+    password2 = ${config.sops.placeholder.rclone_crypt_password2}
+  '';
+
+  systemd.services.rclone-b2-backup = {
+    description = "Encrypted mirror of media + backups to Backblaze B2";
+    # network-online because rclone is useless without it; sops-nix because a
+    # Persistent timer can fire at boot before the config template is rendered.
+    after = [ "zfs-mount.service" "network-online.target" "sops-nix.service" ];
+    wants = [ "network-online.target" ];
+    requires = [ "zfs-mount.service" ];
+
+    # If the pool did not import, /mnt/Hutch/Media is an empty directory on the
+    # root filesystem — and `rclone sync` against empty sources would delete the
+    # entire remote. Same guard the media containers use (hosts/hutch.nix).
+    unitConfig.ConditionPathIsMountPoint = "/mnt/Hutch/Media";
+
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${pkgs.rclone}/bin/rclone --config /var/lib/rclone/rclone.conf copy /mnt/Hutch/Media/Photos b2:Hutch-Backup/images --fast-list --b2-chunk-size 96M";
+      # The first seed is ~4TB and runs for days; oneshot otherwise defaults to
+      # a 90s start timeout and would be killed mid-transfer.
+      TimeoutStartSec = "infinity";
+      # Bulk background transfer — don't starve Plex of disk or CPU.
+      Nice = 10;
+      IOSchedulingClass = "idle";
     };
-  };
-  systemd.timers.rclone-photos-backup = {
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "Wed *-*-* 00:00:00";
-      Persistent = true;
-    };
+
+    # One path failing (transient B2 error, a --max-delete trip) must not skip
+    # the remaining paths — NixOS job scripts run under `set -e`, so each rclone
+    # is guarded and the unit reports failure only at the end.
+    script = ''
+      failed=""
+    '' + lib.concatStrings (lib.mapAttrsToList (dest: src: ''
+      echo "==> ${src} -> b2crypt:${dest}"
+      ${pkgs.rclone}/bin/rclone \
+        --config ${config.sops.templates."rclone.conf".path} \
+        sync ${lib.escapeShellArg src} b2crypt:${dest} \
+        --fast-list \
+        --b2-chunk-size 96M \
+        --transfers 8 \
+        --checkers 16 \
+        --retries 3 \
+        --low-level-retries 10 \
+        --max-delete 1000 \
+        --track-renames \
+        --track-renames-strategy modtime,leaf \
+        --stats 5m \
+        --stats-one-line \
+        || failed="$failed ${dest}"
+    '') backupPaths) + ''
+      if [ -n "$failed" ]; then
+        echo "FAILED:$failed" >&2
+        exit 1
+      fi
+    '';
   };
 
-  systemd.services.rclone-backups-backup = {
-    description = "Sync Backups to B2 Hutch-Backup/backups";
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = "${pkgs.rclone}/bin/rclone --config /var/lib/rclone/rclone.conf copy /mnt/Hutch/Backups b2:Hutch-Backup/backups --fast-list --b2-chunk-size 96M";
-    };
-  };
-  systemd.timers.rclone-backups-backup = {
+  systemd.timers.rclone-b2-backup = {
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnCalendar = "Tue *-*-* 00:00:00";
+      OnCalendar = "*-*-* 01:00:00";
+      # A run in progress simply keeps the unit active, so a multi-day first
+      # seed is safe: systemd will not start a second copy on top of it.
       Persistent = true;
+      RandomizedDelaySec = "30m";
     };
   };
 

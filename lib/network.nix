@@ -40,6 +40,8 @@ let
     pihole-1 = {
       ip = "192.168.1.9";
       sshUser = "deploy";
+      # NixOS container on hutch — same for every host with `parent = "hutch"`.
+      parent = "hutch";
       port = 80;
       caddy = true;
       monitor = [
@@ -50,6 +52,7 @@ let
     pihole-2 = {
       ip = "192.168.1.10";
       sshUser = "deploy";
+      parent = "hutch";
       port = 80;
       caddy = true;
       monitor = [
@@ -60,6 +63,7 @@ let
     immich = {
       ip = "192.168.1.127";
       sshUser = "deploy";
+      parent = "hutch";
       port = 2283;
       caddy = true;
       monitor = {
@@ -70,6 +74,7 @@ let
     caddy = {
       ip = "192.168.1.239";
       sshUser = "deploy";
+      parent = "hutch";
       monitor = {
         type = "http"; name = "caddy"; url = "https://caddy.${domain}";
         group = "Hutch Primary Services";
@@ -78,6 +83,7 @@ let
     tailscale = {
       ip = "192.168.1.207";
       sshUser = "deploy";
+      parent = "hutch";
       port = 8080;
       monitor = {
         type = "http"; name = "Tailscale"; path = "/health";
@@ -87,6 +93,7 @@ let
     plex = {
       ip = "192.168.1.209";
       sshUser = "deploy";
+      parent = "hutch";
       port = 32400;
       caddy = true;
       monitor = {
@@ -97,12 +104,15 @@ let
     sonarr = {
       ip = "192.168.1.75";
       sshUser = "deploy";
+      parent = "hutch";
       port = 8989;
       caddy = true;
       monitor = {
         type = "http"; name = "Sonarr API"; path = "/ping";
       };
     };
+    # Co-located with sonarr in the same container, so no `parent` (and no
+    # container) of its own.
     prowlarr = {
       ip = "192.168.1.75";
       sshUser = "deploy";
@@ -112,6 +122,7 @@ let
     transmission = {
       ip = "192.168.1.136";
       sshUser = "deploy";
+      parent = "hutch";
       port = 9091;
       caddy = true;
       monitor = {
@@ -121,6 +132,7 @@ let
     uptime = {
       ip = "192.168.1.31";
       sshUser = "deploy";
+      parent = "hutch";
       port = 3001;
       caddy = true;
     };
@@ -128,6 +140,7 @@ let
     beeper = {
       ip = "192.168.1.40";
       sshUser = "deploy";
+      parent = "hutch";
       monitor = {
         type = "port"; targetPort = 22; name = "Beeper bridges";
         group = "Hutch Primary Services";
@@ -141,9 +154,18 @@ let
     gb-grid = {
       ip = "192.168.1.28";
       sshUser = "deploy";
+      parent = "hutch";
       port = 3000;
       caddy = true;
       subdomain = "grid";
+    };
+
+    # hutch: the baremetal server. Runs the NAS role (modules/nas.nix) and
+    # every service as a NixOS container. Containers (hosts with a `parent`
+    # field) are defined on their parent's config, not here.
+    hutch = {
+      ip = "192.168.1.2";
+      sshUser = "deploy";
     };
 
     # Non-NixOS hosts (for Caddy config + monitoring)
@@ -159,39 +181,8 @@ let
         group = "Hutch Primary Services";
       };
     };
-    lilnas = {
-      ip = "192.168.1.12";
-      sshUser = "root";
-      port = 443;
-      caddy = true;
-      https = true;
-      monitor = {
-        type = "http"; name = "TrueNAS"; scheme = "https"; insecure = true;
-        group = "Hutch Primary Services";
-      };
-    };
-    proxmox = {
-      ip = "192.168.1.2";
-      sshUser = "root";
-      port = 8006;
-      monitor = {
-        type = "http"; name = "Proxmox"; scheme = "https";
-        path = "/api2/json/version"; insecure = true;
-        headers.Authorization = "PVEAPIToken=root@pam!uptime2=\${PROXMOX_API_TOKEN}";
-        group = "Hutch Primary Services";
-      };
-    };
-    minimox = {
-      ip = "192.168.1.30";
-      sshUser = "root";
-      port = 8006;
-      monitor = {
-        type = "http"; name = "Minimox"; scheme = "https";
-        path = "/api2/json/version"; insecure = true;
-        headers.Authorization = "PVEAPIToken=root@pam!uptime2=\${PROXMOX_API_TOKEN}";
-        group = "Hutch Primary Services";
-      };
-    };
+    # Retired 2026-08-08: lilnas (TrueNAS VM, .12) and minimox (Proxmox, .30).
+    # hutch took over both roles; see git history if either ever comes back.
     unifi = {
       ip = "192.168.1.1";
       sshUser = "root";
@@ -292,25 +283,11 @@ ${headersConfig}${tlsConfig}      }'' else "";
 in {
   inherit gateway nameservers domain hosts;
 
-  # Generate static network config for a host
-  mkStaticNetwork = hostname: {
-    useDHCP = false;
-    interfaces.eth0.ipv4.addresses = [{
-      address = hosts.${hostname}.ip;
-      prefixLength = 24;
-    }];
-    defaultGateway = {
-      address = gateway;
-      interface = "eth0";
-    };
-    inherit nameservers;
-  };
+  # Hosts that run as NixOS containers on a given parent host
+  getContainers = parent: lib.filterAttrs (name: cfg: (cfg.parent or null) == parent) hosts;
 
   # Get IP for a host
   getIP = hostname: hosts.${hostname}.ip;
-
-  # Get port for a host
-  getPort = hostname: hosts.${hostname}.port or null;
 
   # Generate full Caddy extraConfig
   generateCaddyConfig = lib.concatStringsSep "\n" (lib.mapAttrsToList mkHostBlock caddyHosts);

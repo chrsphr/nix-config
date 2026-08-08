@@ -1,27 +1,26 @@
 keys:
+  # Master key, held in 1Password. Every secret is encrypted to it, and it is
+  # the key deployed to hutch for the containers whose own key was lost.
   - &laptop age132q904eh8nk60sxel90e6n09k0sq6u4908sxz87gf33lwlgpwu6qeuvr49
-  - &immich age1lvx0sy27p8gj4e8c4dw3tz5njyk975xtvl5rwr5fvyx7rqzg4uuqv6gkqq
+  # caddy still has a distinct per-container key, at
+  # /var/lib/sops-nix/caddy/keys.txt on hutch.
   - &caddy age1h9eg8cl50usge2e5sjr77pes2l0wgl3ypk95jd4w32m88yhpugnsd9dpl4
-  - &uptime age1z8939t5qwrcg0huvwhh0ldpzgedl9ugcufm40wj6dnu0cnptte5sw8m9sh
 
+# immich and uptime used to have per-host keys too, but both died with the
+# hardware they lived on (see hosts/containers/uptime.nix). They now decrypt
+# with a copy of the *laptop* key, deployed to /var/lib/sops-nix/<name>/ on
+# hutch — so their old recipients are gone from here. Tradeoff: the master key
+# lives on hutch, so compromising that box exposes every secret. Acceptable for
+# a homelab; issue dedicated keys and re-run `sops updatekeys` to undo it.
 creation_rules:
-  - path_regex: .*secrets/immich\.yaml$
-    key_groups:
-      - age:
-          - *laptop
-          - *immich
   - path_regex: .*secrets/caddy\.yaml$
     key_groups:
       - age:
           - *laptop
           - *caddy
-  - path_regex: .*secrets/uptime\.yaml$
-    key_groups:
-      - age:
-          - *laptop
-          - *uptime
 
-  - path_regex: .*secrets/gb-grid\.yaml$
+  # Everything else: laptop key only.
+  - path_regex: .*secrets/.*\.yaml$
     key_groups:
       - age:
           - *laptop

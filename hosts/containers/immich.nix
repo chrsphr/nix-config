@@ -1,17 +1,23 @@
-{ config, pkgs, pkgs-unstable, lib, ... }:
+{ config, pkgs, pkgs-unstable, sops-nix, lib, ... }:
+
+# Immich as a NixOS container on hutch. Media comes from the local ZFS pool
+# via a bind mount (hostPath /mnt/Hutch/Media/Photos, see hosts/hutch.nix),
+# exposed internally at /mnt/media/Photos.
 
 {
   imports = [
-    ./common-lxc.nix
+    ./common.nix
     ../../modules/cloudflare-tunnel.nix
+    sops-nix.nixosModules.sops
   ];
 
   networking.hostName = "immich";
 
-  # Configure sops for secrets management
+  # Same secrets file and age key as the LXC — the key is bind-mounted from
+  # the hutch host (/var/lib/sops-nix/immich) at container start.
   sops = {
     defaultSopsFile = ../../secrets/immich.yaml;
-    age.keyFile = "/home/deploy/.config/sops/age/keys.txt";
+    age.keyFile = "/var/secrets/age-keys.txt";
     secrets = {
       oauth_client_id = {
         owner = "immich";
@@ -43,15 +49,13 @@
     host = "0.0.0.0";
     port = 2283;
 
-    # Media storage location
+    # Same path the LXC used — now a bind mount of the local ZFS dataset
+    # rather than the NFS share.
     mediaLocation = "/mnt/media/Photos";
 
     # Load the JSON configuration from sops template (includes injected secrets)
-    # We can't use settings directly because it would try to read runtime paths at build time
-    # Instead, we'll use environment variable to point to the config file
     environment.IMMICH_CONFIG_FILE = config.sops.templates."immich-config.json".path;
 
-    # Database and Redis are managed automatically by the Immich module
     database.enable = true;
     redis.enable = true;
 
@@ -60,9 +64,10 @@
     accelerationDevices = [ "/dev/dri/renderD128" ];
   };
 
-  # QSV userspace stack. The container gets /dev/dri via dev0/dev1 entries in
-  # the Proxmox config (203.conf); these provide the iHD VA-API driver and
-  # oneVPL runtime at /run/opengl-driver that jellyfin-ffmpeg loads.
+  # QSV userspace stack. Requires /dev/dri inside the container — on baremetal
+  # that's just a bind mount + allowedDevices if hutch's CPU has an Intel iGPU
+  # (commented-out snippet in hosts/hutch.nix). Until then hardware
+  # transcoding is unavailable and immich falls back to CPU.
   hardware.graphics = {
     enable = true;
     extraPackages = with pkgs; [ intel-media-driver vpl-gpu-rt ];
@@ -70,12 +75,15 @@
   users.users.immich.extraGroups = [ "video" "render" ];
   environment.systemPackages = [ pkgs.libva-utils ];  # `vainfo` to verify QSV
 
-  # The photo library lives on the Media NFS share, bind-mounted from the Proxmox
-  # host as an *optional* mount (lxc.mount.entry … bind,optional in 203.conf) so
-  # the container still boots if the NFS share is unavailable. Guard the server so
-  # it won't run library-less when the mount is absent — it stays down until
-  # /mnt/media/Photos is actually mounted again.
-  systemd.services.immich-server.unitConfig.ConditionPathIsMountPoint = "/mnt/media/Photos";
+  # The LXC wrote to the library over NFS with mapall chrsphr:root, so every
+  # existing file is uid 3000. Match that here (nspawn shares the host's uid
+  # space) so ownership stays consistent with desktop/framework NFS access.
+  users.users.immich.uid = 3000;
+
+  # The LXC guarded immich-server with ConditionPathIsMountPoint because its
+  # media mount was optional. Here the equivalent guard is on the host:
+  # container@immich won't start unless /mnt/Hutch/Media is mounted
+  # (see hosts/hutch.nix).
 
   services.cloudflare-tunnel = {
     enable = true;

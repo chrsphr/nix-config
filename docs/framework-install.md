@@ -14,7 +14,7 @@ Result: power-on → no LUKS prompt (TPM unseals) → GDM login. Passphrase rema
   ```bash
   sudo mv ~/backups/darktable-config-*.tar.zst /mnt/Media/misc/
   ```
-- Confirm any other things you want off this laptop are saved (browser profiles, ssh keys in `~/.ssh`, sops age keys, 1Password local data, GPG, etc.).
+- Confirm any other things you want off this laptop are saved (browser profiles, ssh keys in `~/.ssh`, 1Password local data, GPG, etc.).
 - Push the `framework-reinstall` branch to GitHub so the installer can clone it:
   ```bash
   git push -u origin framework-reinstall

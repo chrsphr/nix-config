@@ -1,14 +1,15 @@
 { config, pkgs, lib, ... }:
 
-let
-  hostsLib = import ../../lib/network.nix { inherit lib; };
-in
+# Tailscale exit node as a NixOS container on hutch. The host grants
+# /dev/net/tun and CAP_NET_ADMIN via containers.tailscale.enableTun
+# (see hosts/hutch.nix).
+
 {
   imports = [
-    ./common-lxc.nix
+    ./common.nix
   ];
 
-  networking = hostsLib.mkStaticNetwork "tailscale" // {
+  networking = {
     hostName = "tailscale";
     firewall = {
       trustedInterfaces = [ "tailscale0" ];
@@ -17,7 +18,8 @@ in
     };
   };
 
-  # Enable IP forwarding for exit node
+  # Enable IP forwarding for exit node. The container has its own network
+  # namespace (privateNetwork), so these apply inside the container only.
   boot.kernel.sysctl = {
     "net.ipv4.ip_forward" = 1;
     "net.ipv6.conf.all.forwarding" = 1;

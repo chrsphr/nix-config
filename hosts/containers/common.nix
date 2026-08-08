@@ -1,62 +1,51 @@
-{ config, modulesPath, pkgs, lib, ... }:
+{ config, pkgs, lib, ... }:
 
 let
   keys = import ../../modules/keys.nix;
+  hostsLib = import ../../lib/network.nix { inherit lib; };
 in
 {
-  imports = [
-    (modulesPath + "/virtualisation/proxmox-lxc.nix")
-  ];
+  # Shared base for every NixOS container (systemd-nspawn) on hutch.
 
-  # Basic settings
   system.stateVersion = "26.05";
 
+  # Nix settings
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
     sandbox = false;
     require-sigs = false;
   };
-
   nix.optimise.automatic = true;
-
   nix.gc = {
     automatic = true;
     dates = "weekly";
     options = "--delete-older-than 7d";
   };
-  proxmoxLXC = {
-    manageNetwork = false;
-    # All containers run unprivileged on the Proxmox side (unprivileged: 1 in
-    # every /etc/pve/lxc/*.conf) — don't claim otherwise here.
-    privileged = false;
-  };
 
-  # No interactive docs needed in containers; trims closure size and eval time
-  # (same rationale as common-desktop.nix).
   documentation.enable = false;
 
-  # Suppress problematic units in LXC
-  systemd.suppressedSystemUnits = [
-    "dev-mqueue.mount"
-    "sys-kernel-debug.mount"
-    "sys-fs-fuse-connections.mount"
-  ];
-
-  # Fix tty1 console
-  systemd.services."getty@tty1" = {
-    enable = lib.mkForce true;
-    wantedBy = [ "getty.target" ];
-    serviceConfig.Restart = "always";
-  };
-
-  # Networking defaults (can be overridden per host)
+  # Networking defaults. The default gateway is required: hostBridge puts the
+  # container straight on the LAN, but without a default route it can't reply
+  # to (or reach) anything off-subnet.
   networking = {
-    useDHCP = lib.mkDefault true;
+    inherit (hostsLib) nameservers;
+    defaultGateway = {
+      address = hostsLib.gateway;
+      interface = "eth0";
+    };
     firewall = {
       enable = true;
       allowedTCPPorts = [ 22 ];
     };
   };
+
+  # The container profile defaults networking.useHostResolvConf = true, so
+  # resolvconf inside the container regenerates /etc/resolv.conf from the
+  # HOST's copy — which is the systemd-resolved stub (127.0.0.53), and
+  # resolved does not run inside the containers: every lookup fails (caddy:
+  # "lookup acme-v02.api.letsencrypt.org: no such host"). Turn it off so
+  # resolvconf writes the container's own networking.nameservers instead.
+  networking.useHostResolvConf = lib.mkForce false;
 
   # SSH setup
   services.openssh = {
@@ -74,11 +63,7 @@ in
     extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [ keys.chris ];
   };
-
-  # Add SSH key to root user too (for initial deployment)
   users.users.root.openssh.authorizedKeys.keys = [ keys.chris ];
-
-  # Passwordless sudo for wheel group
   security.sudo.wheelNeedsPassword = false;
 
   # Basic packages
@@ -97,10 +82,5 @@ in
   # Common group for media access
   users.groups.media = {};
 
-  # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
-
-  # Container-specific settings
-  boot.isContainer = true;
-  services.fstrim.enable = false;
 }

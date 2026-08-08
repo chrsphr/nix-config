@@ -1,16 +1,14 @@
 { config, pkgs, lib, ... }:
 
-let
-  hostsLib = import ../../lib/network.nix { inherit lib; };
-in
+# Sonarr + Prowlarr, co-located in one NixOS container on hutch. The Media
+# dataset is bind mounted at /mnt/media (see hosts/hutch.nix).
+
 {
   imports = [
-    ./common-lxc.nix
+    ./common.nix
   ];
 
-  networking = hostsLib.mkStaticNetwork "sonarr" // {
-    hostName = "sonarr";
-  };
+  networking.hostName = "sonarr";
 
   services.sonarr = {
     enable = true;
@@ -22,6 +20,6 @@ in
     openFirewall = true;
   };
 
-  # Allow sonarr to access media mount
+  # Allow sonarr to access the media bind mount
   users.users.sonarr.extraGroups = [ "media" ];
 }

@@ -1,26 +1,35 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, sops-nix, lib, ... }:
+
+# Caddy reverse proxy as a NixOS container on hutch. Decrypts
+# secrets/caddy.yaml with the age key at /var/lib/sops-nix/caddy/keys.txt on
+# the host, bind-mounted read-only to /var/secrets.
 
 let
   hostsLib = import ../../lib/network.nix { inherit lib; };
 in
 {
   imports = [
-    ./common-lxc.nix
+    ./common.nix
+    sops-nix.nixosModules.sops
   ];
 
-  ### Networking
   networking = {
     hostName = "caddy";
     firewall.allowedTCPPorts = [ 80 443 ];
   };
 
-  # Configure sops for secrets management
   sops = {
     defaultSopsFile = ../../secrets/caddy.yaml;
-    age.keyFile = "/home/deploy/.config/sops/age/keys.txt";
+    # Same age key the LXC keeps at /home/deploy/.config/sops/age/keys.txt.
+    age.keyFile = "/var/secrets/keys.txt";
     secrets = {
       cloudflare_api_token = {
         owner = "caddy";
+        # Not the default /run/secrets (tmpfs): containers don't re-run their
+        # activation at boot, so files under /run are wiped on every reboot
+        # and never recreated until the next host deploy. /var lives on the
+        # container's persistent btrfs subvolume.
+        path = "/var/lib/sops/cloudflare_api_token";
       };
     };
   };

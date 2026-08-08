@@ -1,8 +1,11 @@
 { config, pkgs, lib, ... }:
 
-let
-  hostsLib = import ../../lib/network.nix { inherit lib; };
+# Self-hosted Beeper bridges as a NixOS container on hutch. Outbound-only:
+# no Caddy vhost, no tunnel, no open ports. Bridge sessions live in
+# /var/lib/beeper (bbctl login token + bridge DBs) — see the README
+# "Beeper bridges" section for the one-time login bootstrap.
 
+let
   stateDir = "/var/lib/beeper";
   bbctlConfig = "${stateDir}/bbctl.json";
 
@@ -81,12 +84,6 @@ let
     ldflags = [ "-s" "-w" "-X" "main.Tag=v${version}" "-X" "main.Commit=${src.rev}" ];
   };
 
-  # (Dropped 2026-07-30) v26.06 needed a postPatch adding the
-  # usernameChangeSyncMessage device capability, without which Signal's server
-  # rejected linking a new device with `409 Conflict`. v26.07 declares it
-  # upstream in signalCapabilities (pkg/signalmeow/provisioning.go), so plain
-  # pkgs.mautrix-signal is used below.
-
   # Self-hosted Beeper bridges, as name -> the command bbctl should launch via
   # --custom-startup-command (which disables all downloads — nothing non-Nix ever
   # runs). signal and whatsapp are Go bridgev2 binaries straight from nixpkgs;
@@ -120,15 +117,13 @@ let
   };
 in
 {
-  imports = [ ./common-lxc.nix ];
+  imports = [ ./common.nix ];
 
   # The mautrix bridges pull in libolm (Matrix E2EE), which nixpkgs flags as
   # insecure/unmaintained. Required for end-to-bridge encryption.
   nixpkgs.config.permittedInsecurePackages = [ "olm-3.2.16" ];
 
-  networking = hostsLib.mkStaticNetwork "beeper" // {
-    hostName = "beeper";
-  };
+  networking.hostName = "beeper";
 
   # Single service user owns the bbctl login token and all bridge state/DBs.
   users.users.beeper = {
@@ -152,13 +147,8 @@ in
     (name: command: lib.nameValuePair "mautrix-${name}" (mkBridgeService name command))
     bridges;
 
-  # ── One-time bootstrap (imperative, run on the box) ────────────────────────
-  # 1. sudo -u beeper env HOME=/var/lib/beeper \
-  #      BBCTL_CONFIG=/var/lib/beeper/bbctl.json bbctl login
-  #    (interactive email-code login; writes the token to bbctl.json and flips
-  #    the ConditionPathExists so the services can start).
-  # 2. systemctl start mautrix-signal mautrix-whatsapp mautrix-telegram mautrix-bluesky
-  # 3. In the Beeper app, message each bridge bot (@sh-signalbot, @sh-whatsappbot,
-  #    @sh-telegrambot, @sh-blueskybot) and follow `login`.
-  # See the README "Beeper bridges" section for the full runbook.
+  # ── Cutover note ───────────────────────────────────────────────────────────
+  # If /var/lib/beeper is copied from the LXC (chown -R beeper:beeper after),
+  # the ConditionPathExists flips immediately and no bbctl login is needed.
+  # Otherwise follow the bootstrap in the README "Beeper bridges" section.
 }

@@ -52,11 +52,6 @@
       specialArgs = { inherit pkgs-unstable; } // specialArgs;
     };
 
-    # Proxmox LXC container; the sops variant adds sops-nix for hosts with
-    # secrets/<hostname>.yaml.
-    mkLxc = path: mkHost { modules = [ path ]; };
-    mkSopsLxc = path: mkHost { modules = [ path sops-nix.nixosModules.sops ]; };
-
     # Home-manager integration shared by the personal machines. Only the home
     # profile path differs per host, so the rest is factored out here.
     mkHomeModules = homeProfile: [
@@ -95,33 +90,33 @@
             # fleet (immich/caddy/sonarr all hit it 2026-07-03; activation
             # itself succeeded every time, then the confirm round-trip stalled
             # and triggered a spurious rollback — one interrupted run even left
-            # beeper half-activated with sshd down). Disable it fleet-wide and
-            # verify deploys by checking services instead; Proxmox console is
-            # the recovery path if an activation ever goes bad.
+            # beeper half-activated with sshd down). Disable it and verify
+            # deploys by checking services instead; hutch's physical console
+            # is the recovery path if an activation ever goes bad.
             magicRollback = false;
           };
         }
       ) (lib.filterAttrs (name: _: network.hosts ? ${name}) configs);
   in {
     nixosConfigurations = {
-      ### Proxmox LXC containers (hosts/lxc/)
-      pihole-1 = mkLxc ./hosts/lxc/pihole-1.nix;
-      pihole-2 = mkLxc ./hosts/lxc/pihole-2.nix;
-      plex = mkLxc ./hosts/lxc/plex.nix;
-      tailscale = mkLxc ./hosts/lxc/tailscale.nix;
-      transmission = mkLxc ./hosts/lxc/transmission.nix;
-      sonarr = mkLxc ./hosts/lxc/sonarr.nix;
-      beeper = mkLxc ./hosts/lxc/beeper.nix;
-      immich = mkSopsLxc ./hosts/lxc/immich.nix;
-      caddy = mkSopsLxc ./hosts/lxc/caddy.nix;
-      uptime = mkSopsLxc ./hosts/lxc/uptime.nix;
-      gb-grid = mkHost {
+      ### Baremetal server (NAS + containers)
+      # hutch: baremetal box that runs every service as a NixOS container
+      # (hosts/containers/, one per network.nix host with parent = "hutch")
+      # and owns the storage role (modules/nas.nix). sops-nix and the gb-grid
+      # flake are passed through for the container configs that need them.
+      # Containers are deployed BY deploying hutch — they have no
+      # nixosConfigurations/deploy-rs entries of their own.
+      hutch = mkHost {
         modules = [
-          ./hosts/lxc/gb-grid.nix
-          gb-grid.nixosModules.default
-          sops-nix.nixosModules.sops
+          ./hosts/hutch.nix
+          ./hardware/hutch.nix
+          ./hardware/hutch-disko.nix
+          disko.nixosModules.disko
         ];
-        specialArgs.gb-grid-pkg = gb-grid.packages.${system}.default;
+        specialArgs = {
+          inherit sops-nix gb-grid;
+          gb-grid-pkg = gb-grid.packages.${system}.default;
+        };
       };
 
       ### Personal machines (hosts/)
@@ -146,6 +141,13 @@
         host = ./hosts/chris-wsl.nix;
         home = ./home/wsl.nix;
         extraModules = [ nixos-wsl.nixosModules.default ];
+      };
+
+      ### Installer ISO (build only, not deployed)
+      # Minimal SSH-enabled live ISO for key-only remote installs.
+      # Build: nix build .#nixosConfigurations.install-iso.config.system.build.isoImage
+      install-iso = mkHost {
+        modules = [ ./hosts/install-iso.nix ];
       };
     };
 

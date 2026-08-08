@@ -5,7 +5,7 @@
 # Designed for portable devices that roam between networks.
 
 let
-  nas = "192.168.1.12";
+  nas = "192.168.1.2";  # hutch
   mountPoint = "/mnt/Media";
   nasExport = "${nas}:/mnt/Hutch/Media";
   homeSSID = "Rebel Hideout";

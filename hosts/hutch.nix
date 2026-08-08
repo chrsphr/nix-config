@@ -90,14 +90,20 @@ in
   # called this NIC enx0cc47abd4532; the installed system uses the PCI-path
   # name enp1s0 — same card, same MAC.
   #
-  # systemd-networkd (not the scripted backend) so a dark br0 can't shadow
-  # the backup path: networkd drops a link's routes when it loses carrier,
-  # and ConfigureWithoutCarrier=false (below) stops br0 being configured at
-  # all until enp1s0 has a link — so .2 and its default route only exist
-  # when enp1s0 is actually cabled. enp3s0 is then the automatic fallback via
-  # its DHCP default route (metric 1024). The br0 default route uses metric
-  # 100 (< 1024) so it's primary whenever enp1s0 is up. This is the whole
-  # reason hutch stays online regardless of which NIC is cabled.
+  # systemd-networkd. enp1s0 is the intended primary uplink (bridged into
+  # br0 for the containers) but is NOT cabled yet — enp3s0 is the only real
+  # link today and provides IPv4+IPv6 via DHCP/SLAAC.
+  #
+  # The trap that caused "works on switch, dies on reboot": br0 gets carrier
+  # from the container veths even while enp1s0 is dark, so
+  # ConfigureWithoutCarrier=false does NOT stop it being configured. With
+  # .2 + a metric-100 default route on a bridge that has no physical uplink,
+  # IPv4 was blackholed (IPv6 kept flowing out enp3s0's RA route — hence
+  # google.com v6 pinging while 1.1.1.1 v4 didn't). Fix: br0's default route
+  # carries a HIGH metric (2000, > networkd's DHCP default 1024) so it can
+  # never win while enp1s0 is unplugged — enp3s0's DHCP route always carries
+  # IPv4. When enp1s0 is eventually cabled and br0/.2 become reachable,
+  # promote the metric (< 1024) to make it the true primary again.
   networking = {
     useNetworkd = true;
     bridges.br0.interfaces = [ "enp1s0" ];
@@ -109,7 +115,7 @@ in
     defaultGateway = {
       address = hostsLib.gateway;
       interface = "br0";
-      metric = 100;
+      metric = 2000;
     };
     inherit (hostsLib) nameservers;
     firewall.allowedTCPPorts = [ 22 ];

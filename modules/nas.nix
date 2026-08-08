@@ -165,18 +165,19 @@ in
   services.smartd = {
     enable = true;
     devices = [
-      # Match by serial — device letters can change when the disks move to the
-      # new machine. Verify the by-id names after installing them in hutch
-      # (baremetal, so SMART works natively — no passthrough quirks).
+      # Match by WWN — stable per-drive regardless of how udev formats the
+      # by-id name (on this kernel it's ata-HUH728080ALE601_<SERIAL>, not
+      # ata-<SERIAL>; device letters can also move). Verify with `ls -l
+      # /dev/disk/by-id/wwn-*`.
       # -d sat: smartd can't auto-detect the device type on hutch's
       # controller ("unable to autodetect device type"), but explicit SATA
       # passthrough works — verified with `smartctl -d sat -i/-H`.
       {
-        device = "/dev/disk/by-id/ata-VKHWUELX";  # 8TB
+        device = "/dev/disk/by-id/wwn-0x5000cca254dabd04";  # 8TB VKHWUELX
         options = "-d sat -a -s (S/../../3/00|L/../01/./04)";
       }
       {
-        device = "/dev/disk/by-id/ata-VKHNN8PX";  # 8TB
+        device = "/dev/disk/by-id/wwn-0x5000cca254d77b0e";  # 8TB VKHNN8PX
         options = "-d sat -a -s (S/../../3/00|L/../01/./04)";
       }
     ];

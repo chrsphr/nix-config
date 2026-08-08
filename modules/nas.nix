@@ -155,6 +155,45 @@ in
   powerManagement.powertop.enable = true;
   powerManagement.cpuFreqGovernor = "powersave";
 
+  # ---------------------------------------------------------------------------
+  # Further idle/load tuning, NOT inherited from TrueNAS. hutch is an i5-12600K
+  # (Alder Lake) doing NAS work, so the stock desktop power envelope is far
+  # more than it ever needs.
+  #
+  # Checked and deliberately skipped:
+  #   - RAPL package power limits (PL1 135W / PL2 150W): left at stock on
+  #     purpose. Don't cap these.
+  #   - powerManagement.scsiLinkPolicy: both 8TB drives are on host4/host5,
+  #     already at med_power_with_dipm. Only the empty ports sit at
+  #     keep_firmware_settings, so forcing ALPM globally buys nothing.
+  #   - HDD spindown (hdparm -B/-S): plex/sonarr/transmission/sanoid touch the
+  #     Media dataset continuously — the drives would thrash, not idle.
+  # ---------------------------------------------------------------------------
+
+  # Alder Lake's hybrid P/E topology; Intel's own daemon handles it better
+  # than the kernel's passive thermal throttling alone.
+  services.thermald.enable = true;
+
+  # EPP is the one knob cpuFreqGovernor="powersave" does NOT set: under
+  # intel_pstate's active mode the governor picks the *algorithm*, while EPP
+  # biases it within that. Stock is balance_performance; balance_power is a
+  # measurable idle/light-load saving with no impact on this workload.
+  #
+  # Ordered after powertop so auto-tune can't clobber it. Non-fatal by design:
+  # the file is absent unless intel_pstate is in active mode with HWP.
+  systemd.services.cpu-epp = {
+    description = "Set CPU energy performance preference";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "powertop.service" ];
+    serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+    script = ''
+      shopt -s nullglob
+      for f in /sys/devices/system/cpu/cpufreq/policy*/energy_performance_preference; do
+        echo balance_power > "$f" || echo "warn: could not write $f" >&2
+      done
+    '';
+  };
+
   services.smartd = {
     enable = true;
     devices = [
@@ -199,5 +238,5 @@ in
     group = "hutch";
   };
 
-  environment.systemPackages = with pkgs; [ rclone smartmontools ];
+  environment.systemPackages = with pkgs; [ rclone smartmontools powertop ];
 }

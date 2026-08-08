@@ -42,13 +42,23 @@ let
     # /dev/net/tun + CAP_NET_ADMIN for tailscaled.
     tailscale.enableTun = true;
 
-    # QSV/hardware transcode for plex + immich: on baremetal there is no
-    # passthrough to arrange — if hutch's CPU has an Intel iGPU, /dev/dri is
-    # already on the host. Uncomment to expose it to the containers:
-    # plex.allowedDevices   = [ { node = "/dev/dri"; modifier = "rw"; } ];
-    # plex.bindMounts."/dev/dri"   = { hostPath = "/dev/dri"; isReadOnly = false; };
-    # immich.allowedDevices = [ { node = "/dev/dri"; modifier = "rw"; } ];
-    # immich.bindMounts."/dev/dri" = { hostPath = "/dev/dri"; isReadOnly = false; };
+    # QSV/hardware transcode for plex + immich. hutch's i5-12600K has a UHD
+    # 770 iGPU and /dev/dri/renderD128 is present on the host, so exposing it
+    # is just a bind mount + allowedDevices — no passthrough to arrange like
+    # the old LXC dev0/dev1 gid mapping.
+    #
+    # The userspace half (hardware.graphics, intel-media-driver, vpl-gpu-rt,
+    # video/render groups) already lives in the two container configs; the
+    # host needs no hardware.graphics of its own, since each nspawn guest
+    # builds its own /run/opengl-driver. Without these four lines both apps
+    # silently transcode on CPU.
+    #
+    # Verify after deploy with `vainfo` inside each container — it should
+    # report the iHD driver and H264/HEVC VLD+encode entrypoints.
+    plex.allowedDevices   = [ { node = "/dev/dri/renderD128"; modifier = "rw"; } ];
+    plex.bindMounts."/dev/dri"   = { hostPath = "/dev/dri"; isReadOnly = false; };
+    immich.allowedDevices = [ { node = "/dev/dri/renderD128"; modifier = "rw"; } ];
+    immich.bindMounts."/dev/dri" = { hostPath = "/dev/dri"; isReadOnly = false; };
   };
 in
 {

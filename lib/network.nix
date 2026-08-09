@@ -40,7 +40,8 @@ let
     pihole-1 = {
       ip = "192.168.1.9";
       sshUser = "deploy";
-      # NixOS container on hutch — same for every host with `parent = "hutch"`.
+      # NixOS container on the named parent — every host with a `parent` gets
+      # one, declared by that parent via modules/container-host.nix.
       parent = "hutch";
       port = 80;
       caddy = true;
@@ -52,7 +53,7 @@ let
     pihole-2 = {
       ip = "192.168.1.10";
       sshUser = "deploy";
-      parent = "hutch";
+      parent = "minihutch";
       port = 80;
       caddy = true;
       monitor = [
@@ -74,7 +75,7 @@ let
     caddy = {
       ip = "192.168.1.239";
       sshUser = "deploy";
-      parent = "hutch";
+      parent = "minihutch";
       monitor = {
         type = "http"; name = "caddy"; url = "https://caddy.${domain}";
         group = "Hutch Primary Services";
@@ -83,7 +84,7 @@ let
     tailscale = {
       ip = "192.168.1.207";
       sshUser = "deploy";
-      parent = "hutch";
+      parent = "minihutch";
       port = 8080;
       monitor = {
         type = "http"; name = "Tailscale"; path = "/health";
@@ -132,7 +133,7 @@ let
     uptime = {
       ip = "192.168.1.31";
       sshUser = "deploy";
-      parent = "hutch";
+      parent = "minihutch";
       port = 3001;
       caddy = true;
     };
@@ -152,7 +153,7 @@ let
     beeper = {
       ip = "192.168.1.40";
       sshUser = "deploy";
-      parent = "hutch";
+      parent = "minihutch";
       monitor = {
         type = "port"; targetPort = 22; name = "Beeper bridges";
         group = "Hutch Primary Services";
@@ -172,11 +173,18 @@ let
       subdomain = "grid";
     };
 
-    # hutch: the baremetal server. Runs the NAS role (modules/nas.nix) and
-    # every service as a NixOS container. Containers (hosts with a `parent`
-    # field) are defined on their parent's config, not here.
+    # The two baremetal servers. Both run modules/container-host.nix, so each
+    # declares a NixOS container for every host above naming it as `parent`.
+    # Containers are deployed BY deploying their parent.
+    #
+    # hutch also owns storage (the NAS role, modules/nas.nix); minihutch is
+    # compute only — no ZFS, no NFS, no backup.
     hutch = {
       ip = "192.168.1.2";
+      sshUser = "deploy";
+    };
+    minihutch = {
+      ip = "192.168.1.3";
       sshUser = "deploy";
     };
 

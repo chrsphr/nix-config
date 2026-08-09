@@ -99,18 +99,33 @@
       ) (lib.filterAttrs (name: _: network.hosts ? ${name}) configs);
   in {
     nixosConfigurations = {
-      ### Baremetal server (NAS + containers)
-      # hutch: baremetal box that runs every service as a NixOS container
-      # (hosts/containers/, one per network.nix host with parent = "hutch")
-      # and owns the storage role (modules/nas.nix). sops-nix and the gb-grid
-      # flake are passed through for the container configs that need them.
-      # Containers are deployed BY deploying hutch — they have no
-      # nixosConfigurations/deploy-rs entries of their own.
+      ### Baremetal servers (containers; hutch additionally = NAS)
+      # Both run modules/container-host.nix and so declare one NixOS container
+      # (hosts/containers/) per network.nix host naming them as `parent`.
+      # Containers are deployed BY deploying their parent — they have no
+      # nixosConfigurations/deploy-rs entries of their own. sops-nix and the
+      # gb-grid flake are passed through for the container configs that need
+      # them (and are inert on the host that has neither).
+      #
+      # hutch (.2) additionally owns the storage role (modules/nas.nix).
       hutch = mkHost {
         modules = [
           ./hosts/hutch.nix
           ./hardware/hutch.nix
           ./hardware/hutch-disko.nix
+          disko.nixosModules.disko
+        ];
+        specialArgs = {
+          inherit sops-nix gb-grid;
+          gb-grid-pkg = gb-grid.packages.${system}.default;
+        };
+      };
+      # minihutch (.3): compute only — no ZFS, no NFS, no backup.
+      minihutch = mkHost {
+        modules = [
+          ./hosts/minihutch.nix
+          ./hardware/minihutch.nix
+          ./hardware/minihutch-disko.nix
           disko.nixosModules.disko
         ];
         specialArgs = {

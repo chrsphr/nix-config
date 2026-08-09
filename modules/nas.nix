@@ -47,6 +47,44 @@ in
   # force-import in place while looking like it had been turned off.
   boot.zfs.forceImportRoot = false;
 
+  # ---------------------------------------------------------------------------
+  # ARC reclaim behaviour. Deliberately NOT a cap (zfs_arc_max stays 0 /
+  # untuned): ARC should still be free to use most of the box when nothing
+  # else wants the memory. What's tuned is how readily it gives that memory
+  # back.
+  #
+  # Symptom this fixes (observed 2026-08-09, 64G box): during the nightly
+  # rclone→B2 run, ARC sat at ~45 GiB with an 86/14 MRU:MFU split — i.e. the
+  # backup streaming the whole media library had filled the cache with data
+  # that is read exactly once and never again. Meanwhile ~2 GiB of live
+  # service memory had been pushed to swap (gb-grid 686M, immich 464M,
+  # network-optimizer 149M). Paying disk latency on running services to cache
+  # bytes nothing will re-read is the wrong trade.
+  #
+  # zfs_arc_sys_free is a floor on FREE SYSTEM MEMORY, not a ceiling on ARC:
+  # ARC grows into whatever is idle but backs off to keep 8 GiB free, so it
+  # yields ahead of demand instead of after reclaim has already swapped
+  # something out. 8 GiB ≈ peak container + rclone footprint (~12 GiB) with
+  # headroom, and still leaves ARC ~45 GiB when the box is quiet.
+  #
+  # Two related knobs, checked and deliberately left alone:
+  #   zfs_arc_shrinker_limit — historically THE cause of this symptom (it
+  #     throttled ARC to ~39 MiB freed per reclaim call). Already 0 in 2.4.
+  #   zfs_arc_shrinker_seeks — relative cost of ARC eviction; 4 is parity with
+  #     page cache, lower means cheaper to evict. Default 2, so ARC is already
+  #     twice as evictable as page cache. Drop to 1 if 8 GiB proves too tight.
+  #
+  # Settable live for testing without a reboot:
+  #   echo 8589934592 > /sys/module/zfs/parameters/zfs_arc_sys_free
+  boot.extraModprobeConfig = ''
+    options zfs zfs_arc_sys_free=8589934592
+  '';
+
+  # Stock 60 tells the kernel anon memory is fair game, which is why the
+  # squeeze above landed on running services rather than on ARC. 10 keeps swap
+  # available as a genuine last resort while making eviction the first answer.
+  boot.kernel.sysctl."vm.swappiness" = 10;
+
   # TrueNAS scrub: Sunday 00:00, threshold 35 days (i.e. ~monthly).
   services.zfs.autoScrub = {
     enable = true;

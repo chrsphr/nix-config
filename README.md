@@ -14,29 +14,35 @@ Personal NixOS configuration for all machines and services — managed as a sing
 
 ### Server + services
 
-`hutch` is the only server: baremetal NixOS that both **is the NAS** (ZFS pool
-`Hutch`, NFS, snapshots, encrypted B2 backup — `modules/nas.nix`) and **runs every service**
-as a systemd-nspawn container (`hosts/containers/`). Each container keeps its
-own LAN IP on the `br0` bridge, so it looks like a separate host on the network.
+Two baremetal servers run every service as a systemd-nspawn container
+(`hosts/containers/`). Each container keeps its own LAN IP on its host's `br0`
+bridge, so it looks like a separate host on the network.
 
-Containers have no `nixosConfigurations` entry of their own — **deploying
-`hutch` deploys them all**.
+Both servers import `modules/container-host.nix`, which gives them the LAN
+bond/bridge and declares one container per `lib/network.nix` host naming them
+as `parent`. `hutch` additionally **is the NAS** (ZFS pool `Hutch`, NFS,
+snapshots, encrypted B2 backup — `modules/nas.nix`); `minihutch` is compute
+only.
 
-| Host | IP | Role |
-|------|----|------|
-| `hutch` | 192.168.1.2 | Baremetal NAS + container host |
-| `caddy` | 192.168.1.239 | Reverse proxy + TLS (Cloudflare DNS) |
-| `pihole-1` | 192.168.1.9 | Primary DNS |
-| `pihole-2` | 192.168.1.10 | Secondary DNS |
-| `immich` | 192.168.1.127 | Photo management |
-| `plex` | 192.168.1.209 | Media server |
-| `transmission` | 192.168.1.136 | Torrent client |
-| `sonarr` | 192.168.1.75 | TV automation |
-| `prowlarr` | 192.168.1.75 | Indexer manager (co-located on sonarr host) |
-| `uptime` | 192.168.1.31 | Uptime monitoring (Gatus, declarative via `lib/network.nix`). External access via Cloudflare tunnel is **TODO** — currently only reachable on the LAN at `http://192.168.1.31:3001`. |
-| `tailscale` | 192.168.1.207 | VPN exit node |
-| `gb-grid` | 192.168.1.28 | GB power grid Postgres + BMRS ingester |
-| `beeper` | 192.168.1.40 | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp are Go bridgev2 binaries; Telegram is the nixpkgs Python bridge (Beeper's `sh-telegram` is Python) launched via a small wrapper; Bluesky is the Go bridge built from a pinned upstream release. One-time `bbctl login` bootstrap required; see `hosts/containers/beeper.nix`. |
+Containers have no `nixosConfigurations` entry of their own — **deploying a
+server deploys its containers with it**. The "On" column below says which.
+
+| Host | IP | On | Role |
+|------|----|----|------|
+| `hutch` | 192.168.1.2 | — | Baremetal NAS + container host |
+| `minihutch` | 192.168.1.3 | — | Baremetal container host (no storage). Install/cutover: `docs/minihutch-install.md` |
+| `caddy` | 192.168.1.239 | minihutch | Reverse proxy + TLS (Cloudflare DNS) |
+| `pihole-1` | 192.168.1.9 | hutch | Primary DNS |
+| `pihole-2` | 192.168.1.10 | minihutch | Secondary DNS |
+| `immich` | 192.168.1.127 | hutch | Photo management |
+| `plex` | 192.168.1.209 | hutch | Media server |
+| `transmission` | 192.168.1.136 | hutch | Torrent client |
+| `sonarr` | 192.168.1.75 | hutch | TV automation |
+| `prowlarr` | 192.168.1.75 | hutch | Indexer manager (co-located on sonarr host) |
+| `uptime` | 192.168.1.31 | minihutch | Uptime monitoring (Gatus, declarative via `lib/network.nix`). External access via Cloudflare tunnel is **TODO** — currently only reachable on the LAN at `http://192.168.1.31:3001`. |
+| `tailscale` | 192.168.1.207 | minihutch | VPN exit node |
+| `gb-grid` | 192.168.1.28 | hutch | GB power grid Postgres + BMRS ingester |
+| `beeper` | 192.168.1.40 | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp are Go bridgev2 binaries; Telegram is the nixpkgs Python bridge (Beeper's `sh-telegram` is Python) launched via a small wrapper; Bluesky is the Go bridge built from a pinned upstream release. One-time `bbctl login` bootstrap required; see `hosts/containers/beeper.nix`. |
 
 All host IPs and Caddy routing are defined in `lib/network.nix` — the single source of truth for network topology.
 
@@ -58,7 +64,7 @@ sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-framework
 
 ### Remote deployment with deploy-rs
 
-Remote deploys use [deploy-rs](https://github.com/serokell/deploy-rs). Deploy nodes are auto-generated from `lib/network.nix` — any host that exists in both `lib/network.nix` and `nixosConfigurations` gets a deploy node. In practice that is just `hutch`: the containers have no `nixosConfigurations` entry, so **deploying `hutch` deploys every service with it**. All builds happen locally and closures are copied to the target.
+Remote deploys use [deploy-rs](https://github.com/serokell/deploy-rs). Deploy nodes are auto-generated from `lib/network.nix` — any host that exists in both `lib/network.nix` and `nixosConfigurations` gets a deploy node. In practice that is `hutch` and `minihutch`: the containers have no `nixosConfigurations` entry, so **deploying a server deploys every service on it**. All builds happen locally and closures are copied to the target.
 
 Deploy the server:
 
@@ -72,7 +78,7 @@ Dry run — preview what would change without activating:
 deploy .#hutch --dry-activate
 ```
 
-Magic rollback is **disabled** on this fleet (its confirmation SSH round-trip hung intermittently and triggered spurious rollbacks — see the comment in `flake.nix`). Verify a deploy by checking services afterwards; hutch's physical console is the recovery path if an activation goes bad.
+Magic rollback is **disabled** on this fleet (its confirmation SSH round-trip hung intermittently and triggered spurious rollbacks — see the comment in `flake.nix`). Verify a deploy by checking services afterwards; the server's physical console is the recovery path if an activation goes bad.
 
 The `deploy` user has passwordless sudo configured. SSH key auth is required.
 
@@ -253,7 +259,7 @@ Gatus reloads on activation. State (uptime history) lives in `/var/lib/gatus/dat
 
 ## Beeper bridges (`beeper`)
 
-The `beeper` container on hutch (192.168.1.40) self-hosts [mautrix](https://github.com/mautrix) chat bridges connected to a personal **Beeper** account. Config is in `hosts/containers/beeper.nix`.
+The `beeper` container on minihutch (192.168.1.40) self-hosts [mautrix](https://github.com/mautrix) chat bridges connected to a personal **Beeper** account. Config is in `hosts/containers/beeper.nix`.
 
 ### How it works
 
@@ -296,7 +302,7 @@ State (the bbctl login token + each bridge's SQLite DB) lives in **`/var/lib/bee
 
 ### Deploying changes
 
-The container rides along with the host: `deploy .#hutch`. Magic rollback is disabled fleet-wide (see flake.nix), so verify by checking the `mautrix-*` services inside the container after a deploy.
+The container rides along with the host: `deploy .#minihutch`. Magic rollback is disabled fleet-wide (see flake.nix), so verify by checking the `mautrix-*` services inside the container after a deploy.
 
 ### Adding a bridge
 
@@ -330,21 +336,23 @@ hosts/                     # One file per machine
   chris-framework.nix      # Framework laptop
   chris-desktop.nix        # Desktop (gaming/workstation)
   chris-wsl.nix            # WSL
-  containers/              # NixOS containers on hutch — one per service
+  containers/              # NixOS containers — one per service, either server
     common.nix             # Shared base for every container
     caddy.nix              # Reverse proxy
     immich.nix             # Photo management
     ...
-  hutch.nix                # Baremetal NAS + container host (declares them all)
-hardware/                  # Hardware-specific configs (Framework, desktop)
+  hutch.nix                # Baremetal NAS + container host (192.168.1.2)
+  minihutch.nix            # Baremetal container host, no storage (192.168.1.3)
+hardware/                  # Hardware-specific configs (Framework, desktop, servers)
 modules/                   # Reusable NixOS modules
+  container-host.nix       # Container-host role: LAN bond/bridge + container generation
   nas.nix                  # NAS role: ZFS, NFS, sanoid, smartd, encrypted rclone->B2
   common-desktop.nix       # Base for desktop machines (GNOME, Tailscale, etc.)
   cloudflare-tunnel.nix    # Cloudflare tunnel service wrapper
   nfs-home-automount.nix   # Smart NFS mount (WiFi/Tailscale aware)
   keyboard-backlight-timeout.nix  # Framework keyboard backlight
   locale.nix               # Locale/timezone
-  container-snapshots.nix  # btrfs subvolumes + nightly snapshots for hutch's containers
+  container-snapshots.nix  # btrfs subvolumes + nightly snapshots for container roots
 home/                      # Home Manager profiles
   common-home.nix          # Shared: Git, zsh, GNOME extensions
   framework.nix            # Framework-specific user packages
@@ -359,22 +367,32 @@ secrets/                   # sops-nix encrypted YAML files
 
 ### Add a new service
 
-Services run as containers on `hutch`; there is no separate machine to install.
+Services run as containers on one of the two servers; there is no separate
+machine to install. Pick `hutch` if it needs the media library or the iGPU,
+`minihutch` otherwise.
 
-1. Add the host to `lib/network.nix` with its IP and `parent = "hutch"` (plus
-   `caddy = true` for a reverse proxy entry, and a `monitor` spec for Gatus).
-   That one field is what makes `hutch` declare a container for it.
+1. Add the host to `lib/network.nix` with its IP and
+   `parent = "hutch"` / `parent = "minihutch"` (plus `caddy = true` for a
+   reverse proxy entry, and a `monitor` spec for Gatus). That one field is
+   what makes that server declare a container for it.
 2. Create `hosts/containers/<name>.nix` importing `./common.nix`.
-3. Add any bind mounts or per-container extras to `perContainer` in
-   `hosts/hutch.nix`.
+3. Add any bind mounts or per-container extras to `containerHost.perContainer`
+   in that server's `hosts/<parent>.nix`.
 4. If it needs secrets, add its age key to `.sops.yaml`, create
-   `secrets/<name>.yaml`, add the name to `withSecrets` in `hosts/hutch.nix`,
-   and put the decryption key at `/var/lib/sops-nix/<name>/` on hutch.
-5. Deploy hutch:
+   `secrets/<name>.yaml`, add the name to `containerHost.withSecrets` in
+   `hosts/<parent>.nix`, and put the decryption key at
+   `/var/lib/sops-nix/<name>/` on that server.
+5. Deploy the parent:
 
 ```bash
-deploy .#hutch
+deploy .#hutch        # or: deploy .#minihutch
 ```
+
+**Moving a service between the two servers** is just changing `parent` — but
+deploy the *old* parent first so it gives up the IP, then the new one, and
+carry over any state under `/var/lib/nixos-containers/<name>/` plus the sops
+key. `docs/minihutch-install.md` walks through this for the five services that
+moved on 2026-08-09.
 
 ### Roll back a broken deployment
 

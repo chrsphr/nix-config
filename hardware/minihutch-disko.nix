@@ -3,13 +3,12 @@
   # no LUKS/TPM, plain btrfs with subvolumes. minihutch has no data pool — this
   # is the only disk it owns.
   #
-  # ⚠ VERIFY the device with `lsblk` before running disko. `/dev/nvme0n1` below
-  # is a PLACEHOLDER copied from hutch; disko wipes whatever it points at.
+  # Verified on the live ISO 2026-08-09: /dev/nvme0n1 is a 931.5G Crucial
+  # CT1000P310SSD2 (serial 2423499DAAAA), the only internal disk. It previously
+  # held minimox's Proxmox ZFS root (pool "rpool", 6 LXC subvolumes); that was
+  # wiped deliberately at install.
   #
-  # ⚠ The 64G swapfile is also inherited from hutch, which has 64G of RAM.
-  # Size it to the actual RAM in this box before installing — the file is
-  # created at install time and resizing it later means editing this AND
-  # recreating /swap/swapfile by hand.
+  # Swap sized to this box's 8G of RAM (Intel N100), not hutch's 64G.
   disko.devices.disk.main = {
     type = "disk";
     device = "/dev/nvme0n1";
@@ -54,7 +53,7 @@
               };
               "/swap" = {
                 mountpoint = "/swap";
-                swap.swapfile.size = "64G";
+                swap.swapfile.size = "16G";
               };
             };
           };

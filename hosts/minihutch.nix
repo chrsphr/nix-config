@@ -19,7 +19,22 @@ in
     # LAN bond/bridge + every container with `parent = "minihutch"`, plus the
     # btrfs container-root snapshots that come with it.
     ../modules/container-host.nix
+    # Exports the USB TV tuner to hutch, where Plex consumes it.
+    ../modules/usbip-tuner.nix
   ];
+
+  # The Xbox One Digital TV Tuner is plugged into this box, but Plex runs on
+  # hutch. Export it over USB/IP; hutch attaches it (see hosts/hutch.nix).
+  # Binding it here hands the device to hutch entirely — minihutch's own
+  # /dev/dvb goes away, which is fine as nothing local uses it.
+  usbipTuner.export = {
+    enable = true;
+    busid = "3-1";
+    idVendor = "045e";
+    idProduct = "02d5";
+    # usbipd is unauthenticated; only hutch may claim the tuner.
+    allowFrom = "192.168.1.2";
+  };
 
   # No kernel pin: hutch is held at 6.18 by ZFS 2.4.3's max supported version,
   # and minihutch has no ZFS, so it tracks the nixpkgs default.
@@ -28,13 +43,11 @@ in
   containerHost = {
     enable = true;
 
-    # ⚠ TODO before/at first boot: set this to this box's onboard NIC MAC
-    # (`ip -br link` on the live ISO, the physical port you'll cable). While
-    # it is null, bond0 adopts whichever port MAC it likes and br0 can inherit
-    # a *container veth's* random MAC when a container restarts — meaning
-    # .3's LAN identity (DHCP reservations, UniFi client entry, ARP) can
-    # change out from under you. Fine for the install, not for steady state.
-    macAddress = null;
+    # The onboard 1GbE port (enp2s0, igc driver), read off the live ISO
+    # 2026-08-09. Fixes .3's LAN identity so it survives boots and cable
+    # moves. The box also has WiFi (wlp1s0, rtw89) — systemd matches the bond
+    # slaves on Type=ether, and WiFi is Type=wlan, so it is never enslaved.
+    macAddress = "10:02:b5:86:02:0a";
 
     # Both decrypt with a copy of the *laptop* age key at
     # /var/lib/sops-nix/<name>/keys.txt, which is NOT in the repo and must be

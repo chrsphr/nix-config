@@ -1,6 +1,7 @@
 { config, pkgs, pkgs-unstable, sops-nix, gb-grid, gb-grid-pkg, lib, ... }:
 
 let
+  hostsLib = import ../lib/network.nix { inherit lib; };
   keys = import ../modules/keys.nix;
 
   # Containers that read the media library from the local ZFS pool. Guarded
@@ -18,7 +19,23 @@ in
     # LAN bond/bridge + every container with `parent = "hutch"`, plus the
     # btrfs container-root snapshots that come with it.
     ../modules/container-host.nix
+    # Attaches the USB TV tuner physically plugged into minihutch.
+    ../modules/usbip-tuner.nix
   ];
+
+  # The TV tuner lives on minihutch (no free/reachable port on this box), but
+  # Plex reads DVB tuners straight off /dev/dvb, so the device is projected
+  # here over USB/IP and passed into the plex container below.
+  usbipTuner.attach = {
+    enable = true;
+    server = hostsLib.getIP "minihutch";
+    busid = "3-1";
+    # Keep /dev/dvb present even when the tuner isn't attached, so plex's
+    # bind mount always succeeds. Without this the whole media library would
+    # fail to start whenever minihutch is down — coupling Plex's availability
+    # to a live-TV accessory, which is the wrong way round.
+    preCreate = [ "/dev/dvb" ];
+  };
   # Newest kernel that is both supported by ZFS 2.4.3 (max 7.0) and not
   # EOL-removed in nixpkgs (7.0, 6.19, 6.17 all are; latest is 7.1).
   boot.kernelPackages = pkgs.linuxPackages_6_18;
@@ -71,8 +88,20 @@ in
       #
       # Verify after deploy with `vainfo` inside each container — it should
       # report the iHD driver and H264/HEVC VLD+encode entrypoints.
-      plex.allowedDevices   = [ { node = "/dev/dri/renderD128"; modifier = "rw"; } ];
+      # char-DVB matches major 212 ("212 DVB" in /proc/devices) rather than
+      # the individual frontend0/demux0/dvr0 nodes: those only exist while the
+      # tuner is attached, and DeviceAllow entries for absent paths are
+      # dropped at unit-load time — so naming them would silently deny access
+      # on every boot where plex started before the tuner did.
+      plex.allowedDevices   = [
+        { node = "/dev/dri/renderD128"; modifier = "rw"; }
+        { node = "char-DVB";            modifier = "rw"; }
+      ];
       plex.bindMounts."/dev/dri"   = { hostPath = "/dev/dri"; isReadOnly = false; };
+      # The DVB tuner, projected from minihutch over USB/IP (see
+      # usbipTuner.attach above). /dev/dvb is pre-created on devtmpfs so this
+      # mount succeeds whether or not the tuner is currently attached.
+      plex.bindMounts."/dev/dvb"   = { hostPath = "/dev/dvb"; isReadOnly = false; };
       immich.allowedDevices = [ { node = "/dev/dri/renderD128"; modifier = "rw"; } ];
       immich.bindMounts."/dev/dri" = { hostPath = "/dev/dri"; isReadOnly = false; };
     };
@@ -80,11 +109,28 @@ in
 
   # Don't let media containers start against an empty library if the pool
   # didn't import — nspawn would happily bind an empty host dir otherwise.
-  systemd.services = lib.genAttrs (map (n: "container@${n}") withMediaGuard) (_: {
-    requires = [ "zfs-mount.service" ];
-    after = [ "zfs-mount.service" ];
-    unitConfig.ConditionPathIsMountPoint = "/mnt/Hutch/Media";
-  });
+  # mkMerge, not `//`: plex appears in both sets, and `//` would replace its
+  # whole definition rather than merging, silently dropping the mount guard.
+  systemd.services = lib.mkMerge [
+    (lib.genAttrs (map (n: "container@${n}") withMediaGuard) (_: {
+      requires = [ "zfs-mount.service" ];
+      after = [ "zfs-mount.service" ];
+      unitConfig.ConditionPathIsMountPoint = "/mnt/Hutch/Media";
+    }))
+    {
+    # nspawn refuses to start when a bindMount source is missing ("Failed to
+    # clone /dev/dvb: No such file or directory"), and /dev/dvb only exists
+    # while the USB/IP tuner is attached. usbipTuner.attach.preCreate covers
+    # boot via tmpfiles, but that races on a `deploy`: switch-to-configuration
+    # restarts container@plex and systemd-tmpfiles-resetup concurrently, which
+    # is exactly how this failed the first time. Creating the directory in
+    # ExecStartPre is ordered by construction — it cannot race, and it keeps
+    # plex independent of whether the tuner or minihutch is actually up.
+      "container@plex".serviceConfig.ExecStartPre = [
+        "${pkgs.coreutils}/bin/mkdir -p /dev/dvb"
+      ];
+    }
+  ];
 
   # Boot loader
   boot.loader = {

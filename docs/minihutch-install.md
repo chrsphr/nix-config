@@ -208,9 +208,12 @@ Gatus (`uptime.mcneill.fyi`) is the real check — every endpoint in
 `group = "Hutch Primary Services"` label in `lib/network.nix`; rename it there
 if the dashboard grouping now reads wrong.
 
-Tailscale specifically: `--advertise-routes=192.168.1.0/24` is re-advertised
-from a new node, so **re-approve the subnet route in the Tailscale admin
-console** — it will not be auto-approved just because the old node had it.
+Tailscale: this depends on whether you carried `/var/lib/tailscale/tailscaled.state`
+across. **We did** (2026-08-09), so minihutch came up as the *same* tailnet node
+(100.95.229.45, still offering exit node) and the `192.168.1.0/24` subnet route
+stayed approved — nothing to do in the admin console. Had the state not been
+copied, it would have registered as a *new* node and the route would need
+re-approving by hand.
 
 ## 10. Steady state
 

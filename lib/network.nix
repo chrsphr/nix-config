@@ -179,13 +179,26 @@ let
     #
     # hutch also owns storage (the NAS role, modules/nas.nix); minihutch is
     # compute only — no ZFS, no NFS, no backup.
+    #
+    # Both are probed on sshd (22) rather than a service port: neither runs
+    # anything HTTP on the host itself, and sshd being up is what
+    # distinguishes "the box is alive" from "a container on it died" — the
+    # container-level monitors above already cover the latter.
     hutch = {
       ip = "192.168.1.2";
       sshUser = "deploy";
+      monitor = {
+        type = "port"; targetPort = 22; name = "hutch (NAS + containers)";
+        group = "Servers";
+      };
     };
     minihutch = {
       ip = "192.168.1.3";
       sshUser = "deploy";
+      monitor = {
+        type = "port"; targetPort = 22; name = "minihutch (containers)";
+        group = "Servers";
+      };
     };
 
     # Non-NixOS hosts (for Caddy config + monitoring)

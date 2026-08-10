@@ -8,6 +8,11 @@
   home.username = "chris";
   home.homeDirectory = "/home/chris";
 
+  # Set default browser to wsl-open so commands like `az login` open in Windows browser
+  home.sessionVariables = {
+    BROWSER = "wsl-open";
+  };
+
   # Home Manager state version
   home.stateVersion = "26.05";
 
@@ -38,6 +43,7 @@
 
     # pyenv for managing multiple Python versions
     pyenv
+    xdg-utils
     wsl-open
   ];
 
@@ -69,7 +75,6 @@
       echo "Downloaded npiperelay to $HOME/.local/bin/npiperelay.exe"
     fi
   '';
-
   # Systemd service to bridge 1Password SSH agent from Windows
   systemd.user.services.ssh-agent-bridge = {
     Unit = {

@@ -15,6 +15,7 @@ in
     startMenuLaunchers = true;
     wslConf.automount.root = "/mnt";
     wslConf.interop.appendWindowsPath = false;
+    interop.register = true;
   };
 
   # No interactive docs needed in WSL; trims closure size (same rationale as common-desktop.nix).

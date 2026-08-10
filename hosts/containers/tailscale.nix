@@ -1,8 +1,8 @@
 { config, pkgs, lib, ... }:
 
-# Tailscale exit node as a NixOS container on hutch. The host grants
+# Tailscale exit node as a NixOS container on minihutch. The host grants
 # /dev/net/tun and CAP_NET_ADMIN via containers.tailscale.enableTun
-# (see hosts/hutch.nix).
+# (see hosts/minihutch.nix).
 
 {
   imports = [
@@ -30,9 +30,21 @@
     enable = true;
     openFirewall = true;
     useRoutingFeatures = "server";
+    # extraUpFlags only ever runs on first login (tailscaled-autoconnect
+    # skips an already-authenticated node), so it can't be the source of
+    # truth — a manual `tailscale up --advertise-exit-node` had already
+    # clobbered the subnet route here. extraSetFlags reapplies on every
+    # activation; keep the two lists identical.
+    #
+    # No --accept-routes: this node advertises its own LAN, and accepting
+    # tailnet routes back would invite a loop.
     extraUpFlags = [
+      "--advertise-exit-node"
       "--advertise-routes=192.168.1.0/24"
-      "--accept-routes"
+    ];
+    extraSetFlags = [
+      "--advertise-exit-node"
+      "--advertise-routes=192.168.1.0/24"
     ];
   };
 

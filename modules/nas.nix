@@ -1,13 +1,8 @@
 { config, pkgs, lib, ... }:
 
 # The NAS role: ZFS pool, NFS exports, snapshots and the encrypted B2 backup.
-# Imported by hutch, which owns storage and containers on one box.
-#
-# Took over from the TrueNAS "lilnas" VM (retired 2026-08-08). The two 8TB
-# disks moved into the hutch chassis and pool "Hutch" was imported in place —
-# never reformatted — so dataset properties and snapshots came with it. The
-# settings below were derived from TrueNAS's config export; the "TrueNAS: ..."
-# notes record what each one is reproducing.
+# Imported by hutch. Settings derive from the retired TrueNAS box's config
+# export — history: docs/notes.md#truenas-takeover
 
 let
   keys = import ./keys.nix;
@@ -25,75 +20,30 @@ let
   };
 in
 {
-  # ---------------------------------------------------------------------------
-  # ZFS: import the existing pool, don't create anything.
-  # Pool "Hutch" (guid 5739333095810664970), 2x 8TB drives.
-  # Datasets (Hutch/Media, Hutch/Backups, ...) mount themselves via their
-  # own mountpoint properties under /mnt/Hutch/. If an import ever fails, the
-  # media containers' mount guard (see hosts/hutch.nix) keeps them from
-  # starting against an empty library.
-  # ---------------------------------------------------------------------------
+  # ZFS: import the existing pool "Hutch", don't create anything. Datasets
+  # mount themselves via their own mountpoint properties under /mnt/Hutch/.
   networking.hostId = "a8f3c1d2";  # Required by ZFS. Arbitrary but must not change.
   boot.supportedFilesystems = [ "zfs" ];
   boot.zfs.extraPools = [ "Hutch" ];
-  # forceImportAll/forceImportRoot were needed for the first import only, when
-  # the labels still carried TrueNAS's hostId. Both disks' labels now read
-  # hostid a8f3c1d2 / hostname "hutch" (verified 2026-08-08 with zdb -l), so
-  # a normal import succeeds and the multi-host safety checks are back on.
-  # Don't reintroduce them: if an import ever fails, find out why first.
-  #
-  # forceImportRoot must be set explicitly — it still defaults to true here and
-  # only flips to false in 26.11, so dropping the line would have left the
-  # force-import in place while looking like it had been turned off.
+  # Don't reintroduce forceImportAll/forceImportRoot; if an import fails, find
+  # out why first. Must stay explicit until the 26.11 default flip.
+  # why: docs/notes.md#forceimport-removal
   boot.zfs.forceImportRoot = false;
 
-  # ---------------------------------------------------------------------------
-  # ARC reclaim behaviour. Deliberately NOT a cap (zfs_arc_max stays 0 /
-  # untuned): ARC should still be free to use most of the box when nothing
-  # else wants the memory. What's tuned is how readily it gives that memory
-  # back.
-  #
-  # Symptom this fixes (observed 2026-08-09, 64G box): during the nightly
-  # rclone→B2 run, ARC sat at ~45 GiB with an 86/14 MRU:MFU split — i.e. the
-  # backup streaming the whole media library had filled the cache with data
-  # that is read exactly once and never again. Meanwhile ~2 GiB of live
-  # service memory had been pushed to swap (gb-grid 686M, immich 464M,
-  # network-optimizer 149M). Paying disk latency on running services to cache
-  # bytes nothing will re-read is the wrong trade.
-  #
-  # zfs_arc_sys_free is a floor on FREE SYSTEM MEMORY, not a ceiling on ARC:
-  # ARC grows into whatever is idle but backs off to keep 8 GiB free, so it
-  # yields ahead of demand instead of after reclaim has already swapped
-  # something out. 8 GiB ≈ peak container + rclone footprint (~12 GiB) with
-  # headroom, and still leaves ARC ~45 GiB when the box is quiet.
-  #
-  # Two related knobs, checked and deliberately left alone:
-  #   zfs_arc_shrinker_limit — historically THE cause of this symptom (it
-  #     throttled ARC to ~39 MiB freed per reclaim call). Already 0 in 2.4.
-  #   zfs_arc_shrinker_seeks — relative cost of ARC eviction; 4 is parity with
-  #     page cache, lower means cheaper to evict. Default 2, so ARC is already
-  #     twice as evictable as page cache. Drop to 1 if 8 GiB proves too tight.
-  #
-  # Settable live for testing without a reboot:
-  #   echo 8589934592 > /sys/module/zfs/parameters/zfs_arc_sys_free
+  # ARC reclaim tuning: an 8 GiB free-memory floor, deliberately not a cap.
+  # why: docs/notes.md#zfs-arc
   boot.extraModprobeConfig = ''
     options zfs zfs_arc_sys_free=8589934592
   '';
+  boot.kernel.sysctl."vm.swappiness" = 10;  # evict ARC before swapping services
 
-  # Stock 60 tells the kernel anon memory is fair game, which is why the
-  # squeeze above landed on running services rather than on ARC. 10 keeps swap
-  # available as a genuine last resort while making eviction the first answer.
-  boot.kernel.sysctl."vm.swappiness" = 10;
-
-  # TrueNAS scrub: Sunday 00:00, threshold 35 days (i.e. ~monthly).
   services.zfs.autoScrub = {
     enable = true;
     interval = "monthly";
   };
   services.zfs.trim.enable = true;
 
-  # TrueNAS periodic snapshot task: Hutch/Media (non-recursive), daily at
-  # midnight, 2-week retention, naming schema auto-%Y-%m-%d_%H-%M.
+  # Daily snapshot of Hutch/Media at midnight, 14 kept.
   services.sanoid = {
     enable = true;
     interval = "*-*-* 00:00:00";
@@ -108,12 +58,8 @@ in
     };
   };
 
-  # ---------------------------------------------------------------------------
-  # NFS (TrueNAS: service enabled, NFSv3+NFSv4, no network restrictions).
-  # /mnt/Hutch/Media   — mapall chrsphr:root (all clients squashed to uid 3000)
-  # /mnt/Hutch/Backups — no squash mapping
-  # 192.168.0.0/16 because chris-framework mounts over WiFi from 192.168.4.x.
-  # ---------------------------------------------------------------------------
+  # NFS: Media squashes all clients to uid 3000; Backups no squash.
+  # /16 because chris-framework mounts over WiFi from 192.168.4.x.
   services.nfs.server = {
     enable = true;
     exports = ''
@@ -124,11 +70,7 @@ in
   networking.firewall.allowedTCPPorts = [ 2049 111 ];
   networking.firewall.allowedUDPPorts = [ 2049 111 ];
 
-  # ---------------------------------------------------------------------------
-  # SMB. TrueNAS had shares defined (netbios HUTCH, workgroup WORKGROUP) but
-  # the CIFS service itself was DISABLED — only nfs+ssh were enabled.
-  # Included here for parity; flip enable to true if you actually use SMB.
-  # ---------------------------------------------------------------------------
+  # Deliberately disabled, shares kept for parity. why: docs/notes.md#smb-dormant
   services.samba = {
     enable = false;
     settings = {
@@ -151,33 +93,11 @@ in
     };
   };
 
-  # ---------------------------------------------------------------------------
-  # Encrypted offsite backup to Backblaze B2.
-  #
-  # Replaced the TrueNAS-era cloudsync tasks (plain `rclone copy` of Photos and
-  # Backups, unencrypted, Tue/Wed 00:00). Three things changed:
-  #
-  #   1. Everything goes through an rclone `crypt` remote. File contents AND
-  #      names/directories are encrypted locally; B2 stores opaque blobs under
-  #      opaque paths and never sees the key.
-  #   2. `sync`, not `copy` — the bucket mirrors current on-disk state instead
-  #      of accumulating everything ever written. See the delete guards below.
-  #   3. Credentials come from sops (secrets/hutch.yaml) rather than a
-  #      hand-written /var/lib/rclone/rclone.conf.
-  #
-  # The crypt passwords are ALSO in 1Password ("backblaze hutchv2"). Losing both
-  # them and secrets/hutch.yaml makes every byte in B2 permanently unreadable —
-  # B2 cannot help, that is the point of client-side encryption.
-  #
-  # Bucket setup that is NOT expressed here (done by hand in the B2 console):
-  #   - bucket `hutch-v2`, private, app key scoped to just that bucket
-  #   - lifecycle: keepDaysAfterHide = 30, keepDaysAfterUpload = null
-  # That lifecycle rule IS the undo window. Without it a bad sync is final.
-  # Nothing in this file enforces either — check them if restores misbehave.
-  # ---------------------------------------------------------------------------
-  # hutch decrypts with its own SSH host key (sops.age.sshKeyPaths default), so
-  # unlike the containers there is no key file to place at /var/secrets. The
-  # default /run/secrets tmpfs is fine here: the host re-runs activation at boot.
+  # Encrypted offsite mirror to Backblaze B2 via an rclone crypt remote.
+  # Crypt passwords are escrowed in 1Password ("backblaze hutchv2") — losing
+  # them AND secrets/hutch.yaml makes the bucket permanently unreadable.
+  # Bucket lifecycle (the 30-day undo window) is hand-set in the B2 console.
+  # why: docs/notes.md#b2-backup-design
   sops.defaultSopsFile = ../secrets/hutch.yaml;
   sops.secrets.b2_account = { };
   sops.secrets.b2_key = { };
@@ -204,30 +124,22 @@ in
 
   systemd.services.rclone-b2-backup = {
     description = "Encrypted mirror of media + backups to Backblaze B2";
-    # network-online because rclone is useless without it; sops-nix because a
-    # Persistent timer can fire at boot before the config template is rendered.
     after = [ "zfs-mount.service" "network-online.target" "sops-nix.service" ];
     wants = [ "network-online.target" ];
     requires = [ "zfs-mount.service" ];
 
-    # If the pool did not import, /mnt/Hutch/Media is an empty directory on the
-    # root filesystem — and `rclone sync` against empty sources would delete the
-    # entire remote. Same guard the media containers use (hosts/hutch.nix).
+    # Guard: syncing from an unmounted (empty) source would delete the remote.
     unitConfig.ConditionPathIsMountPoint = "/mnt/Hutch/Media";
 
     serviceConfig = {
       Type = "oneshot";
-      # The first seed is ~4TB and runs for days; oneshot otherwise defaults to
-      # a 90s start timeout and would be killed mid-transfer.
-      TimeoutStartSec = "infinity";
+      TimeoutStartSec = "infinity";  # first seed runs for days
       # Bulk background transfer — don't starve Plex of disk or CPU.
       Nice = 10;
       IOSchedulingClass = "idle";
     };
 
-    # One path failing (transient B2 error, a --max-delete trip) must not skip
-    # the remaining paths — NixOS job scripts run under `set -e`, so each rclone
-    # is guarded and the unit reports failure only at the end.
+    # Each rclone is guarded so one failing path doesn't skip the rest.
     script = ''
       failed=""
     '' + lib.concatStrings (lib.mapAttrsToList (dest: src: ''
@@ -259,56 +171,21 @@ in
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = "*-*-* 01:00:00";
-      # A run in progress simply keeps the unit active, so a multi-day first
-      # seed is safe: systemd will not start a second copy on top of it.
+      # A run in progress keeps the unit active; no second copy is started.
       Persistent = true;
       RandomizedDelaySec = "30m";
     };
   };
 
-  # ---------------------------------------------------------------------------
-  # TrueNAS cron jobs / init scripts:
-  #   powertop --auto-tune (daily + postinit)   -> powerManagement.powertop
-  #   powersave CPU governor (postinit)         -> powerManagement.cpuFreqGovernor
-  #   SMART short (Wed 00:00) / long (1st 04:00)-> services.smartd below
-  # ---------------------------------------------------------------------------
   powerManagement.powertop.enable = true;
   powerManagement.cpuFreqGovernor = "powersave";
 
-  # ---------------------------------------------------------------------------
-  # Further idle/load tuning, NOT inherited from TrueNAS. hutch is an i5-12600K
-  # (Alder Lake) doing NAS work, so the stock desktop power envelope is far
-  # more than it ever needs.
-  #
-  # Checked and deliberately skipped:
-  #   - RAPL package power limits (PL1 135W / PL2 150W): left at stock on
-  #     purpose. Don't cap these.
-  #   - powerManagement.scsiLinkPolicy: both 8TB drives are on host4/host5,
-  #     already at med_power_with_dipm. Only the empty ports sit at
-  #     keep_firmware_settings, so forcing ALPM globally buys nothing.
-  #   - HDD spindown (hdparm -B/-S): plex/sonarr/transmission/sanoid touch the
-  #     Media dataset continuously — the drives would thrash, not idle.
-  #
-  # Package C-states are capped at PC2 by HARDWARE, not config (verified
-  # 2026-08-08 with turbostat/lspci): the 82599 10G NIC at 01:00.0 supports
-  # only ASPM L0s, not L1, and ADL needs every PCIe link in L1 for PC3+.
-  # Cores reach CC7, iGPU RC6 works, NVMe L1 is on, MSR 0xE2 is unlimited —
-  # the NIC is the sole blocker, and it costs only ~1-2W at the package
-  # (~2.7W RAPL idle as-is). Fix would be a NIC that supports L1; there is
-  # no software knob. Don't re-investigate.
-  # ---------------------------------------------------------------------------
-
-  # Alder Lake's hybrid P/E topology; Intel's own daemon handles it better
-  # than the kernel's passive thermal throttling alone.
+  # Idle tuning is done: package C-states are hardware-capped at PC2 by the
+  # 10G NIC — don't re-investigate. why: docs/notes.md#nas-power-tuning
   services.thermald.enable = true;
 
-  # EPP is the one knob cpuFreqGovernor="powersave" does NOT set: under
-  # intel_pstate's active mode the governor picks the *algorithm*, while EPP
-  # biases it within that. Stock is balance_performance; balance_power is a
-  # measurable idle/light-load saving with no impact on this workload.
-  #
-  # Ordered after powertop so auto-tune can't clobber it. Non-fatal by design:
-  # the file is absent unless intel_pstate is in active mode with HWP.
+  # EPP balance_power; ordered after powertop so auto-tune can't clobber it.
+  # why: docs/notes.md#thermald-and-smartd
   systemd.services.cpu-epp = {
     description = "Set CPU energy performance preference";
     wantedBy = [ "multi-user.target" ];
@@ -325,13 +202,8 @@ in
   services.smartd = {
     enable = true;
     devices = [
-      # Match by WWN — stable per-drive regardless of how udev formats the
-      # by-id name (on this kernel it's ata-HUH728080ALE601_<SERIAL>, not
-      # ata-<SERIAL>; device letters can also move). Verify with `ls -l
-      # /dev/disk/by-id/wwn-*`.
-      # -d sat: smartd can't auto-detect the device type on hutch's
-      # controller ("unable to autodetect device type"), but explicit SATA
-      # passthrough works — verified with `smartctl -d sat -i/-H`.
+      # WWN-matched (by-id names/letters move); -d sat because autodetect
+      # fails on this controller. why: docs/notes.md#thermald-and-smartd
       {
         device = "/dev/disk/by-id/wwn-0x5000cca254dabd04";  # 8TB VKHWUELX
         options = "-d sat -a -s (S/../../3/00|L/../01/./04)";
@@ -343,12 +215,7 @@ in
     ];
   };
 
-  # ---------------------------------------------------------------------------
-  # Users from TrueNAS (UIDs preserved so NFS ownership survives the move):
-  #   chrsphr uid=3000 (home was /mnt/Hutch/Chris)
-  #   hutch   uid=3001 (nologin; used for file ownership)
-  #   admin   uid=950  -> skipped, NixOS root covers it
-  # ---------------------------------------------------------------------------
+  # UIDs preserved from TrueNAS so NFS ownership survives the move.
   users.groups.chrsphr.gid = 3000;
   users.groups.hutch.gid = 3001;
   users.users.chrsphr = {

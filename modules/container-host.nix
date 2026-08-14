@@ -1,15 +1,9 @@
 { config, pkgs, pkgs-unstable, sops-nix, gb-grid, gb-grid-pkg, lib, ... }:
 
 # The container-host role: LAN bond/bridge plus every NixOS container that
-# lib/network.nix says belongs to this machine.
-#
-# Imported by hutch and minihutch. Everything here is derived from
-# `networking.hostName` and lib/network.nix, so a host that imports this
-# module declares containers purely by being named as some host's `parent`.
-#
-# Per-host knobs live under `containerHost.*` (see the options block below);
-# anything genuinely specific to one machine — the NAS role, media bind
-# mounts, iGPU passthrough — stays in that machine's hosts/<name>.nix.
+# lib/network.nix names this machine as `parent` of (see README). Per-host
+# knobs live under `containerHost.*`; anything machine-specific stays in
+# hosts/<name>.nix.
 
 let
   hostsLib = import ../lib/network.nix { inherit lib; };
@@ -61,41 +55,9 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # systemd-networkd. Topology:
-    #
-    #   physical NICs ─► bond0 (active-backup) ─► br0 (host IP) ◄─ container veths
-    #
-    # EVERY physical ethernet port is a slave of bond0, matched by Type=ether
-    # rather than by name — adding a PCI card can renumber enpXsY, and new
-    # ports should just become extra uplink paths. bond0 is br0's single
-    # uplink port; br0 owns the host IP and the containers attach to it via
-    # hostBridge.
-    #
-    # active-backup means exactly one NIC carries traffic and the rest are hot
-    # standbys: whichever cable is plugged in Just Works, failover on link loss
-    # is ~100ms (MII monitor), and a switching loop is impossible even with
-    # both NICs cabled to the same switch — so NO STP on br0. (STP was tried
-    # first on hutch and caused LAN-wide instability: the bridge's random low
-    # MAC won root-bridge election against the UniFi kit, and every container
-    # veth start/stop forced 30s listening/learning plus topology-change FDB
-    # flushes — intermittent multi-second blackholes of established TCP.)
-    #
-    # If a future NIC must NOT be an uplink (dedicated 10G to another box,
-    # say), give it its own systemd.network.networks unit sorting before
-    # "20-lan-port" with a narrower match — first match wins.
-    #
-    # History, so this doesn't get "fixed" back: br0 previously held .2 while its
-    # only port (enp1s0) was unplugged, with enp3s0 separately holding a DHCP .124.
-    # br0 still came up (container veths give the bridge carrier, so
-    # ConfigureWithoutCarrier=false does not stop it), and its connected
-    # 192.168.1.0/24 route at metric 0 beat enp3s0's DHCP route at metric 1024 —
-    # so every packet to the LAN, including SSH replies arriving on enp3s0, was
-    # routed into a bridge with no cable and dropped. Raising the *default* route
-    # metric to 2000 never helped, because LAN traffic uses the connected route.
-    # The arp_ignore/arp_filter sysctls that followed were treating symptoms of
-    # that blackhole (and arp_filter additionally stopped .124 answering ARP at
-    # all, since the route lookup for the sender kept returning br0). One
-    # L3 identity on the subnet makes all of it unnecessary.
+    # physical NICs ─► bond0 (active-backup) ─► br0 (host IP) ◄─ container veths
+    # NO STP on br0 — do not "fix" this back.
+    # why: docs/notes.md#bond0-to-br0, #no-stp; history: docs/notes.md#br0-blackhole
     networking = {
       useNetworkd = true;
       interfaces.br0.ipv4.addresses = [{
@@ -112,8 +74,6 @@ in
 
     systemd.network = {
       netdevs = {
-        # networking.bridges/bonds are not used — they want fixed port-name
-        # lists, defeating the catch-all port match below.
         "20-bond0" = {
           netdevConfig = {
             Kind = "bond";
@@ -126,10 +86,7 @@ in
             MIIMonitorSec = "100ms";
           };
         };
-        # Same fixed MAC as the bond: without it the bridge adopts the lowest
-        # port MAC, and container veths get random ones — br0's (and so the
-        # host IP's) MAC would change whenever a container with a low MAC
-        # starts/stops.
+        # Same fixed MAC as the bond. why: docs/notes.md#fixed-bridge-mac
         "40-br0".netdevConfig = {
           Kind = "bridge";
           Name = "br0";

@@ -1,31 +1,9 @@
 { config, pkgs, lib, ... }:
 
-# USB/IP: project a USB device from the host it's physically plugged into
-# onto another host over the LAN.
-#
-# Why this exists: the Xbox One Digital TV Tuner (045e:02d5, dib0700 +
-# Panasonic MN88472, DVB-T/T2) is plugged into minihutch, but Plex — which
-# reads DVB tuners straight off /dev/dvb — runs in a container on hutch.
-# USB doesn't cross machines, so minihutch exports the device and hutch
-# imports it, after which /dev/dvb/adapter0 appears on hutch as if local.
-#
-#   minihutch                              hutch
-#   ─────────                              ─────
-#   usbip-host driver ─► usbipd :3240 ═══► vhci-hcd ─► /dev/dvb/adapter0
-#   (device leaves the                                  │
-#    local DVB stack)                                   └─► plex container
-#
-# NOTE the tradeoff this encodes: binding the device to usbip-host DETACHES it
-# from minihutch's own DVB stack, so /dev/dvb disappears there. The tuner
-# belongs to exactly one host at a time, and that host is hutch.
-#
-# Caveats worth knowing before debugging this at 1am:
-#   - DVB is a real-time bulk-transfer workload. Over USB/IP it is sensitive
-#     to LAN hiccups; dropouts show up as recording glitches, not errors.
-#   - Both hosts must run the SAME kernel version — the usbip userspace is
-#     kernel-matched (boot.kernelPackages.usbip). Both are 6.18 today; if
-#     hutch's ZFS pin and minihutch's default ever diverge, expect breakage.
-#   - There is no NixOS module for usbip, hence the hand-rolled units below.
+# USB/IP: project a USB device (the DVB tuner on minihutch) onto another host
+# (hutch, where Plex runs) over the LAN. Server and client MUST run the same
+# kernel version — the usbip userspace is kernel-matched.
+# why: docs/notes.md#usbip-tuner-design, #kernel-pin
 
 let
   cfg = config.usbipTuner;
@@ -164,11 +142,8 @@ in
       systemd.tmpfiles.rules =
         map (d: "d ${d} 0755 root root -") cfg.attach.preCreate;
 
-      # Long-running supervisor rather than a oneshot: the attachment dies
-      # whenever the server reboots, the dongle is replugged, or the LAN
-      # blips, and nothing else would notice. Re-checking every 30s makes
-      # recovery automatic instead of a manual `usbip attach` after every
-      # minihutch deploy.
+      # Supervisor loop, not a oneshot: re-attaches automatically after server
+      # reboots, replugs and LAN blips. why: docs/notes.md#usbip-tuner-design
       systemd.services.usbip-attach = {
         description = "Attach USB/IP device ${cfg.attach.busid} from ${cfg.attach.server}";
         wantedBy = [ "multi-user.target" ];

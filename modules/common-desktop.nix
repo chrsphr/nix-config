@@ -55,8 +55,6 @@ in
   services.xserver.enable = true;
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
-  # Mutter experimental features removed — scale-monitor-framebuffer and
-  # variable-refresh-rate are defaults in Mutter 50.
 
   # Keymap configuration
   services.xserver.xkb = {

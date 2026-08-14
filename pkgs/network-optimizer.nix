@@ -60,10 +60,8 @@ buildDotnetModule rec {
 
   executables = [ "NetworkOptimizer.Web" ];
 
-  # WAN speed test helpers the app expects under <appdir>/tools/. Static Go
-  # binaries from the matching GitHub release (upstream doesn't build them in
-  # `dotnet publish`): the x64 one runs HERE for server-side WAN tests, the
-  # arm64 one is SFTP'd onto UniFi gateways for gateway-side tests.
+  # Speed-test helpers under tools/ (x64 runs here; arm64 is SFTP'd onto
+  # gateways). why: docs/notes.md#network-optimizer
   postInstall =
     let
       uwnspeedtest = arch: hash: fetchurl {

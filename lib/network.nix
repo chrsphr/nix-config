@@ -173,17 +173,8 @@ let
       subdomain = "grid";
     };
 
-    # The two baremetal servers. Both run modules/container-host.nix, so each
-    # declares a NixOS container for every host above naming it as `parent`.
-    # Containers are deployed BY deploying their parent.
-    #
-    # hutch also owns storage (the NAS role, modules/nas.nix); minihutch is
-    # compute only — no ZFS, no NFS, no backup.
-    #
-    # Both are probed on sshd (22) rather than a service port: neither runs
-    # anything HTTP on the host itself, and sshd being up is what
-    # distinguishes "the box is alive" from "a container on it died" — the
-    # container-level monitors above already cover the latter.
+    # The two baremetal container hosts (see README). Probed on sshd:22, not a
+    # service port. why: docs/notes.md#deploy-ordering-and-sshd-probe
     hutch = {
       ip = "192.168.1.2";
       sshUser = "deploy";
@@ -214,8 +205,6 @@ let
         group = "Hutch Primary Services";
       };
     };
-    # Retired 2026-08-08: lilnas (TrueNAS VM, .12) and minimox (Proxmox, .30).
-    # hutch took over both roles; see git history if either ever comes back.
     unifi = {
       ip = "192.168.1.1";
       sshUser = "root";

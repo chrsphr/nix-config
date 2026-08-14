@@ -17,6 +17,11 @@ referenced from code, so append new headings rather than renaming old ones.
 
 #### Deploy ordering and sshd probe
 
+The two baremetal servers are probed (Gatus) on sshd:22 rather than a service
+port: neither runs anything HTTP on the host itself, and sshd being up is
+what distinguishes "the box is alive" from "a container on it died" — the
+container-level monitors already cover the latter.
+
 ### Networking
 
 #### bond0 to br0
@@ -630,6 +635,12 @@ lookup for the sender kept returning br0). One L3 identity on the subnet
 makes all of it unnecessary — hence the bond+bridge design.
 
 ### ssh identity mixup
+
+The 1Password SSH agent holds both personal and work keys and offered the
+work one first, which can't push to chrsphr repos. Fix (home/common-home.nix):
+pin github.com to the personal key — `identitiesOnly` + the public key on
+disk make the agent use only that identity. Desktop + Framework only; WSL
+bridges 1Password differently and is left untouched.
 
 ## Pending
 

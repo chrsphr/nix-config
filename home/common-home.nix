@@ -1,31 +1,6 @@
 { config, lib, pkgs, pkgs-unstable, ... }:
 
 let
-  # ChromaLeon (formerly "User Accent Colors"), extension id 10070. Not packaged
-  # in nixpkgs, so build it from the extensions.gnome.org zip. Ships an
-  # uncompiled gschema, so compile it during the build.
-  chromaleon = pkgs.stdenvNoCC.mkDerivation {
-    pname = "gnome-shell-extension-chromaleon";
-    version = "35";
-    src = pkgs.fetchzip {
-      url = "https://extensions.gnome.org/download-extension/user-accent-colors@fabito02.shell-extension.zip?version_tag=72021";
-      hash = "sha256-lLdB0f/NVhOY8mN4cj8KdWCN3yoVBp41yj9fTohv6SY=";
-      stripRoot = false;
-      extension = "zip";
-    };
-    nativeBuildInputs = [ pkgs.glib ];
-    dontConfigure = true;
-    dontBuild = true;
-    installPhase = ''
-      runHook preInstall
-      d=$out/share/gnome-shell/extensions/user-accent-colors@fabito02
-      mkdir -p $d
-      cp -r * $d/
-      glib-compile-schemas $d/schemas
-      runHook postInstall
-    '';
-  };
-
   # Host inventory, single source of truth for IPs, Caddy, monitoring, SSH.
   network = import ../lib/network.nix { inherit lib; };
 in
@@ -57,9 +32,7 @@ in
     nixos-generators
     drawio
     google-chrome
-    # Pinned to stable: unstable's darktable 5.6.0 aborts at launch with a
-    # gflags "flagfile ... linked both statically and dynamically" conflict
-    # (opencv/gmic/glog pull in gflags). Revisit when nixpkgs unstable fixes it.
+    # Pinned to stable — unstable's build aborts at launch (see notes Pending).
     darktable
     onnxruntime
     python3
@@ -80,7 +53,6 @@ in
     gnomeExtensions.emoji-copy
     gnomeExtensions.appindicator
     gnomeExtensions.battery-time
-    #chromaleon
   ];
 
   # Start 1Password minimised at login
@@ -145,11 +117,8 @@ in
     };
   };
 
-  # SSH (desktop + Framework only — WSL bridges 1Password differently and is
-  # left untouched). The 1Password agent holds both personal and work keys and
-  # offered the work one first, which can't push to chrsphr repos. Pin github.com
-  # to the personal (chrsphr) key; identitiesOnly + the public key on disk make
-  # the agent use only that identity.
+  # SSH (desktop + Framework only). github.com pinned to the personal key.
+  # history: docs/notes.md#ssh-identity-mixup
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;

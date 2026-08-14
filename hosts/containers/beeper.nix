@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, pkgs-unstable, lib, ... }:
 
 # Self-hosted Beeper bridges as a NixOS container on minihutch.
 # Outbound-only: no Caddy vhost, no tunnel, no open ports.
@@ -8,67 +8,49 @@ let
   stateDir = "/var/lib/beeper";
   bbctlConfig = "${stateDir}/bbctl.json";
 
-  # Forward the real HTTP method through bbctl's provisioning proxy (it
-  # hardcodes PUT, breaking telegram). why: docs/notes.md#beeper-bridges
-  bbctl-patched = pkgs.beeper-bridge-manager.overrideAttrs (old: {
-    postPatch = (old.postPatch or "") + ''
-      substituteInPlace cmd/bbctl/proxy.go \
-        --replace-fail \
-        'http.NewRequestWithContext(cmd.Ctx, http.MethodPut, fullURL.String(), body)' \
-        'http.NewRequestWithContext(cmd.Ctx, reqData.Method, fullURL.String(), body)'
-    '';
-  });
-  bbctl = "${bbctl-patched}/bin/bbctl";
+  # bbctl >=0.14 (unstable) treats telegram as a Go bridge — no provisioning
+  # proxy, no python-style launch. why: docs/notes.md#beeper-bridges
+  bbctl = "${pkgs-unstable.beeper-bridge-manager}/bin/bbctl";
 
-  # Go bridgev2 telegram, built from the upstream tag (nixpkgs only has the
-  # old Python bridge). Bump version + both hashes to upgrade.
-  # why: docs/notes.md#beeper-bridges
-  mautrix-telegram = pkgs.buildGoModule rec {
-    pname = "mautrix-telegram";
-    version = "0.2606.0";
-    src = pkgs.fetchFromGitHub {
-      owner = "mautrix";
-      repo = "telegram";
-      rev = "v${version}";
-      hash = "sha256-tKoqtGCkUtCT/SMxRX6LzivGu0p/AM6TPDQoW9plTyE=";
+  # Go bridgev2 bridges not in nixpkgs, built from the upstream tag. Bump
+  # version + both hashes to upgrade. Without a valid Tag in ldflags the
+  # bridges panic at startup. why: docs/notes.md#beeper-bridges
+  mkMautrixBridge = { name, version, hash, vendorHash }:
+    pkgs.buildGoModule rec {
+      pname = "mautrix-${name}";
+      inherit version vendorHash;
+      src = pkgs.fetchFromGitHub {
+        owner = "mautrix";
+        repo = name;
+        rev = "v${version}";
+        inherit hash;
+      };
+      subPackages = [ "cmd/mautrix-${name}" ];
+      tags = [ "goolm" ];
+      ldflags = [ "-s" "-w" "-X" "main.Tag=v${version}" "-X" "main.Commit=${src.rev}" ];
     };
-    vendorHash = "sha256-+VDdJg5RZzMrphJ5SK+YbdENhPiHJpwGY/JqBJewtUo=";
-    subPackages = [ "cmd/mautrix-telegram" ];
-    tags = [ "goolm" ];
-    ldflags = [ "-s" "-w" "-X" "main.Tag=v${version}" "-X" "main.Commit=${src.rev}" ];
+
+  mautrix-telegram = mkMautrixBridge {
+    name = "telegram";
+    version = "0.2607.0";
+    hash = "sha256-MpdsWtEsVnC6purF5sw+RD+Nb/3Wo0xrzSn2BuFZmj8=";
+    vendorHash = "sha256-bmpTm1/6Z+kAFGAJ70ohBz8+n8JZk7mZyCfX0+FB/fE=";
   };
 
-  # bbctl launches telegram python-style (`-m module`); strip that for the Go
-  # binary. why: docs/notes.md#beeper-bridges
-  telegramCmd = pkgs.writeShellScript "mautrix-telegram-bbctl" ''
-    if [ "$1" = "-m" ]; then shift 2; fi
-    exec ${mautrix-telegram}/bin/mautrix-telegram "$@"
-  '';
-
-  # Bluesky isn't in nixpkgs; built from the upstream tag. Bump version +
-  # both hashes to upgrade.
-  mautrix-bluesky = pkgs.buildGoModule rec {
-    pname = "mautrix-bluesky";
+  mautrix-bluesky = mkMautrixBridge {
+    name = "bluesky";
     version = "0.2510.0";
-    src = pkgs.fetchFromGitHub {
-      owner = "mautrix";
-      repo = "bluesky";
-      rev = "v${version}";
-      hash = "sha256-tADkD2WSATOubXiLX76qoqFp5aOst62qx40TjhLN2os=";
-    };
+    hash = "sha256-tADkD2WSATOubXiLX76qoqFp5aOst62qx40TjhLN2os=";
     vendorHash = "sha256-4vX9KV2+TMxKkO7OGTazhDF9jx5/HNbenSUIN8qajLs=";
-    subPackages = [ "cmd/mautrix-bluesky" ];
-    tags = [ "goolm" ];
-    # Without a valid Tag the bridge panics at startup.
-    ldflags = [ "-s" "-w" "-X" "main.Tag=v${version}" "-X" "main.Commit=${src.rev}" ];
   };
 
   # name -> the command bbctl launches via --custom-startup-command.
+  # signal/whatsapp track unstable so all four bridges update on flake bumps.
   # See README "Beeper bridges" for add/remove and the login bootstrap.
   bridges = {
-    signal    = "${pkgs.mautrix-signal}/bin/mautrix-signal";
-    whatsapp  = "${pkgs.mautrix-whatsapp}/bin/mautrix-whatsapp";
-    telegram  = "${telegramCmd}";
+    signal    = "${pkgs-unstable.mautrix-signal}/bin/mautrix-signal";
+    whatsapp  = "${pkgs-unstable.mautrix-whatsapp}/bin/mautrix-whatsapp";
+    telegram  = "${mautrix-telegram}/bin/mautrix-telegram";
     bluesky   = "${mautrix-bluesky}/bin/mautrix-bluesky";
   };
 
@@ -111,10 +93,11 @@ in
     "d ${stateDir} 0750 beeper beeper - -"
   ];
 
-  environment.systemPackages = (with pkgs; [
+  environment.systemPackages = (with pkgs-unstable; [
     mautrix-whatsapp
     mautrix-signal
-  ]) ++ [ bbctl-patched mautrix-telegram mautrix-bluesky ];
+    beeper-bridge-manager
+  ]) ++ [ mautrix-telegram mautrix-bluesky ];
 
   systemd.services = lib.mapAttrs'
     (name: command: lib.nameValuePair "mautrix-${name}" (mkBridgeService name command))

@@ -332,7 +332,10 @@ fail-loop before the bootstrap.
 
 Bridge provenance and quirks:
 
-- **signal, whatsapp**: Go bridgev2 binaries straight from nixpkgs.
+- **signal, whatsapp**: Go bridgev2 binaries from nixpkgs-**unstable** (all
+  four bridges track the fast cadence — Beeper compatibility matters more
+  than stability for outbound-only clients, and they update on
+  `nix flake update`).
 - **telegram**: as of v26.04 (calver tag v0.26xx.0) the bridge is a Go
   bridgev2 rewrite that speaks /provision/v3 and reports remote-connection
   state to the app. nixpkgs still ships only the old Python 0.15.3, so it's
@@ -342,27 +345,24 @@ Bridge provenance and quirks:
 - **bluesky**: Go bridgev2, not packaged in nixpkgs — built from the upstream
   tagged release (pure-Go `goolm`, no libolm/CGO).
 - **Upgrading a from-source bridge**: bump `version` + BOTH hashes (src and
-  vendorHash).
+  vendorHash) in its `mkMautrixBridge` call.
 - **ldflags Tag**: the bridges embed their version; without a valid tag they
   panic at startup ("invalid semver: unknown") converting version to calver.
-- **bbctl PUT-proxy patch**: bbctl 0.13.0 runs sh-telegram in "python bridge"
-  mode (Beeper still classifies sh-telegram as the legacy Python bridge
-  server-side), holding the appservice websocket itself and proxying
-  provisioning requests to the bridge's local HTTP listener. Its proxy
-  hardcodes PUT for every proxied request (proxyWebsocketRequest in
-  cmd/bbctl/proxy.go), so GET /v3/capabilities, /v3/whoami etc. fail with 405
-  and the Telegram network never appears in the app. The overlay patches the
-  proxy to forward the real method. Still unfixed in bbctl main as of
-  2026-08; bbctl ≥0.14 treats telegram as a Go bridge and skips the proxy,
-  but that path requires regenerating the on-box config — so patch rather
-  than upgrade (tracked in Pending).
-- **`-m` wrapper**: because bbctl classifies sh-telegram as Python, it
-  launches the custom command python-style (`<cmd> -m mautrix_telegram -c
-  config.yaml`). The Go binary rejects `-m`, so a thin wrapper strips the
-  leading `-m <module>` and forwards the rest.
+- **bbctl ≥0.14 required for telegram** (0.15.0 from unstable): it treats
+  sh-telegram as a Go bridge — bbctl no longer proxies provisioning or
+  launches the command python-style. History: bbctl 0.13 classified
+  sh-telegram as the legacy Python bridge, and its websocket→HTTP
+  provisioning proxy hardcoded PUT (proxyWebsocketRequest in
+  cmd/bbctl/proxy.go), 405-ing every GET the app made — Telegram never
+  appeared under Settings → Networks. That era needed a patched bbctl plus a
+  wrapper stripping the python-style `-m <module>` args (removed 2026-08-14
+  with the 0.15 upgrade; see git history). After crossing 0.13→≥0.14 on a
+  live box, delete
+  /var/lib/beeper/.local/share/bbctl/prod/sh-telegram/config.yaml and
+  restart the unit so bbctl regenerates it for the Go path.
 - **libolm**: the mautrix bridges pull in olm-3.2.16, which nixpkgs flags
-  insecure/unmaintained; permitted because it's required for end-to-bridge
-  encryption.
+  insecure/unmaintained; permitted (in the shared pkgs-unstable instance,
+  flake.nix) because it's required for end-to-bridge encryption.
 - `--custom-startup-command` disables all bbctl downloads — nothing non-Nix
   ever runs.
 
@@ -667,7 +667,6 @@ bridges 1Password differently and is left untouched.
 - [ ] **framework**: restore suspend-then-hibernate + HibernateDelaySec once crash fixed upstream (see [2026-07-12 hibernate crash](#2026-07-12-hibernate-crash))
 - [ ] **framework**: charge cap 90% — bump to 100 before a trip (hosts/chris-framework.nix)
 - [ ] **uptime**: replace reused laptop master sops key with a dedicated uptime key + re-encrypt (hosts/containers/uptime.nix)
-- [ ] **beeper**: drop bbctl PUT-proxy patch when fixed upstream; bbctl >=0.14 needs on-box config regen (hosts/containers/beeper.nix)
 - [ ] **usbip**: kernel-version coupling — hutch pinned 6.18, minihutch tracks nixpkgs default; usbip breaks if they diverge (see [Kernel pin](#kernel-pin))
 - [ ] **nas**: B2 bucket lifecycle + app-key scoping configured by hand in the B2 console — document or automate; check if restores misbehave (modules/nas.nix)
 - [ ] **nas**: drop zfs_arc_shrinker_seeks to 1 if the 8 GiB sys-free floor proves too tight (modules/nas.nix)

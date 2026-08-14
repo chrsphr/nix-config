@@ -42,7 +42,12 @@
 
     # Single shared unstable instance — the biggest eval-time win here.
     # why: docs/notes.md#shared-pkgs-unstable
-    pkgs-unstable = import nixpkgs-unstable { inherit system; config.allowUnfree = true; };
+    pkgs-unstable = import nixpkgs-unstable {
+      inherit system;
+      config.allowUnfree = true;
+      # libolm, pulled by the beeper bridges (end-to-bridge encryption).
+      config.permittedInsecurePackages = [ "olm-3.2.16" ];
+    };
 
     # Base builder: every host gets pkgs-unstable in specialArgs.
     mkHost = { modules, specialArgs ? {} }: lib.nixosSystem {

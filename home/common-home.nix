@@ -122,17 +122,17 @@ in
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
-    matchBlocks = (lib.mapAttrs' (name: cfg:
+    settings = (lib.mapAttrs' (name: cfg:
       lib.nameValuePair name {
-        hostname = cfg.ip;
-        user = cfg.sshUser;
+        HostName = cfg.ip;
+        User = cfg.sshUser;
       }) network.hosts) // {
       "github.com" = {
-        identityFile = "~/.ssh/id_chrsphr.pub";
-        identitiesOnly = true;
+        IdentityFile = "~/.ssh/id_chrsphr.pub";
+        IdentitiesOnly = "yes";
       };
       "*" = {
-        identityAgent = "~/.1password/agent.sock";
+        IdentityAgent = "~/.1password/agent.sock";
       };
     };
   };

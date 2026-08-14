@@ -31,5 +31,10 @@ in
   # NIX_CONFIG exports (the minimal ISO disables them by default).
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
+  # The ISO pulls in ZFS support; it never imports a root pool at boot, so the
+  # force-import default is pointless here and just costs a warning. Manual
+  # `zpool import -f` in a rescue shell still works.
+  boot.zfs.forceImportRoot = false;
+
   system.stateVersion = "26.05";
 }

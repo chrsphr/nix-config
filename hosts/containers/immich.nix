@@ -1,8 +1,7 @@
 { config, pkgs, pkgs-unstable, sops-nix, lib, ... }:
 
-# Immich as a NixOS container on hutch. Media comes from the local ZFS pool
-# via a bind mount (hostPath /mnt/Hutch/Media/Photos, see hosts/hutch.nix),
-# exposed internally at /mnt/media/Photos.
+# Immich as a NixOS container on hutch. The photo library is a bind mount of
+# the local ZFS dataset (hosts/hutch.nix), exposed at /mnt/media/Photos.
 
 {
   imports = [
@@ -13,8 +12,7 @@
 
   networking.hostName = "immich";
 
-  # Same secrets file and age key as the LXC — the key is bind-mounted from
-  # the hutch host (/var/lib/sops-nix/immich) at container start.
+  # Age key bind-mounted from the host (/var/lib/sops-nix/immich).
   sops = {
     defaultSopsFile = ../../secrets/immich.yaml;
     age.keyFile = "/var/secrets/age-keys.txt";
@@ -49,8 +47,6 @@
     host = "0.0.0.0";
     port = 2283;
 
-    # Same path the LXC used — now a bind mount of the local ZFS dataset
-    # rather than the NFS share.
     mediaLocation = "/mnt/media/Photos";
 
     # Load the JSON configuration from sops template (includes injected secrets)
@@ -59,15 +55,13 @@
     database.enable = true;
     redis.enable = true;
 
-    # Default is [] which sets PrivateDevices and blocks all device access —
-    # QSV needs the render node visible inside the unit's sandbox.
+    # Default [] sets PrivateDevices; QSV needs the render node visible.
+    # why: docs/notes.md#container-one-offs
     accelerationDevices = [ "/dev/dri/renderD128" ];
   };
 
-  # QSV userspace stack. Requires /dev/dri inside the container — on baremetal
-  # that's just a bind mount + allowedDevices if hutch's CPU has an Intel iGPU
-  # (commented-out snippet in hosts/hutch.nix). Until then hardware
-  # transcoding is unavailable and immich falls back to CPU.
+  # QSV userspace stack; /dev/dri arrives via bind mount + allowedDevices
+  # from hosts/hutch.nix. why: docs/notes.md#hutch
   hardware.graphics = {
     enable = true;
     extraPackages = with pkgs; [ intel-media-driver vpl-gpu-rt ];
@@ -75,15 +69,8 @@
   users.users.immich.extraGroups = [ "video" "render" ];
   environment.systemPackages = [ pkgs.libva-utils ];  # `vainfo` to verify QSV
 
-  # The LXC wrote to the library over NFS with mapall chrsphr:root, so every
-  # existing file is uid 3000. Match that here (nspawn shares the host's uid
-  # space) so ownership stays consistent with desktop/framework NFS access.
+  # Existing library files are uid 3000. why: docs/notes.md#container-one-offs
   users.users.immich.uid = 3000;
-
-  # The LXC guarded immich-server with ConditionPathIsMountPoint because its
-  # media mount was optional. Here the equivalent guard is on the host:
-  # container@immich won't start unless /mnt/Hutch/Media is mounted
-  # (see hosts/hutch.nix).
 
   services.cloudflare-tunnel = {
     enable = true;

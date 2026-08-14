@@ -5,7 +5,7 @@ let
   hostsLib = import ../../lib/network.nix { inherit lib; };
 in
 {
-  # Shared base for every NixOS container (systemd-nspawn) on hutch.
+  # Shared base for every NixOS container (systemd-nspawn) on both hosts.
 
   system.stateVersion = "26.05";
 
@@ -24,9 +24,7 @@ in
 
   documentation.enable = false;
 
-  # Networking defaults. The default gateway is required: hostBridge puts the
-  # container straight on the LAN, but without a default route it can't reply
-  # to (or reach) anything off-subnet.
+  # Default gateway required under hostBridge. why: docs/notes.md#container-one-offs
   networking = {
     inherit (hostsLib) nameservers;
     defaultGateway = {
@@ -39,12 +37,8 @@ in
     };
   };
 
-  # The container profile defaults networking.useHostResolvConf = true, so
-  # resolvconf inside the container regenerates /etc/resolv.conf from the
-  # HOST's copy — which is the systemd-resolved stub (127.0.0.53), and
-  # resolved does not run inside the containers: every lookup fails (caddy:
-  # "lookup acme-v02.api.letsencrypt.org: no such host"). Turn it off so
-  # resolvconf writes the container's own networking.nameservers instead.
+  # The host's resolved stub is dead inside nspawn — use our own nameservers.
+  # why: docs/notes.md#container-one-offs
   networking.useHostResolvConf = lib.mkForce false;
 
   # SSH setup

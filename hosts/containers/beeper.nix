@@ -1,25 +1,15 @@
 { config, pkgs, lib, ... }:
 
-# Self-hosted Beeper bridges as a NixOS container on hutch. Outbound-only:
-# no Caddy vhost, no tunnel, no open ports. Bridge sessions live in
-# /var/lib/beeper (bbctl login token + bridge DBs) — see the README
-# "Beeper bridges" section for the one-time login bootstrap.
+# Self-hosted Beeper bridges as a NixOS container on minihutch.
+# Outbound-only: no Caddy vhost, no tunnel, no open ports.
+# why: docs/notes.md#beeper-bridges
 
 let
   stateDir = "/var/lib/beeper";
   bbctlConfig = "${stateDir}/bbctl.json";
 
-  # bbctl 0.13.0 runs sh-telegram in "python bridge" mode (Beeper still
-  # classifies sh-telegram as the legacy Python bridge server-side), so bbctl
-  # holds the appservice websocket itself and proxies provisioning requests to
-  # the bridge's local HTTP listener. Its proxy hardcodes PUT for every
-  # proxied request (proxyWebsocketRequest in cmd/bbctl/proxy.go), so the
-  # app's GET /v3/capabilities, /v3/whoami etc. all fail with 405 and the
-  # Telegram network never appears in the Beeper app. Patch the proxy to
-  # forward the real method from the websocket http_proxy request. (Still
-  # unfixed in bbctl main as of 2026-08; bbctl >=0.14 instead treats telegram
-  # as a Go bridge and skips the proxy entirely, but that path requires
-  # regenerating the on-box config, so patch rather than upgrade.)
+  # Forward the real HTTP method through bbctl's provisioning proxy (it
+  # hardcodes PUT, breaking telegram). why: docs/notes.md#beeper-bridges
   bbctl-patched = pkgs.beeper-bridge-manager.overrideAttrs (old: {
     postPatch = (old.postPatch or "") + ''
       substituteInPlace cmd/bbctl/proxy.go \
@@ -30,14 +20,9 @@ let
   });
   bbctl = "${bbctl-patched}/bin/bbctl";
 
-  # Telegram: as of v26.04 (calver tag v0.26xx.0) the bridge is a Go bridgev2
-  # rewrite, so — like signal/whatsapp — it speaks the /provision/v3 API, reports
-  # remote-connection state to Beeper (shows up + manageable in the app), and
-  # needs no Python-interpreter wrapper. nixpkgs still only ships the old Python
-  # 0.15.3, so build the Go bridge from the upstream tagged release, same pattern
-  # as bluesky below. The Go bridge auto-migrates the Python DB/config in place on
-  # first start (cmd/mautrix-telegram/legacymigrate.{go,sql}). Bump version + both
-  # hashes to upgrade.
+  # Go bridgev2 telegram, built from the upstream tag (nixpkgs only has the
+  # old Python bridge). Bump version + both hashes to upgrade.
+  # why: docs/notes.md#beeper-bridges
   mautrix-telegram = pkgs.buildGoModule rec {
     pname = "mautrix-telegram";
     version = "0.2606.0";
@@ -53,20 +38,15 @@ let
     ldflags = [ "-s" "-w" "-X" "main.Tag=v${version}" "-X" "main.Commit=${src.rev}" ];
   };
 
-  # bbctl still classifies `sh-telegram` as the *Python* bridge server-side, so it
-  # launches the custom command python-style: `<cmd> -m mautrix_telegram -c config.yaml`.
-  # The Go binary doesn't understand `-m` (it exits with "Unknown flag: m"), so we
-  # keep a thin wrapper that strips the leading `-m <module>` and forwards the rest
-  # (`-c config.yaml`) to the real Go entrypoint. Same trick as before, now pointing
-  # at the Go bridge instead of Python.
+  # bbctl launches telegram python-style (`-m module`); strip that for the Go
+  # binary. why: docs/notes.md#beeper-bridges
   telegramCmd = pkgs.writeShellScript "mautrix-telegram-bbctl" ''
     if [ "$1" = "-m" ]; then shift 2; fi
     exec ${mautrix-telegram}/bin/mautrix-telegram "$@"
   '';
 
-  # Bluesky is a Go bridgev2 bridge but isn't packaged in nixpkgs, so build it
-  # from the upstream tagged release (pure-Go `goolm`, no libolm/CGO). Bump
-  # version + both hashes to upgrade.
+  # Bluesky isn't in nixpkgs; built from the upstream tag. Bump version +
+  # both hashes to upgrade.
   mautrix-bluesky = pkgs.buildGoModule rec {
     pname = "mautrix-bluesky";
     version = "0.2510.0";
@@ -79,17 +59,12 @@ let
     vendorHash = "sha256-4vX9KV2+TMxKkO7OGTazhDF9jx5/HNbenSUIN8qajLs=";
     subPackages = [ "cmd/mautrix-bluesky" ];
     tags = [ "goolm" ];
-    # The bridge embeds its version via ldflags; without a valid tag it panics
-    # at startup ("invalid semver: unknown") converting the version to calver.
+    # Without a valid Tag the bridge panics at startup.
     ldflags = [ "-s" "-w" "-X" "main.Tag=v${version}" "-X" "main.Commit=${src.rev}" ];
   };
 
-  # Self-hosted Beeper bridges, as name -> the command bbctl should launch via
-  # --custom-startup-command (which disables all downloads — nothing non-Nix ever
-  # runs). signal and whatsapp are Go bridgev2 binaries straight from nixpkgs;
-  # telegram/bluesky are Go bridgev2 bridges built from source above.
-  # See the README "Beeper bridges" section for how to add/remove a bridge and the
-  # one-time login bootstrap.
+  # name -> the command bbctl launches via --custom-startup-command.
+  # See README "Beeper bridges" for add/remove and the login bootstrap.
   bridges = {
     signal    = "${pkgs.mautrix-signal}/bin/mautrix-signal";
     whatsapp  = "${pkgs.mautrix-whatsapp}/bin/mautrix-whatsapp";
@@ -102,8 +77,7 @@ let
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
-    # Stay inactive until `bbctl login` has been run once (token file present),
-    # so the unit doesn't fail-loop before the one-time bootstrap.
+    # Stay inactive until `bbctl login` has been run once.
     unitConfig.ConditionPathExists = bbctlConfig;
     environment.BBCTL_CONFIG = bbctlConfig;
     serviceConfig = {
@@ -119,8 +93,7 @@ in
 {
   imports = [ ./common.nix ];
 
-  # The mautrix bridges pull in libolm (Matrix E2EE), which nixpkgs flags as
-  # insecure/unmaintained. Required for end-to-bridge encryption.
+  # libolm: flagged insecure, required for end-to-bridge encryption.
   nixpkgs.config.permittedInsecurePackages = [ "olm-3.2.16" ];
 
   networking.hostName = "beeper";
@@ -146,9 +119,4 @@ in
   systemd.services = lib.mapAttrs'
     (name: command: lib.nameValuePair "mautrix-${name}" (mkBridgeService name command))
     bridges;
-
-  # ── Cutover note ───────────────────────────────────────────────────────────
-  # If /var/lib/beeper is copied from the LXC (chown -R beeper:beeper after),
-  # the ConditionPathExists flips immediately and no bbctl login is needed.
-  # Otherwise follow the bootstrap in the README "Beeper bridges" section.
 }

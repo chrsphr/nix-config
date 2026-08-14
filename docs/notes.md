@@ -302,11 +302,132 @@ Pending). Bump hutch's pin when ZFS supports a newer kernel.
 
 #### Beeper bridges
 
+Self-hosted Beeper bridges (hosts/containers/beeper.nix, on minihutch).
+Outbound-only: no Caddy vhost, no tunnel, no open ports. State (bbctl login
+token + bridge DBs) in /var/lib/beeper; the README covers the one-time login
+bootstrap. If /var/lib/beeper is restored from a previous box
+(`chown -R beeper:beeper` after), the ConditionPathExists gate flips
+immediately and no `bbctl login` is needed — the gate exists so units don't
+fail-loop before the bootstrap.
+
+Bridge provenance and quirks:
+
+- **signal, whatsapp**: Go bridgev2 binaries straight from nixpkgs.
+- **telegram**: as of v26.04 (calver tag v0.26xx.0) the bridge is a Go
+  bridgev2 rewrite that speaks /provision/v3 and reports remote-connection
+  state to the app. nixpkgs still ships only the old Python 0.15.3, so it's
+  built from the upstream tagged release. The Go bridge auto-migrates the
+  Python DB/config in place on first start
+  (cmd/mautrix-telegram/legacymigrate.{go,sql}).
+- **bluesky**: Go bridgev2, not packaged in nixpkgs — built from the upstream
+  tagged release (pure-Go `goolm`, no libolm/CGO).
+- **Upgrading a from-source bridge**: bump `version` + BOTH hashes (src and
+  vendorHash).
+- **ldflags Tag**: the bridges embed their version; without a valid tag they
+  panic at startup ("invalid semver: unknown") converting version to calver.
+- **bbctl PUT-proxy patch**: bbctl 0.13.0 runs sh-telegram in "python bridge"
+  mode (Beeper still classifies sh-telegram as the legacy Python bridge
+  server-side), holding the appservice websocket itself and proxying
+  provisioning requests to the bridge's local HTTP listener. Its proxy
+  hardcodes PUT for every proxied request (proxyWebsocketRequest in
+  cmd/bbctl/proxy.go), so GET /v3/capabilities, /v3/whoami etc. fail with 405
+  and the Telegram network never appears in the app. The overlay patches the
+  proxy to forward the real method. Still unfixed in bbctl main as of
+  2026-08; bbctl ≥0.14 treats telegram as a Go bridge and skips the proxy,
+  but that path requires regenerating the on-box config — so patch rather
+  than upgrade (tracked in Pending).
+- **`-m` wrapper**: because bbctl classifies sh-telegram as Python, it
+  launches the custom command python-style (`<cmd> -m mautrix_telegram -c
+  config.yaml`). The Go binary rejects `-m`, so a thin wrapper strips the
+  leading `-m <module>` and forwards the rest.
+- **libolm**: the mautrix bridges pull in olm-3.2.16, which nixpkgs flags
+  insecure/unmaintained; permitted because it's required for end-to-bridge
+  encryption.
+- `--custom-startup-command` disables all bbctl downloads — nothing non-Nix
+  ever runs.
+
 #### Secrets under /var
+
+Containers that decrypt sops secrets write them to paths under /var
+(e.g. /var/lib/sops/<name>), NOT the default /run/secrets: /run is tmpfs and
+containers don't re-run activation at boot, so files under /run are wiped on
+every reboot and never recreated until the next host deploy. /var lives on
+the container's persistent btrfs subvolume. (The hosts themselves are fine
+with /run/secrets — they do re-run activation at boot.)
+
+uptime's key story: the original per-host key was lost with the hardware it
+lived on. uptime.yaml is also encrypted to the laptop master key, so a copy
+of that key is used instead (see .sops.yaml). Tradeoff: the laptop master
+key lives on the server too — a compromise of that box decrypts every sops
+secret. Acceptable for the homelab; a dedicated key is tracked in Pending.
 
 #### Network optimizer
 
+Network Optimizer for UniFi, built from source via pkgs/network-optimizer.nix
+— upstream ships no prebuilt Linux tarball of the web app (only the Windows
+MSI and the optional multi-site agent).
+
+- UniFi controller creds are entered in the UI, stored encrypted in SQLite.
+- InfluxDB 2 (co-located) backs Monitoring; no declarative provisioning in
+  NixOS — onboard once via its UI on :8086 (admin user + all-access token),
+  paste the token into the app's Monitoring wizard. State in
+  /var/lib/influxdb2 inside the container root, so nightly btrfs snapshots
+  cover it.
+- `DOTNET_RUNNING_IN_CONTAINER=true` makes the app keep ALL state (SQLite,
+  encrypted creds, data-protection keys, floor plans, exports) in /app/data,
+  matching upstream's docker layout — nothing writes under the read-only,
+  store-resident app dir. It also skips UseHttpsRedirection/HSTS, correct
+  behind Caddy.
+- `AmbientCapabilities=CAP_NET_RAW` for ping/traceroute probes; must NOT be
+  combined with NoNewPrivileges — execve clears the ambient set.
+- Deliberately not set up: OpenSpeedTest sidecar (:3005), WAN Steering daemon
+  (single-WAN here), self-hosted Traefik/nginx proxy features (Caddy already
+  fronts the UI).
+
+pkgs/network-optimizer.nix build notes: Blazor-ApexCharts comes from a local
+NuGet feed special case; MinVer is overridden (no git metadata in the nix
+build); Grpc.Tools ships glibc binaries needing autoPatchelf; tools/ contains
+the speed-test helpers.
+
 #### Container one-offs
+
+- **common.nix — default gateway**: hostBridge puts the container straight on
+  the LAN, but without a default route it can't reply to (or reach) anything
+  off-subnet.
+- **common.nix — useHostResolvConf off**: the container profile defaults it
+  on, so resolvconf inside the container regenerates /etc/resolv.conf from
+  the HOST's copy — the systemd-resolved stub (127.0.0.53), and resolved
+  doesn't run inside the containers: every lookup fails (caddy: "lookup
+  acme-v02.api.letsencrypt.org: no such host"). Off means the container's own
+  networking.nameservers are written instead.
+- **pihole — resolver must not be 127.0.0.1**: pihole-ftl-setup curls
+  ftl.pi-hole.net during boot before pihole-ftl (the port-53 listener) is up,
+  so a 127.0.0.1 resolver deadlocks the boot; container@ times out
+  (TimeoutStartSec=1min) and restarts forever. Cloudflare upstreams instead.
+- **transmission — chroot sandbox dropped**: the module's RootDirectory +
+  MountAPIVFS sandbox can't be set up inside nspawn — MountAPIVFS makes
+  systemd stage /run/host/.os-release-stage/, but /run/host belongs to nspawn
+  and is read-only in the container, so the unit dies with 226/NAMESPACE.
+  The container is the isolation boundary anyway.
+- **tailscale — extraSetFlags mirrors extraUpFlags**: extraUpFlags only runs
+  on first login (autoconnect skips an already-authenticated node), so it
+  can't be the source of truth — a manual `tailscale up
+  --advertise-exit-node` had already clobbered the subnet route once.
+  extraSetFlags reapplies on every activation; keep the two lists identical.
+  No `--accept-routes`: this node advertises its own LAN, and accepting
+  tailnet routes back would invite a loop.
+- **immich — uid 3000**: the library was historically written over NFS with
+  mapall chrsphr:root, so every existing file is uid 3000; immich matches it
+  (nspawn shares the host's uid space) to stay consistent with
+  desktop/framework NFS access. The media-mount guard lives on the host:
+  container@immich won't start unless /mnt/Hutch/Media is mounted.
+- **immich — accelerationDevices**: the default [] sets PrivateDevices and
+  blocks all device access; QSV needs the render node visible in the unit's
+  sandbox.
+- **gb-grid — password oneshot**: applies the sops postgres password to the
+  gb_grid role on each boot; idempotent, so rotating is just
+  `sops secrets/gb-grid.yaml` + redeploy. pg_hba overridden to require
+  scram-sha-256 from LAN clients.
 
 ### Hosts
 

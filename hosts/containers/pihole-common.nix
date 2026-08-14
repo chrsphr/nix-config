@@ -82,11 +82,7 @@
   # ── Disable systemd-resolved (conflicts on port 53) ─────────────────────────
   services.resolved.enable = false;
 
-  # Point the container's own resolver at Cloudflare. NOT at 127.0.0.1: the
-  # pihole-ftl-setup unit curls ftl.pi-hole.net during boot before pihole-ftl
-  # (the port-53 listener) is up, so a 127.0.0.1 resolver deadlocks the boot
-  # and the container@ service times out (TimeoutStartSec=1min) and restarts
-  # forever.
+  # NOT 127.0.0.1 — that deadlocks the boot. why: docs/notes.md#container-one-offs
   networking.nameservers = lib.mkForce [
     "1.1.1.1"
     "1.0.0.1"

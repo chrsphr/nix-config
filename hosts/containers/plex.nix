@@ -20,10 +20,8 @@
 
   users.users.plex.extraGroups = [ "video" "render" ];
 
-  # QSV userspace stack for hardware transcode. Needs /dev/dri inside the
-  # container — on baremetal that's just a bind mount + allowedDevices if
-  # hutch's CPU has an Intel iGPU (commented-out snippet in hosts/hutch.nix).
-  # Until then Plex transcodes on CPU.
+  # QSV userspace stack; /dev/dri arrives via bind mount + allowedDevices
+  # from hosts/hutch.nix. why: docs/notes.md#hutch
   hardware.graphics = {
     enable = true;
     extraPackages = with pkgs; [ intel-media-driver vpl-gpu-rt ];

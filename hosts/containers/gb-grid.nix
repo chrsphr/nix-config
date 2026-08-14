@@ -25,8 +25,7 @@ in
     firewall.allowedTCPPorts = [ 5432 ];
   };
 
-  # Same age key the LXC keeps at /var/lib/sops-nix/key.txt (the laptop key,
-  # copied out of band from 1Password).
+  # The laptop age key, copied out of band from 1Password.
   sops = {
     defaultSopsFile = ../../secrets/gb-grid.yaml;
     age.keyFile = "/var/secrets/key.txt";

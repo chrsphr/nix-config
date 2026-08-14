@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
 # Transmission as a NixOS container on hutch. The Media dataset is bind
-# mounted at /mnt/media (see hosts/hutch.nix).
+# mounted at /mnt/media (hosts/hutch.nix).
 
 {
   imports = [
@@ -29,12 +29,8 @@
   # Allow transmission to write to the media bind mount
   users.users.transmission.extraGroups = [ "media" ];
 
-  # The module's chroot sandbox (RootDirectory=/run/transmission +
-  # MountAPIVFS) cannot be set up inside nspawn: MountAPIVFS makes systemd
-  # stage /run/host/.os-release-stage/, but /run/host belongs to nspawn and
-  # is read-only in the container — the unit dies with 226/NAMESPACE before
-  # the daemon runs. Drop the chroot (and the bind mounts that exist only to
-  # populate it); the container is the isolation boundary here anyway.
+  # The module's chroot sandbox can't be set up inside nspawn (226/NAMESPACE);
+  # the container is the isolation boundary. why: docs/notes.md#container-one-offs
   systemd.services.transmission.serviceConfig = {
     RootDirectory = lib.mkForce "";
     RootDirectoryStartOnly = lib.mkForce false;

@@ -312,21 +312,186 @@ Pending). Bump hutch's pin when ZFS supports a newer kernel.
 
 #### Framework power tuning
 
+The battery-tuning notebook behind hosts/chris-framework.nix:
+
+- **U-APSD on** (`iwlwifi uapsd_disable=0`): trigger-based Wi-Fi power save on
+  the Intel AX210 (swapped in for the stock MT7925). Bitmask: 3 = disabled on
+  BSS+P2P (driver default), 0 = enabled. Lowers idle radio power; revert to 3
+  if the AP misbehaves (latency spikes, disconnects on power-save negotiation).
+- **NM wifi.powersave OFF**: tried and reverted — see
+  [2026-07-27 wifi powersave latency](#2026-07-27-wifi-powersave-latency).
+  U-APSD is deliberately kept on: the more selective mechanism, some
+  idle-power benefit without that cost.
+- **No amd_prefcore param**: tried, confirmed no-op — amd-pstate isn't the
+  preferred-core mechanism on Krackan Point; amd_hfi is, and it binds
+  (AMDI0104:00) but nothing feeds core ranking to the scheduler:
+  `sched_itmt_enabled` doesn't exist, cpu_capacity is uniform 1024 across all
+  16 CPUs, no amd_hfi kernel messages — despite CONFIG_SCHED_MC_PRIO=y +
+  CONFIG_AMD_HFI=y and a clearly hybrid topology (amd_pstate_highest_perf
+  alternates 196/135). sched_itmt_enabled only appears once a driver calls
+  sched_set_itmt_support(), so this is an upstream driver gap. Recheck after
+  kernel bumps (tracked in Pending).
+- **ABM off** (no `amdgpu.abmlevel`): content-adaptive (not ambient) backlight
+  management; level 3 caused visible flicker/brightness drift on changing
+  content. Stable with it off. Level 1 (barely perceptible) is the option if
+  the battery saving is ever worth revisiting.
+- **PSR re-enabled** (`amdgpu.dcdebugmask=0x0`): nixos-hardware's
+  framework-amd-ai-300-series module disables Panel Self-Refresh via
+  dcdebugmask=0x10 for historical panel flicker, but on this kernel/Mesa PSR
+  is reliable and saves ~1W on static content. The host's param lands after
+  nixos-hardware's on the cmdline, so last-wins re-enables it. Revert to 0x10
+  on any internal-panel flicker/corruption.
+- **Lazy RCU** (`rcu_nocbs=all`, `rcutree.enable_rcu_lazy=1`): offload and
+  batch non-urgent RCU callbacks to cut idle wakeups; used by ChromeOS,
+  reported as a measurable win on the Framework AMD battery-tuning thread.
+- **No powertop auto-tune**: it blanket-enables USB autosuspend (input-device
+  stutter after idle) and re-applies knobs power-profiles-daemon then manages
+  differently — ppd owns runtime power policy.
+- **Targeted PCI runtime PM** (udev rule, nvme driver only): the NVMe comes up
+  with power/control=on and never idles its link. Scoped by driver so USB is
+  untouched and ppd keeps owning the rest; amdgpu excluded — `on` is correct
+  for an iGPU. No iwlwifi rule: tried, and the driver overrides it — udevadm
+  confirms the rule writes "auto" but the AX210 reports
+  runtime_enabled=forbidden with runtime_usage=2; iwlwifi holds PM references
+  and doesn't support PCI runtime PM on this device (d0i3 removed years ago).
+  NVMe benefit unproven (tracked in Pending).
+- **localsearch off**: GNOME's indexer re-scans on every large tree change
+  (nix-config checkouts, builds) for a search feature unused here. Filename
+  search in Files still works; full-text does not.
+- **avahi off**: constant idle wakeups for little benefit. Trade-off: no
+  .local resolution or printer/cast auto-discovery — re-enable if the NFS
+  automount or printing starts relying on mDNS.
+- **Audio codec power save** (`snd_hda_intel power_save=1`): revert to 0 if
+  clicking sounds occur.
+- **Charge cap 90%** (framework_laptop EC): extends cycle life. Bump before a
+  trip: `echo 100 | sudo tee /sys/class/power_supply/BAT1/charge_control_end_threshold`.
+- **Hibernate disabled** — see [2026-07-12 hibernate crash](#2026-07-12-hibernate-crash).
+- **Journal capped 500M**: was 2.1 GB uncapped — steady write amplification on
+  compressed btrfs, working against the dirty_writeback batching sysctl.
+- **Docker socket-activated** (`enableOnBoot = false`): dockerd is only wanted
+  inside the gb-grid dev shell. Containers with `--restart=always` won't
+  survive a reboot under this — flip back to true if ever needed.
+
 #### Desktop
+
+- Hibernate resumes from the btrfs swapfile inside LUKS; `resume_offset` is
+  the physical offset from `btrfs inspect-internal map-swapfile`.
+- Rusticl OpenCL: `RUSTICL_ENABLE=radeonsi` is useless without the ICD, so
+  `mesa.opencl` is shipped too — the loader (ocl-icd, used by darktable)
+  finds it under /run/opengl-driver.
+- Sunshine comes from unstable: nixpkgs lags upstream badly (stable AND
+  unstable sat on 2025.924 for months; nixpkgs#524668), so `nix flake update`
+  picks up newer builds without moving the host off stable.
+- Sunshine `ConditionUser=chris`: autoStart wires the user unit to
+  graphical-session.target, which the GDM greeter session (user gdm-greeter)
+  also reaches — Sunshine launched there first, grabbed port 48010, and the
+  real login's instance failed to bind ("RTSP server ... Address already in
+  use").
+- No cpu-epp oneshot (unlike hutch): GNOME's power-profiles-daemon already
+  sets balance_performance on the default profile and re-asserts it on
+  changes.
 
 #### Hutch
 
+- The TV tuner lives on minihutch (no free/reachable port on hutch), but Plex
+  reads DVB straight off /dev/dvb, so it's projected over USB/IP and passed
+  into the plex container (see [usbip tuner design](#usbip-tuner-design)).
+- iGPU transcode (plex + immich): the i5-12600K's UHD 770 renderD128 is
+  exposed by bind mount + allowedDevices — no passthrough gid mapping to
+  arrange. The userspace half (intel-media-driver, vpl-gpu-rt, video/render
+  groups) lives in the two container configs; the host needs no
+  hardware.graphics of its own since each nspawn guest builds its own
+  /run/opengl-driver. Without those lines both apps silently transcode on
+  CPU. Verify with `vainfo` inside each container — it should report the iHD
+  driver and H264/HEVC VLD+encode entrypoints.
+- `char-DVB` (major 212) rather than individual frontend0/demux0/dvr0 nodes:
+  those only exist while the tuner is attached, and DeviceAllow entries for
+  absent paths are dropped at unit-load time — naming them would silently
+  deny access on every boot where plex started before the tuner did.
+- Media mount guard: containers reading the library are gated on
+  ConditionPathIsMountPoint so they can't start against an empty dir if the
+  pool didn't import — nspawn would happily bind an empty host dir.
+  `mkMerge`, not `//`, because plex appears in both attribute sets and `//`
+  would silently drop the guard.
+- plex ExecStartPre `mkdir -p /dev/dvb`: nspawn refuses to start when a
+  bindMount source is missing, and /dev/dvb only exists while the tuner is
+  attached. tmpfiles (preCreate) covers boot but races on deploy —
+  switch-to-configuration restarts container@plex and
+  systemd-tmpfiles-resetup concurrently, which is exactly how it failed the
+  first time. ExecStartPre is ordered by construction and keeps Plex
+  independent of whether minihutch is up.
+- Keys-only SSH states BOTH `PasswordAuthentication=false` and
+  `KbdInteractiveAuthentication=false`: with UsePAM the latter would
+  otherwise *advertise* a keyboard-interactive path (blocked only by pam_deny
+  in the sshd PAM stack). Stating both makes keys-only unambiguous. (Same on
+  minihutch.)
+- users.chris has no password option on purpose: uid 1001 matches the account
+  from first setup; the password set via chpasswd on the live box survives
+  rebuilds and stays out of the repo. Add initialHashedPassword if it ever
+  needs to be declarative. (Same on minihutch, where the shared uid also
+  keeps the two boxes agreeing over NFS/rsync.)
+
 #### Minihutch
+
+- Role: second baremetal container host, same shape as hutch (container-host
+  module) but compute only — no ZFS, no NFS, no B2, no nas.nix, no media
+  bind mounts. Runs beeper, caddy, pihole-2, tailscale, uptime.
+- Hardware facts (MAC 10:02:b5:86:02:0a for the onboard enp2s0/igc NIC) were
+  read off the live ISO on the actual box, 2026-08-09. The box also has WiFi
+  (wlp1s0, rtw89); bond slaves match on Type=ether and WiFi is Type=wlan, so
+  it is never enslaved.
+- Tuner export: binding to usbip-host hands the device to hutch entirely —
+  minihutch's own /dev/dvb goes away; fine, nothing local uses it. usbipd is
+  unauthenticated, so allowFrom pins it to hutch's IP.
+- caddy + uptime decrypt with age keys placed by hand at
+  /var/lib/sops-nix/<name>/keys.txt (NOT in the repo) —
+  docs/minihutch-install.md step 7.
 
 ## Incident history
 
 ### 2026-08-09 container migration hutch to minihutch
 
+beeper, caddy, pihole-2, tailscale and uptime moved from hutch to the new
+minihutch box (installed the same day; see docs/minihutch-install.md). caddy
+and uptime took their sops key requirement with them. minihutch's disk
+previously held minimox's Proxmox ZFS root (pool "rpool", 6 LXC subvolumes),
+wiped deliberately at install. The wider context: lilnas (TrueNAS VM, .12)
+and minimox (Proxmox, .30) were retired 2026-08-08 and hutch took over both
+roles — see git history if either ever comes back.
+
 ### 2026-07-27 wifi powersave latency
+
+`networking.networkmanager.wifi.powersave = true` enabled 2026-07-27,
+reverted 2026-07-30 — it caused latency spikes surfacing as randomly slow
+page loads. A sleeping radio can only wake on a beacon (beacon int 100 ≈
+102ms), and a page load is a chain of serialized round trips (DNS, SYN, TLS)
+that each pay that wait. Measured against the router (one hop, no DNS):
+sparse `ping -i 1` avg 31ms/max 112ms vs continuous `ping -i 0.02` avg
+1.9ms/max 6ms; with powersave off, sparse drops to avg 1.9ms/max 3.5ms.
+Signal was never the issue (-59 dBm, HE-MCS 7/9, 0% loss). To re-test:
+compare sparse vs continuous ping to the router — jitter that vanishes under
+load is power save, not DNS or the ISP.
 
 ### 2026-07-12 hibernate crash
 
+Hibernate disabled on the Framework 2026-07-12: resume-from-hibernate
+corrupts amdgpu's TTM LRU bulk-move state, hard-locking the machine on a
+later GPU submission (ttm_lru_bulk_move_tail oops / list_del corruption in
+amdgpu_cs_ioctl). 16 identical crashes since suspend-then-hibernate was
+enabled 2026-05-29, across kernels 7.0.10 through 7.1.3 — an upstream amdgpu
+bug, not a kernel regression. pstore dumps: /var/lib/systemd/pstore/.
+Restore suspend-then-hibernate + HibernateDelaySec once fixed upstream
+(tracked in Pending).
+
 ### 2026-07-03 magicrollback lockout
+
+deploy-rs magic rollback's confirmation SSH hung intermittently on this fleet
+— immich, caddy and sonarr all hit it 2026-07-03. Activation itself succeeded
+every time, then the confirm round-trip stalled and triggered a spurious
+rollback; one interrupted run left beeper half-activated with sshd down.
+`magicRollback = false` since then (flake.nix); deploys are verified by
+checking services, and hutch's physical console is the recovery path if an
+activation ever goes bad.
 
 ### br0 blackhole
 

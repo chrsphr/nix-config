@@ -8,7 +8,6 @@
     ../modules/btrfs-maintenance.nix
   ];
 
-  # Hostname
   networking.hostName = "chris-desktop";
 
   # Skip the systemd-boot menu on boot.
@@ -17,14 +16,11 @@
   # Desktop-specific kernel modules
   boot.kernelModules = [ "sg" ];
 
-  # Hibernate: resume from the btrfs swapfile inside LUKS. resume_offset is the
-  # physical offset of /swap/swapfile, from `btrfs inspect-internal map-swapfile`.
+  # Hibernate from the btrfs swapfile inside LUKS. why: docs/notes.md#desktop
   boot.resumeDevice = "/dev/mapper/cryptroot";
   boot.kernelParams = [
     "resume_offset=533760"
-    # Compressed swap cache in front of the swapfile (hibernate-compatible,
-    # unlike zram) so memory pressure doesn't go straight to NVMe.
-    "zswap.enabled=1"
+    "zswap.enabled=1"  # hibernate-compatible, unlike zram
   ];
 
   # AMD GPU configuration
@@ -32,9 +28,8 @@
     initrd.enable = true;
   };
 
-  # Enable Rusticl OpenCL backend for radeonsi (GFX12/RDNA4). The RUSTICL_ENABLE
-  # env var is useless without the ICD, so also ship mesa.opencl so the loader
-  # (ocl-icd, used by darktable) can find it under /run/opengl-driver.
+  # Rusticl OpenCL for radeonsi; ICD + env var both needed.
+  # why: docs/notes.md#desktop
   hardware.graphics.extraPackages = with pkgs; [
     mesa.opencl
   ];
@@ -88,10 +83,8 @@
     kvm.members = [ "chris" ];
   };
 
-  # Sunshine streaming. Pull the package from unstable — nixpkgs lags upstream
-  # badly (stable & unstable both sat on 2025.924 for months; see nixpkgs
-  # #524668), so this picks up newer builds on `nix flake update` without moving
-  # the rest of the host off stable.
+  # Sunshine streaming, from unstable (nixpkgs lags upstream badly).
+  # why: docs/notes.md#desktop
   services.sunshine = {
     enable = true;
     package = pkgs-unstable.sunshine;
@@ -100,15 +93,9 @@
     openFirewall = true;
   };
 
-  # autoStart wires the user unit to graphical-session.target, which the GDM
-  # greeter session (user "gdm-greeter", a high UID) also reaches — so Sunshine
-  # launches there first, grabs port 48010, and the real login's instance fails
-  # to bind ("RTSP server ... Address already in use"). Restrict it to chris.
+  # Keep Sunshine out of the GDM greeter session — it grabs the RTSP port
+  # there otherwise. why: docs/notes.md#desktop
   systemd.user.services.sunshine.unitConfig.ConditionUser = "chris";
-
-  # CPU EPP: GNOME's power-profiles-daemon already sets balance_performance on
-  # the default "balanced" profile (and re-asserts it on profile changes), so no
-  # custom oneshot is needed here.
 
   # Feral GameMode — on-demand performance for games (opt-in per title).
   programs.gamemode.enable = true;

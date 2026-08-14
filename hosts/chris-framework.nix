@@ -10,10 +10,9 @@
     ../modules/nfs-home-automount.nix
   ];
 
-  # Hostname
   networking.hostName = "chris-framework";
 
-  # Kernel: mainline linuxPackages_latest, inherited from common-desktop.nix.
+  # Battery tuning throughout this file. why: docs/notes.md#framework-power-tuning
 
   # Kernel sysctl settings for battery optimization
   boot.kernel.sysctl = {
@@ -35,41 +34,17 @@
   boot.resumeDevice = "/dev/mapper/cryptroot";
   boot.kernelParams = [
     "mem_sleep_default=s2idle"
-    # No amd_prefcore= param here. It was tried and is a confirmed no-op on this
-    # platform: amd-pstate isn't the preferred-core mechanism on Krackan Point —
-    # amd_hfi (AMD Hardware Feedback Interface) is, and it binds fine here
-    # (AMDI0104:00). Neither one is actually feeding core ranking to the
-    # scheduler though:
-    #   /proc/sys/kernel/sched_itmt_enabled  -> does not exist
-    #   cpu_capacity (all 16 CPUs)           -> uniform 1024
-    #   amd_hfi kernel messages              -> none
-    # despite CONFIG_SCHED_MC_PRIO=y + CONFIG_AMD_HFI=y and a clearly hybrid
-    # topology (amd_pstate_highest_perf alternates 196 / 135 across the 16
-    # policies). sched_itmt_enabled only appears once a driver calls
-    # sched_set_itmt_support(), so nothing has registered ranking. That's an
-    # upstream driver gap, not something a kernel param fixes — recheck after
-    # kernel bumps by looking for sched_itmt_enabled.
+    # No amd_prefcore (confirmed no-op on Krackan Point) and no abmlevel
+    # (flicker). why: docs/notes.md#framework-power-tuning
     "amdgpu.cwsr_enable=0"
     "pcie_aspm.policy=powersupersave"
     "resume_offset=533760"
-    # Adaptive Backlight Management — disabled. It's content-adaptive (not
-    # ambient): level 3 caused visible backlight flicker / brightness drift on
-    # changing content. Confirmed stable with ABM off, so keep it off. Raise to
-    # 1 (barely perceptible) if the battery saving is ever worth revisiting.
-    #"amdgpu.abmlevel=2"
-    # Re-enable Panel Self-Refresh. nixos-hardware's framework-amd-ai-300-series
-    # module disables PSR via dcdebugmask=0x10 (DC_DISABLE_PSR) for historical
-    # panel flicker, but on this kernel/Mesa PSR is reliable and saves ~1W on
-    # static content (reading, light browsing). This lands after nixos-hardware's
-    # param on the cmdline, so last-wins re-enables it. Revert to 0x10 if any
-    # flickering or corruption appears on the internal panel.
+    # Re-enable PSR, overriding nixos-hardware's dcdebugmask=0x10; revert to
+    # 0x10 if the internal panel flickers.
     "amdgpu.dcdebugmask=0x0"
-    # Compressed swap cache in front of the swapfile (hibernate-compatible,
-    # unlike zram) so memory pressure doesn't go straight to NVMe.
+    # Compressed swap cache (hibernate-compatible, unlike zram).
     "zswap.enabled=1"
-    # Lazy RCU: offload RCU callbacks and batch non-urgent ones to cut idle
-    # wakeups (reduces idle power; used by ChromeOS). Reported as a measurable
-    # battery win on the Framework AMD battery-tuning thread.
+    # Lazy RCU: fewer idle wakeups.
     "rcu_nocbs=all"
     "rcutree.enable_rcu_lazy=1"
   ];
@@ -87,63 +62,30 @@
   hardware.enableRedistributableFirmware = true;
   boot.kernelModules = [ "btusb" "btrtl" ];
 
-  # Power management. powertop auto-tune deliberately NOT enabled: it blanket-
-  # enables USB autosuspend (input-device stutter after idle) and re-applies
-  # knobs that power-profiles-daemon then manages differently — let ppd own
-  # runtime power policy.
+  # ppd owns runtime power policy; powertop auto-tune deliberately not enabled.
   services.power-profiles-daemon.enable = true;
 
-  # Targeted PCI runtime PM. The NVMe comes up with power/control=on and never
-  # idles its link. Scoped by driver rather than blanket-tuned so USB is
-  # untouched (all USB devices already read `auto` anyway) and so ppd keeps
-  # owning everything else. amdgpu is deliberately excluded — `on` is correct
-  # for an iGPU.
-  #
-  # No iwlwifi rule: it was tried and the driver overrides it. udevadm test
-  # confirms the rule matches and writes "auto", but the AX210 reports
-  # runtime_enabled=forbidden with runtime_usage=2 — iwlwifi holds PM references
-  # and doesn't support PCI runtime PM on this device (d0i3 was removed from the
-  # driver years ago). No udev rule can win that.
-  #
-  # NVMe status is unproven: control=auto took, but check
-  # /sys/bus/pci/devices/0000:bf:00.0/power/runtime_suspended_time after a few
-  # hours of light use — if it's still 0, the root fs never idles long enough
-  # and this rule can go too.
+  # Targeted PCI runtime PM for the NVMe only (benefit unproven — see notes
+  # Pending). No iwlwifi rule: the driver overrides it.
+  # why: docs/notes.md#framework-power-tuning
   services.udev.extraRules = ''
     ACTION=="add", SUBSYSTEM=="pci", DRIVERS=="nvme", ATTR{power/control}="auto"
   '';
 
-  # GNOME's file indexer. It re-scans on every large tree change (nix-config
-  # checkouts, builds) and costs CPU + NVMe wakeups for a search feature that
-  # isn't used here. Filename search in Files still works; full-text/content
-  # search does not.
+  # GNOME's file indexer: CPU + NVMe wakeups for a search feature unused here.
   services.gnome.localsearch.enable = false;
 
   # Firmware metadata refresh pulls over the network on a timer — on AC only.
   systemd.services.fwupd-refresh.unitConfig.ConditionACPower = true;
 
-  # Disable avahi/mDNS: it runs constantly and adds idle wakeups for little
-  # benefit here. Trade-off: no .local hostname resolution or auto-discovery of
-  # printers/shares/cast devices. Re-enable if the NFS automount or printing
-  # starts relying on mDNS.
+  # No .local resolution / printer discovery; fewer idle wakeups.
   services.avahi.enable = false;
 
-  # Intel AX210 (iwlwifi) Wi-Fi power save: OFF. Enabled 2026-07-27, reverted
-  # 2026-07-30 — it caused exactly the latency spikes the old comment warned
-  # about, surfacing as randomly slow page loads. A sleeping radio can only
-  # wake on a beacon (beacon int 100 ≈ 102ms), and a page load is a chain of
-  # serialized round trips (DNS, SYN, TLS) that each pay that wait. Measured
-  # against the router (one hop, no DNS): sparse `ping -i 1` avg 31ms/max
-  # 112ms vs continuous `ping -i 0.02` avg 1.9ms/max 6ms; with powersave off,
-  # sparse drops to avg 1.9ms/max 3.5ms. Signal was never the issue (-59 dBm,
-  # HE-MCS 7/9, 0% loss). To re-test: compare sparse vs continuous ping to the
-  # router — jitter that vanishes under load is power save, not DNS or the ISP.
-  # U-APSD (uapsd_disable=0, above) is deliberately left on: it's the more
-  # selective mechanism and keeps some idle-power benefit without this cost.
+  # OFF — caused latency spikes; U-APSD (modprobe config above) stays on.
+  # history: docs/notes.md#2026-07-27-wifi-powersave-latency
   networking.networkmanager.wifi.powersave = false;
 
   # Cap charge at 90% to extend battery cycle life (framework_laptop EC driver).
-  # Bump to 100 before a trip with: echo 100 | sudo tee /sys/class/power_supply/BAT1/charge_control_end_threshold
   systemd.services.battery-charge-threshold = {
     description = "Set battery charge limit";
     wantedBy = [ "multi-user.target" ];
@@ -155,13 +97,8 @@
       echo 90 > /sys/class/power_supply/BAT1/charge_control_end_threshold
     '';
   };
-  # Hibernate disabled 2026-07-12: resume-from-hibernate corrupts amdgpu's TTM
-  # LRU bulk-move state, hard-locking the machine on a later GPU submission
-  # (ttm_lru_bulk_move_tail oops / list_del corruption in amdgpu_cs_ioctl).
-  # 16 identical crashes since suspend-then-hibernate was enabled on 2026-05-29,
-  # across kernels 7.0.10 through 7.1.3 — an upstream amdgpu bug, not a kernel
-  # regression. pstore dumps: /var/lib/systemd/pstore/. Restore
-  # suspend-then-hibernate + HibernateDelaySec once fixed upstream.
+  # Hibernate disabled — amdgpu corruption on resume.
+  # history: docs/notes.md#2026-07-12-hibernate-crash
   services.logind.settings.Login.HandleLidSwitch = "suspend";
   services.logind.settings.Login.HandlePowerKey = "suspend";
   services.logind.settings.Login.HandlePowerKeyLongPress = "poweroff";
@@ -197,14 +134,10 @@
   # Postgres + Grafana up via `docker compose`; merges with common-desktop's
   # chris groups.
   virtualisation.docker.enable = true;
-  # Socket-activated rather than started at boot: dockerd is only wanted inside
-  # the gb-grid dev shell, so it comes up on the first `docker` call instead of
-  # idling every session. Containers with `--restart=always` won't survive a
-  # reboot under this — flip back to true if that's ever needed.
+  # Socket-activated: only wanted inside the gb-grid dev shell.
   virtualisation.docker.enableOnBoot = false;
   users.users.chris.extraGroups = [ "docker" ];
 
-  # Journal was at 2.1 GB uncapped — steady write amplification on a compressed
-  # btrfs root, which works against vm.dirty_writeback_centisecs above.
+  # Cap the journal — write amplification on compressed btrfs.
   services.journald.extraConfig = "SystemMaxUse=500M";
 }

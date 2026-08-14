@@ -2,6 +2,10 @@
 
 Personal NixOS configuration for all machines and services — managed as a single flake.
 
+Decision records, incident history and pending work live in
+[`docs/notes.md`](docs/notes.md); code comments point there with
+`# why: docs/notes.md#<anchor>`.
+
 ## Hosts
 
 ### Personal machines
@@ -39,10 +43,10 @@ server deploys its containers with it**. The "On" column below says which.
 | `transmission` | 192.168.1.136 | hutch | Torrent client |
 | `sonarr` | 192.168.1.75 | hutch | TV automation |
 | `prowlarr` | 192.168.1.75 | hutch | Indexer manager (co-located on sonarr host) |
-| `uptime` | 192.168.1.31 | minihutch | Uptime monitoring (Gatus, declarative via `lib/network.nix`). External access via Cloudflare tunnel is **TODO** — currently only reachable on the LAN at `http://192.168.1.31:3001`. |
+| `uptime` | 192.168.1.31 | minihutch | Uptime monitoring (Gatus, declarative via `lib/network.nix`). LAN-only at `http://192.168.1.31:3001` — tunnel routing is pending (see `docs/notes.md`). |
 | `tailscale` | 192.168.1.207 | minihutch | VPN exit node |
 | `gb-grid` | 192.168.1.28 | hutch | GB power grid Postgres + BMRS ingester |
-| `beeper` | 192.168.1.40 | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp are Go bridgev2 binaries; Telegram is the nixpkgs Python bridge (Beeper's `sh-telegram` is Python) launched via a small wrapper; Bluesky is the Go bridge built from a pinned upstream release. One-time `bbctl login` bootstrap required; see `hosts/containers/beeper.nix`. |
+| `beeper` | 192.168.1.40 | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp from nixpkgs; Telegram and Bluesky are Go bridgev2 bridges built from pinned upstream releases. One-time `bbctl login` bootstrap required — see below. |
 
 All host IPs and Caddy routing are defined in `lib/network.nix` — the single source of truth for network topology.
 
@@ -78,7 +82,7 @@ Dry run — preview what would change without activating:
 deploy .#hutch --dry-activate
 ```
 
-Magic rollback is **disabled** on this fleet (its confirmation SSH round-trip hung intermittently and triggered spurious rollbacks — see the comment in `flake.nix`). Verify a deploy by checking services afterwards; the server's physical console is the recovery path if an activation goes bad.
+Magic rollback is **disabled** on this fleet (its confirmation SSH round-trip hung intermittently and triggered spurious rollbacks — see `docs/notes.md#magicrollback-disabled`). Verify a deploy by checking services afterwards; the server's physical console is the recovery path if an activation goes bad.
 
 The `deploy` user has passwordless sudo configured. SSH key auth is required.
 
@@ -188,38 +192,17 @@ The `uptime` host runs [Gatus](https://gatus.io). Monitor definitions live next 
 
 ### How to add or change a monitor
 
-Add a `monitor` field to any entry in `lib/network.nix`. It can be a single attrset or a list (for hosts that need multiple checks, e.g. v4 + v6 DNS):
+Add a `monitor` field to any entry in `lib/network.nix` — a single attrset or a list (for hosts needing multiple checks, e.g. v4 + v6 DNS):
 
 ```nix
 immich = {
   ip = "192.168.1.127"; port = 2283; caddy = true;
-  monitor = {
-    type = "http";                    # "http" | "dns" | "port"
-    name = "Immich";                  # optional, defaults to host key
-    path = "/api/server/ping";        # http only, default "/"
-    group = "Hutch Primary Services"; # optional Gatus group
-    # interval = "60s";               # default
-    # scheme = "https";               # default https if host.https else http
-    # insecure = true;                # skip TLS verify (self-signed certs)
-    # url = "https://...";            # full URL override
-    # headers.Authorization = "Bearer ...";  # may reference ''${ENV_VARS}''
-  };
-};
-
-pihole-1 = {
-  ip = "192.168.1.9"; port = 80; caddy = true;
-  monitor = [
-    { type = "dns"; name = "Pihole 1";      family = "v4"; group = "Hutch Primary Services"; }
-    { type = "dns"; name = "Pihole 1 (v6)"; family = "v6"; group = "Hutch Primary Services"; }
-  ];
+  monitor = { type = "http"; path = "/api/server/ping"; group = "Hutch Primary Services"; };
 };
 ```
 
-Per-type fields:
-
-- **http** — `scheme`, `path`, `insecure`, `headers`, `url` (override). Asserts `[STATUS] == 200`.
-- **dns** — `resolver` (default = host IP), `query` (default `google.com`), `family` (`v4`/`v6`). Asserts `[DNS_RCODE] == NOERROR`.
-- **port** — `targetPort` (default = host port). TCP connect; asserts `[CONNECTED] == true`.
+The full schema (per-type fields, defaults, assertions) is documented in the
+comment block at the top of `lib/network.nix`.
 
 For checks that aren't tied to a host (e.g. probing external services), pass them via the `extra` argument in `uptime.nix`:
 
@@ -234,7 +217,7 @@ endpoints = hostsLib.generateGatusEndpoints {
 
 ### Authenticated checks (secrets)
 
-For monitors that need credentials (e.g. an API token), put only the secret value in `secrets/uptime.yaml`, reference it from the monitor's `headers` in `lib/network.nix` via `${ENV_VAR}` interpolation, and render it into a `gatus.env` sops template wired to `services.gatus.environmentFile` in `hosts/containers/uptime.nix`. The non-secret prefix (user/realm/token-name) stays in `lib/network.nix`. No monitor currently needs this — see git history for the retired Proxmox token as a worked example.
+For monitors that need credentials (e.g. an API token), put only the secret value in `secrets/uptime.yaml`, reference it from the monitor's `headers` in `lib/network.nix` via `${ENV_VAR}` interpolation, and render it into a `gatus.env` sops template wired to `services.gatus.environmentFile` in `hosts/containers/uptime.nix`. The non-secret prefix (user/realm/token-name) stays in `lib/network.nix`. No monitor currently needs this — git history has a worked example (the retired Proxmox token).
 
 ```bash
 # Add or edit a secret
@@ -251,9 +234,8 @@ deploy .#uptime
 
 Gatus reloads on activation. State (uptime history) lives in `/var/lib/gatus/data.db` (SQLite) and persists across deploys.
 
-### Known TODO
-
-- **Cloudflare tunnel / external access** — the host has the cloudflare-tunnel module wired up, but the dashboard at `uptime.mcneill.fyi` is not yet routed to Gatus's port (3001) on the tunnel side. Currently LAN-only.
+Pending work (e.g. tunnel routing for external access) is tracked in the
+Pending section of `docs/notes.md`.
 
 ---
 
@@ -275,7 +257,7 @@ Each bridge runs on this box and dials **outbound** over a websocket to Beeper's
 |--------|--------|-------|
 | Signal | nixpkgs `mautrix-signal` (Go bridgev2) | |
 | WhatsApp | nixpkgs `mautrix-whatsapp` (Go bridgev2) | |
-| Telegram | **built from source** (`mautrix/telegram`, Go bridgev2) via a thin wrapper | Not in nixpkgs (which still ships the old Python 0.15.3). Since v26.04 the bridge is a Go bridgev2 rewrite. Pinned to an upstream calver tag via `buildGoModule` with `tags = [ "goolm" ]`; auto-migrates the old Python DB in place on first start. bbctl still classifies `sh-telegram` as Python server-side, so it launches the command as `-m mautrix_telegram -c config.yaml`; the Go binary rejects `-m`, so `telegramCmd` strips the leading `-m <module>` and forwards `-c config.yaml`. |
+| Telegram | **built from source** (`mautrix/telegram`, Go bridgev2) via a thin wrapper | Not in nixpkgs (which still ships the old Python 0.15.3). Quirks: `docs/notes.md#beeper-bridges`. |
 | Bluesky | **built from source** (`mautrix/bluesky`, Go bridgev2) | Not in nixpkgs. Pinned to an upstream tag via `buildGoModule` with `tags = [ "goolm" ]` (pure-Go olm, no libolm/CGO). |
 
 The bridges are defined as a `name -> command` attrset in `hosts/containers/beeper.nix`; one systemd unit per entry is generated by `mkBridgeService`. Each unit has `ConditionPathExists = /var/lib/beeper/bbctl.json`, so it stays inactive (no fail-loop) until the one-time login below.
@@ -310,9 +292,11 @@ The container rides along with the host: `deploy .#minihutch`. Magic rollback is
 2. **Not in nixpkgs** (e.g. bluesky): add a `buildGoModule` derivation pinned to an upstream tag with `tags = [ "goolm" ]`, then reference its binary. **Gotcha:** these bridges embed their version via `ldflags` — without `-X main.Tag=v<version>` they panic at startup (`invalid semver: unknown`). See the bluesky derivation.
 3. Build, deploy, `systemctl start mautrix-<name>`, then `login` via `@sh-<name>bot` in the app.
 
-> Note: Beeper's registry still classifies `sh-telegram` as the Python bridge, so bbctl invokes the command python-style as `-m mautrix_telegram -c config.yaml`. `--custom-startup-command` runs our Go binary regardless, but the Go binary rejects the `-m` flag — hence the `telegramCmd` wrapper strips the leading `-m <module>` before forwarding `-c config.yaml`. The Go bridge migrates the legacy Python DB in place on first start.
->
-> The same Python classification also means bbctl runs `sh-telegram` with its own **appservice-websocket→HTTP proxy** (`needsWebsocketProxy`, unlike the Go bridges which hold the websocket themselves). bbctl 0.13.0's proxy hardcodes `PUT` for every proxied request (`proxyWebsocketRequest` in `cmd/bbctl/proxy.go`), which breaks every provisioning API call the app makes (`GET /v3/capabilities`, `GET /v3/whoami`, …) with 405 — symptom: **Telegram never appears under Settings → Networks** even though messages bridge fine. `beeper.nix` therefore patches bbctl to forward the real method (`bbctl-patched`); still unfixed in bbctl `main` as of 2026-08. If bbctl is ever bumped to ≥0.14 (which treats Telegram as Go bridgev2 and drops the proxy), the on-box `config.yaml` must be regenerated instead of patched around — delete `/var/lib/beeper/.local/share/bbctl/prod/sh-telegram/config.yaml` and restart the unit, then re-`login`.
+> Telegram quirks (the `-m` wrapper, the patched bbctl provisioning proxy,
+> and what to do if bbctl is ever bumped to ≥0.14) are documented in
+> `docs/notes.md#beeper-bridges`. The short version for ≥0.14: delete
+> `/var/lib/beeper/.local/share/bbctl/prod/sh-telegram/config.yaml`, restart
+> the unit, re-`login`.
 
 ### Removing a bridge
 
@@ -336,6 +320,7 @@ hosts/                     # One file per machine
   chris-framework.nix      # Framework laptop
   chris-desktop.nix        # Desktop (gaming/workstation)
   chris-wsl.nix            # WSL
+  install-iso.nix          # Minimal SSH-enabled live installer ISO (build only)
   containers/              # NixOS containers — one per service, either server
     common.nix             # Shared base for every container
     caddy.nix              # Reverse proxy
@@ -343,7 +328,7 @@ hosts/                     # One file per machine
     ...
   hutch.nix                # Baremetal NAS + container host (192.168.1.2)
   minihutch.nix            # Baremetal container host, no storage (192.168.1.3)
-hardware/                  # Hardware-specific configs (Framework, desktop, servers)
+hardware/                  # Hardware-specific configs incl. disko layouts
 modules/                   # Reusable NixOS modules
   container-host.nix       # Container-host role: LAN bond/bridge + container generation
   nas.nix                  # NAS role: ZFS, NFS, sanoid, smartd, encrypted rclone->B2
@@ -352,12 +337,18 @@ modules/                   # Reusable NixOS modules
   nfs-home-automount.nix   # Smart NFS mount (WiFi/Tailscale aware)
   keyboard-backlight-timeout.nix  # Framework keyboard backlight
   locale.nix               # Locale/timezone
+  luks-tpm.nix             # LUKS root with TPM2 auto-unlock
+  btrfs-maintenance.nix    # btrfs scrub + fstrim + store dedup (AC-gated)
+  usbip-tuner.nix          # USB/IP export/attach for the DVB tuner
+  keys.nix                 # SSH public keys
   container-snapshots.nix  # btrfs subvolumes + nightly snapshots for container roots
 home/                      # Home Manager profiles
   common-home.nix          # Shared: Git, zsh, GNOME extensions
   framework.nix            # Framework-specific user packages
   desktop.nix              # Desktop-specific user packages
   wsl.nix                  # WSL: Python, 1Password SSH bridge
+pkgs/                      # Local packages (network-optimizer + pinned deps)
+docs/                      # notes.md (decisions/incidents/pending) + install runbooks
 secrets/                   # sops-nix encrypted YAML files
 ```
 

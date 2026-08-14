@@ -11,9 +11,24 @@ referenced from code, so append new headings rather than renaming old ones.
 
 #### Shared pkgs-unstable
 
+One `import nixpkgs-unstable { … }` instance is created in flake.nix and
+passed to every host via specialArgs. Each `import nixpkgs { … }` evaluates a
+whole nixpkgs, so instantiating once instead of per-specialArgs-site is the
+biggest eval-time/memory win in this flake. Harmless where unused — only
+immich, plex and chris-desktop consume it.
+
 #### Single-platform deployChecks
 
+`checks` only evaluates deploy-rs's deployChecks for x86_64-linux — the
+platform actually built/deployed from. Evaluating them for every deploy-rs
+platform quadruples `nix flake check`.
+
 #### magicRollback disabled
+
+`magicRollback = false` on every deploy node — see
+[2026-07-03 magicrollback lockout](#2026-07-03-magicrollback-lockout).
+Verify deploys by checking services instead; the physical console is the
+recovery path.
 
 #### Deploy ordering and sshd probe
 

@@ -40,13 +40,11 @@
     lib = nixpkgs.lib;
     network = import ./lib/network.nix { inherit lib; };
 
-    # Single shared unstable instance. Each `import nixpkgs { … }` evaluates a
-    # whole nixpkgs; instantiating it once here instead of per-specialArgs site
-    # is the biggest eval-time/memory win in this flake.
+    # Single shared unstable instance — the biggest eval-time win here.
+    # why: docs/notes.md#shared-pkgs-unstable
     pkgs-unstable = import nixpkgs-unstable { inherit system; config.allowUnfree = true; };
 
-    # Base builder: every host gets pkgs-unstable in specialArgs — harmless
-    # where unused (only immich, plex and chris-desktop consume it).
+    # Base builder: every host gets pkgs-unstable in specialArgs.
     mkHost = { modules, specialArgs ? {} }: lib.nixosSystem {
       inherit system modules;
       specialArgs = { inherit pkgs-unstable; } // specialArgs;
@@ -86,13 +84,8 @@
             sshUser = "deploy";
             path = deploy-rs.lib.${targetSystem}.activate.nixos configs.${name};
             remoteBuild = targetSystem != system;
-            # Magic rollback's confirmation SSH hangs intermittently on this
-            # fleet (immich/caddy/sonarr all hit it 2026-07-03; activation
-            # itself succeeded every time, then the confirm round-trip stalled
-            # and triggered a spurious rollback — one interrupted run even left
-            # beeper half-activated with sshd down). Disable it and verify
-            # deploys by checking services instead; hutch's physical console
-            # is the recovery path if an activation ever goes bad.
+            # Spurious rollbacks from hung confirm SSH — do not re-enable.
+            # history: docs/notes.md#magicrollback-disabled
             magicRollback = false;
           };
         }
@@ -100,14 +93,9 @@
   in {
     nixosConfigurations = {
       ### Baremetal servers (containers; hutch additionally = NAS)
-      # Both run modules/container-host.nix and so declare one NixOS container
-      # (hosts/containers/) per network.nix host naming them as `parent`.
-      # Containers are deployed BY deploying their parent — they have no
-      # nixosConfigurations/deploy-rs entries of their own. sops-nix and the
-      # gb-grid flake are passed through for the container configs that need
-      # them (and are inert on the host that has neither).
-      #
-      # hutch (.2) additionally owns the storage role (modules/nas.nix).
+      # Containers are deployed BY deploying their parent — see README
+      # "Server + services". sops-nix and gb-grid pass through for the
+      # container configs that need them.
       hutch = mkHost {
         modules = [
           ./hosts/hutch.nix
@@ -168,8 +156,7 @@
 
     deploy.nodes = mkDeployNodes self.nixosConfigurations;
 
-    # Only check the platform we actually build/deploy from — evaluating
-    # deployChecks for every deploy-rs platform quadruples `nix flake check`.
+    # Only the deploy platform. why: docs/notes.md#single-platform-deploychecks
     checks.${system} = deploy-rs.lib.${system}.deployChecks self.deploy;
   };
 }

@@ -45,13 +45,14 @@ let
   };
 
   # name -> the command bbctl launches via --custom-startup-command.
-  # signal/whatsapp track unstable so all four bridges update on flake bumps.
+  # signal/whatsapp/gmessages track unstable so they update on flake bumps.
   # See README "Beeper bridges" for add/remove and the login bootstrap.
   bridges = {
     signal    = "${pkgs-unstable.mautrix-signal}/bin/mautrix-signal";
     whatsapp  = "${pkgs-unstable.mautrix-whatsapp}/bin/mautrix-whatsapp";
     telegram  = "${mautrix-telegram}/bin/mautrix-telegram";
     bluesky   = "${mautrix-bluesky}/bin/mautrix-bluesky";
+    gmessages = "${pkgs-unstable.mautrix-gmessages}/bin/mautrix-gmessages";
   };
 
   mkBridgeService = name: command: {
@@ -96,6 +97,7 @@ in
   environment.systemPackages = (with pkgs-unstable; [
     mautrix-whatsapp
     mautrix-signal
+    mautrix-gmessages
     beeper-bridge-manager
   ]) ++ [ mautrix-telegram mautrix-bluesky ];
 

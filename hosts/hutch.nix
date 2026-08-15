@@ -32,12 +32,24 @@ in
   };
   # Newest ZFS-2.4.3-compatible kernel. why: docs/notes.md#kernel-pin
   boot.kernelPackages = pkgs.linuxPackages_6_18;
+
+  # Cores reach C10, but the package stops at PC3 because the r8169 driver
+  # disables ASPM on its own links. NOT a BIOS or _OSC problem — the NVMe on
+  # the same bus runs ASPM L1 fine, and BIOS Native ASPM is already Enabled.
+  # This param is not what fixes it; the fix is re-enabling L1 per link at
+  # runtime. Kept because powersave is the right policy for a NAS anyway.
+  # why: docs/notes.md#aspm-package-cstates
+  boot.kernelParams = [ "pcie_aspm.policy=powersave" ];
   networking.hostName = "hutch";
 
   containerHost = {
     enable = true;
     # The Supermicro onboard NIC's MAC — fixed LAN identity for .2.
     macAddress = "0c:c4:7a:bd:45:32";
+
+    # Onboard RTL8168h. Never cabled, so it added no redundancy while its
+    # MII poll held root port #4 out of L1. enp4s0 (RTL8125B) is the uplink.
+    excludePorts = [ "enp2s0" ];
 
     withSecrets = [ "gb-grid" "immich" ];
 

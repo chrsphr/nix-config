@@ -180,9 +180,36 @@ in
   powerManagement.powertop.enable = true;
   powerManagement.cpuFreqGovernor = "powersave";
 
-  # Idle tuning is done: package C-states are hardware-capped at PC2 by the
-  # 10G NIC — don't re-investigate. why: docs/notes.md#nas-power-tuning
+  # NB: this used to claim package C-states were "hardware-capped at PC2 by the
+  # 10G NIC — don't re-investigate". That was wrong twice over: there is no 10G
+  # NIC (it's a 2.5G RTL8125B), and the package reaches PC10 once ASPM is put
+  # back on the Realtek links. See realtek-aspm below.
+  # why: docs/notes.md#aspm-package-cstates
   services.thermald.enable = true;
+
+  # The r8169 driver calls pci_disable_link_state() on its own devices, which
+  # pins the package at PC3 — every other device on the bus already has ASPM.
+  # Re-enable L1 per link; BOTH NICs are required, since one link left in L0
+  # holds the whole package up. Measured -471mW at idle, PC10 0 -> ~15%.
+  #
+  # A systemd unit rather than a udev rule on purpose: udev fires on PCI add,
+  # which races r8169's probe — the driver would just disable it again.
+  # why: docs/notes.md#aspm-package-cstates
+  systemd.services.realtek-aspm = {
+    description = "Re-enable PCIe ASPM L1 on the Realtek NICs";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network.target" ];
+    serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
+    script = ''
+      shopt -s nullglob
+      for dev in /sys/bus/pci/devices/*; do
+        [ -e "$dev/link/l1_aspm" ] || continue
+        [ "$(cat "$dev/vendor")" = "0x10ec" ] || continue
+        echo 1 > "$dev/link/l1_aspm" \
+          || echo "warn: could not enable ASPM L1 on $(basename "$dev")" >&2
+      done
+    '';
+  };
 
   # EPP balance_power; ordered after powertop so auto-tune can't clobber it.
   # why: docs/notes.md#thermald-and-smartd
@@ -233,5 +260,18 @@ in
     group = "hutch";
   };
 
-  environment.systemPackages = with pkgs; [ rclone smartmontools powertop ];
+  # APM 128 on the pool mirror: the lowest power level that still NEVER spins
+  # the platters down (1-127 permits spin-down, 128-254 does not, 255 is off).
+  # Deliberate: these drives have ~55k power-on hours, and stiction risk on a
+  # same-batch 6-year-old mirror outweighs the ~9W full spin-down would save.
+  # This buys the smaller head-park saving without any start/stop cycles.
+  # Watch Load_Cycle_Count — runaway parking is the failure mode here.
+  # why: docs/notes.md#disk-apm
+  services.udev.extraRules = ''
+    ACTION=="add|change", SUBSYSTEM=="block", KERNEL=="sd[a-z]", \
+      ENV{ID_MODEL}=="HUH728080ALE601", \
+      RUN+="${pkgs.hdparm}/bin/hdparm -B 128 /dev/%k"
+  '';
+
+  environment.systemPackages = with pkgs; [ rclone smartmontools powertop hdparm ];
 }

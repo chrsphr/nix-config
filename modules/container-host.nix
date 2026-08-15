@@ -44,6 +44,21 @@ in
       '';
     };
 
+    excludePorts = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [];
+      example = [ "enp2s0" ];
+      description = ''
+        Physical ports to keep OUT of bond0, held administratively down.
+
+        An unpopulated onboard port left in the bond is not free: the bond
+        MII-polls it every 100ms and its PHY keeps retrying autonegotiation,
+        which holds the port's PCIe root port out of L1 and pins the package
+        to PC3. It also buys no redundancy while no cable is in it.
+        why: docs/notes.md#aspm-package-cstates
+      '';
+    };
+
     perContainer = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;
       default = {};
@@ -94,7 +109,14 @@ in
           MACAddress = cfg.macAddress;
         };
       };
-      networks = {
+      networks = lib.optionalAttrs (cfg.excludePorts != []) {
+        # Sorts before the 20-lan-port catch-all, so these ports never reach
+        # the bond. always-down keeps the PHY from autonegotiating at all.
+        "10-lan-port-excluded" = {
+          matchConfig.Name = lib.concatStringsSep " " cfg.excludePorts;
+          linkConfig.ActivationPolicy = "always-down";
+        };
+      } // {
         # Catch-all: every physical ethernet port becomes a bond slave. Sorts
         # before the stock 99-ethernet-default-dhcp catch-all, so it wins for
         # physical NICs; bond0/br0/veths all have a Kind, so Kind=!* skips them.

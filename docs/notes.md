@@ -47,7 +47,9 @@ Container-host topology (modules/container-host.nix):
 
 EVERY physical ethernet port is a bond0 slave, matched by `Type=ether` rather
 than by name — adding a PCI card can renumber enpXsY, and new ports should
-just become extra uplink paths. bond0 is br0's single uplink; br0 owns the
+just become extra uplink paths. The one exception is
+`containerHost.excludePorts`, for ports that will never be cabled; see
+#aspm-package-cstates for why leaving those in the bond costs power. bond0 is br0's single uplink; br0 owns the
 host IP and containers attach via hostBridge. active-backup means exactly one
 NIC carries traffic and the rest are hot standbys: whichever cable is plugged
 in Just Works, failover on link loss is ~100ms (MII monitor), and a switching
@@ -74,6 +76,107 @@ LAN identity never changes across boots, failovers or cable moves. Without
 it the bridge adopts the lowest port MAC — and container veths get random
 ones, so br0's (and the host IP's) MAC would change whenever a container with
 a low MAC starts or stops.
+
+#### ASPM package cstates
+
+hutch's cores reach C10 fine, but the package sat at PC3 forever — PC6/8/10
+were flat zero, so the uncore and chipset never power-gated. Cause: ASPM was
+disabled on both Realtek NICs (02:00.0 RTL8168h, 04:00.0 RTL8125B) and their
+root ports (00:1c.3, 00:1d.0). Those four were the *only* devices on the bus
+with it off; the Phison NVMe already had it on. PC6+ needs every PCIe link in
+L1, so one holdout is enough to pin the whole package.
+
+Both NICs do advertise the capability (`ASPM L0s L1` plus `ASPM_L1.1+
+ASPM_L1.2+` substates) — it is simply switched off.
+
+The cause is the **r8169 driver**, which calls `pci_disable_link_state()` on
+its own devices. That disables the whole link, which is why each NIC's paired
+root port shows `ASPM Disabled` too. Neither BIOS nor firmware is involved.
+
+Two dead ends, both investigated and ruled out — do not repeat them:
+
+*`pcie_aspm.policy=powersave` does not fix it.* The param applies
+(`/sys/module/pcie_aspm/parameters/policy` reads `[powersave]`) but the
+r8169 links stay disabled, because a per-link driver disable overrides policy.
+
+*It is not an _OSC / BIOS problem.* Boot shows:
+
+    _OSC: OS supports [ExtendedConfig ASPM ClockPM Segments MSI HPX-Type3]
+    _OSC: OS now controls [PCIeHotplug PME AER PCIeCapability LTR]
+
+`ASPM` never appears in the "now controls" list on any machine — it is not one
+of the negotiated control bits. ASPM control rides on `PCIeCapability`, which
+*is* granted. Proof: the Phison NVMe on the same bus runs `ASPM L1 Enabled`.
+If firmware had refused, nothing would have ASPM. The tell is that ONLY the
+r8169 links were off — a firmware refusal is global, a driver disable is not.
+
+BIOS was also checked directly and is already correct, so there is nothing to
+change there. Extracted from MSI's 1.E1 image (`7E02v1E1.zip` →
+`E7E02IMS.1E1`, `uefiextract` + `ifrextractor`), the relevant options live in
+the `Setup` variable (GUID EC87D643-EBA4-4BB5-A1E5-3F3E36B20DA9):
+
+    PCIe Native Power Management  VarOffset 0x31  0=Disabled 1=Enabled
+    Native ASPM                   VarOffset 0x32  0=Disabled 1=Enabled 2=Auto
+
+Live values read 1 and 1 — both already Enabled. (efivarfs prepends a 4-byte
+attribute header, so payload 0x31 is file offset 0x35.)
+
+The actual fix is per-link at runtime, no reboot and fully reversible:
+
+    echo 1 > /sys/bus/pci/devices/0000:02:00.0/link/l1_aspm
+    echo 1 > /sys/bus/pci/devices/0000:04:00.0/link/l1_aspm
+
+BOTH are required — PC6+ needs every link in L1, so one holdout pins the
+package. Measured back-to-back at idle, 90s per window: package power
+**3816mW → 3345mW (-471mW, ~12%)**, and PC10 residency 0 → 13.7s per 90s
+(~15% of wall clock). PC6 and PC8 also came off zero. The control window's
+PC6/PC8/PC10 deltas were exactly zero, so the effect is unambiguous.
+
+Caveat: r8169 + ASPM has a history of link drops and TX timeouts, and enp4s0
+is the sole uplink for every container here. Watch `ip -s link show enp4s0`
+RX `missed` — it went 0 → 7 during testing, which is the classic early sign
+of L1 exit latency starving the DMA ring. Steady growth means back it out.
+Nothing persists across reboot, so a power cycle is always a clean escape.
+
+What did work: enp2s0 was a bond slave that had never been cabled. It bought
+no redundancy, while the bond's 100ms MII poll and the PHY's autoneg retries
+(a `Link is Down` every ~21s, forever) kept it busy. Excluding it via
+`containerHost.excludePorts` dropped idle package draw from **3.94W to
+3.03W** (~23%), measured via RAPL at comparable load, and raised PC2+PC3
+residency from ~28% to ~40%. The r8169 PHY driver no longer even attaches to
+it at boot. Cable it and remove it from that list to get real failover back.
+
+#### Disk APM
+
+The Hutch mirror is two HGST Ultrastar He8 8TB (HUH728080ALE601), and the
+question was whether to spin them down when idle. Decided against; APM 128
+instead. Reasoning, so this is not relitigated:
+
+Full spin-down would save the most power by far — He8 idle ~5.7W vs ~1.0W
+standby, so ~9W for the pair, roughly 3x every other saving on this box
+combined. But at the time of the decision both drives had ~54,900 power-on
+hours (6.26 years continuous), sequential serials, near-identical hours —
+same batch. Drives that have spun continuously for that long are exactly the
+population where spin-up failures appear, and a failed spin-up on a 2-way
+mirror means resilvering 4.23TB against the equally old sibling. ~9W is about
+£20/year; a replacement drive is £150-250. The asymmetry decides it.
+
+APM 128 is the middle ground: 1-127 permits spin-down, 128-254 does not, 255
+is off. It parks heads during idle without ever stopping the platters, so it
+adds Load_Cycle_Count but no Start_Stop_Count. Baselines when enabled:
+sda LCC 21330 / SSC 14080, sdb LCC 25484 / SSC 17509. He8 is rated ~600k load
+cycles, so there is headroom — but aggressive parking firmware can burn
+100k+/year, so LCC growth is the thing to watch. A few hundred per day means
+back it out (`hdparm -B 255`).
+
+Caveat on the benefit: it is ~1.5-2.5W and NOT measurable on this machine.
+intel-rapl covers the CPU package only and cannot see disk power at all, so
+unlike the ASPM number this one is a datasheet estimate. A wall meter is the
+only way to confirm it.
+
+Not currently a problem, but relevant if spin-down is ever revisited: smartd
+is enabled here, and its default polling wakes standby disks unless given
+`-n standby`. Irrelevant under APM 128 since nothing ever spins down.
 
 ### Storage and NAS
 

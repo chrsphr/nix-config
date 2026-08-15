@@ -35,6 +35,12 @@
             "2606:4700:4700::1111#53"
             "2606:4700:4700::1001#53"
         ];
+        # Default is 1000 queries/60s per client; bumped 10x for busy clients.
+        # Set count = 0 to disable rate limiting entirely.
+        rateLimit = {
+          count = 10000;
+          interval = 60;
+        };
       };
       dhcp = {
         active = false;

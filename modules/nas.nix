@@ -212,10 +212,14 @@ in
   };
 
   # EPP balance_power; ordered after powertop so auto-tune can't clobber it.
+  # Wanted by powertop, NOT multi-user.target: that wantedBy would close a
+  # transaction cycle (cpu-epp after powertop, powertop after multi-user,
+  # multi-user wants cpu-epp) and any switch that starts multi-user.target
+  # with these units inactive dies with "Transaction order is cyclic".
   # why: docs/notes.md#thermald-and-smartd
   systemd.services.cpu-epp = {
     description = "Set CPU energy performance preference";
-    wantedBy = [ "multi-user.target" ];
+    wantedBy = [ "powertop.service" ];
     after = [ "powertop.service" ];
     serviceConfig = { Type = "oneshot"; RemainAfterExit = true; };
     script = ''

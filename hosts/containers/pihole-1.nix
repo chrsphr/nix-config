@@ -1,7 +1,10 @@
 { config, pkgs, lib, ... }:
 
-# Pi-hole 1 as a NixOS container on hutch. Config is fully declarative
-# (pihole-common.nix); gravity regenerates itself via the update timer.
+# Pi-hole 1 as a NixOS container on hutch. Config lives in
+# pihole-common.nix — except the adlists, which are state in
+# /var/lib/pihole/gravity.db, NOT declarative; the update timer
+# re-downloads and rebuilds gravity from them.
+# why: docs/notes.md#container-one-offs
 
 {
   imports = [

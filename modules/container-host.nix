@@ -155,6 +155,25 @@ in
       } (cfg.perContainer.${name} or {}))
     ) (hostsLib.getContainers hostName);
 
+    # Stop/start race hardening, learned from a rolled-back deploy: a busy
+    # container (plex mid-encode) can blow the default 90s stop timeout, the
+    # resulting SIGKILL leaks /run/systemd/nspawn/unix-export/<name>, and the
+    # immediate restart then fails with "Mount point exists already,
+    # refusing" — which fails switch-to-configuration and rolls back the whole
+    # deploy. So: allow 3min before the SIGKILL, and remove any stale
+    # unix-export dir before each start (%i = container name).
+    # why: docs/notes.md#nspawn-stop-race
+    systemd.services = lib.genAttrs
+      (map (n: "container@${n}") (builtins.attrNames (hostsLib.getContainers hostName)))
+      (_: {
+        serviceConfig = {
+          TimeoutStopSec = "3min";
+          ExecStartPre = [
+            "-${pkgs.coreutils}/bin/rm -rf /run/systemd/nspawn/unix-export/%i"
+          ];
+        };
+      });
+
     systemd.tmpfiles.rules =
       map (n: "d /var/lib/sops-nix/${n} 0700 root root -") cfg.withSecrets;
   };

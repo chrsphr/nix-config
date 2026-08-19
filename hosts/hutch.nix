@@ -11,6 +11,8 @@ in
 {
   imports = [
     ../modules/locale.nix
+    # Newest ZFS-compatible kernel, shared with minihutch (usbip coupling).
+    ../modules/kernel-pin.nix
     # Host-level secrets (decrypted with hutch's own SSH host key).
     sops-nix.nixosModules.sops
     # NAS role: ZFS pool import, NFS, snapshots, encrypted B2 backup
@@ -30,9 +32,6 @@ in
     # Keep /dev/dvb present so plex's bind mount survives the tuner's absence.
     preCreate = [ "/dev/dvb" ];
   };
-  # Newest ZFS-2.4.3-compatible kernel. why: docs/notes.md#kernel-pin
-  boot.kernelPackages = pkgs.linuxPackages_6_18;
-
   # Cores reach C10, but the package stops at PC3 because the r8169 driver
   # disables ASPM on its own links. NOT a BIOS or _OSC problem — the NVMe on
   # the same bus runs ASPM L1 fine, and BIOS Native ASPM is already Enabled.

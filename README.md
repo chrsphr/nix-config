@@ -306,6 +306,38 @@ The container rides along with the host: `deploy .#minihutch`. Magic rollback is
 
 ---
 
+## Pi-hole adlists (`pihole-1`, `pihole-2`)
+
+Blocklists are **state, not config**: they live in each container's
+`/var/lib/pihole/gravity.db`, not in this repo.
+
+`services.pihole-ftl.lists` is deliberately unset — setting it is what creates
+`pihole-ftl-setup.service`, which re-POSTs every list to the FTL API on each
+boot and fails there ("Database not available") on every single boot.
+why: `docs/notes.md#container-one-offs`.
+
+Both piholes currently carry one list (StevenBlack unified hosts, ~95k
+domains). `pihole-gravity-update.timer` re-downloads and rebuilds gravity at
+boot+10min and every 24h, so the lists stay fresh on their own.
+
+Add or remove a list in the web UI (Adlists), or in SQL against
+`gravity.db` (`docs/notes.md#container-one-offs` has the INSERT), then
+rebuild gravity:
+
+```bash
+# on the parent server (hutch for pihole-1, minihutch for pihole-2).
+# The bash -c wrapper is required: handing machinectl the pihole binary
+# directly runs it but relays none of its output.
+sudo machinectl shell pihole-1 /run/current-system/sw/bin/bash -c 'pihole -g'
+```
+
+Because the lists are state, a container rebuilt **from scratch** comes up
+resolving but not blocking. Verify after any such rebuild:
+
+```bash
+dig +short doubleclick.net @192.168.1.9    # expect: 0.0.0.0, not an IP
+```
+
 ## Repository structure
 
 ```

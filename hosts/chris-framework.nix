@@ -85,18 +85,7 @@
   # history: docs/notes.md#2026-07-27-wifi-powersave-latency
   networking.networkmanager.wifi.powersave = false;
 
-  # Cap charge at 90% to extend battery cycle life (framework_laptop EC driver).
-  systemd.services.battery-charge-threshold = {
-    description = "Set battery charge limit";
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-    };
-    script = ''
-      echo 90 > /sys/class/power_supply/BAT1/charge_control_end_threshold
-    '';
-  };
+
   # Hibernate disabled — amdgpu corruption on resume.
   # history: docs/notes.md#2026-07-12-hibernate-crash
   services.logind.settings.Login.HandleLidSwitch = "suspend";

@@ -14,6 +14,9 @@ in
     ../modules/container-host.nix
     # Exports the USB TV tuner to hutch, where Plex consumes it.
     ../modules/usbip-tuner.nix
+    # No ZFS here, but the kernel must match hutch exactly — the usbip
+    # userspace is kernel-matched. why: docs/notes.md#kernel-pin
+    ../modules/kernel-pin.nix
   ];
 
   # The tuner is plugged in here but belongs to hutch while exported.
@@ -27,8 +30,6 @@ in
     allowFrom = "192.168.1.2";
   };
 
-  # No kernel pin (no ZFS here) — tracks the nixpkgs default, which must stay
-  # equal to hutch's pin for USB/IP. why: docs/notes.md#kernel-pin
   networking.hostName = "minihutch";
 
   containerHost = {

@@ -316,7 +316,14 @@ set — under intel_pstate active mode the governor picks the algorithm, EPP
 biases within it. Stock balance_performance → balance_power is a measurable
 idle saving with no impact on this workload. Ordered after powertop so
 auto-tune can't clobber it; non-fatal because the sysfs file is absent unless
-intel_pstate is active with HWP.
+intel_pstate is active with HWP. It is `wantedBy = [ "powertop.service" ]`,
+NOT multi-user.target: the obvious multi-user wantedBy closes a transaction
+cycle (cpu-epp after powertop → powertop after multi-user.target →
+multi-user.target wants cpu-epp), and any switch that enqueues a
+multi-user.target start job while these units are inactive fails the whole
+activation with "Transaction order is cyclic" (seen 2026-08-19, rolled back
+by activate-rs). With the powertop wantedBy the graph stays linear:
+multi-user → powertop → cpu-epp.
 
 smartd: matched by WWN because udev's by-id name format isn't stable across
 kernels (ata-HUH728080ALE601_<SERIAL> vs ata-<SERIAL>) and device letters
@@ -411,15 +418,16 @@ Caveats worth knowing before debugging at 1am:
 
 #### Kernel pin
 
-hutch pins `linuxPackages_6_18`: ZFS 2.4.3's newest compatible kernel in
-nixpkgs is 6.18 (`zfs.latestCompatibleLinuxPackages` = 6.18.x; nixpkgs
-default `linuxPackages` is currently also 6.18.x, latest is 7.1.x).
+Both baremetal hosts import modules/kernel-pin.nix, which sets
+`boot.kernelPackages` to the newest kernel in `pkgs.linuxKernel.packages`
+whose ZFS module isn't marked broken, computed at eval time. It can jump
+back and forth as kernels are added, removed, or (un)marked broken in
+nixpkgs.
 
-minihutch deliberately has NO pin — no ZFS there — and tracks the nixpkgs
-default. Today both resolve to the same 6.18.44, which is what USB/IP
-requires; when the nixpkgs default kernel moves past 6.18, minihutch diverges
-from hutch and the tuner attach breaks until they're re-aligned (tracked in
-Pending). Bump hutch's pin when ZFS supports a newer kernel.
+hutch needs the ZFS bound; minihutch has no ZFS but shares the module so the
+two can never diverge — the usbip userspace is kernel-matched
+(`boot.kernelPackages.usbip`), and the tuner attach breaks the moment the
+hosts run different kernels. Both currently resolve to 6.18.44.
 
 ### Containers
 
@@ -523,10 +531,38 @@ the speed-test helpers.
   doesn't run inside the containers: every lookup fails (caddy: "lookup
   acme-v02.api.letsencrypt.org: no such host"). Off means the container's own
   networking.nameservers are written instead.
-- **pihole — resolver must not be 127.0.0.1**: pihole-ftl-setup curls
-  ftl.pi-hole.net during boot before pihole-ftl (the port-53 listener) is up,
-  so a 127.0.0.1 resolver deadlocks the boot; container@ times out
-  (TimeoutStartSec=1min) and restarts forever. Cloudflare upstreams instead.
+- **pihole — resolver must not be 127.0.0.1**: originally because
+  pihole-ftl-setup curled ftl.pi-hole.net during boot before pihole-ftl (the
+  port-53 listener) was up, so a 127.0.0.1 resolver deadlocked the boot —
+  container@ timed out (TimeoutStartSec=1min) and restarted forever. That
+  unit is gone now (see the next entry), so the original deadlock can't
+  recur, but keep the Cloudflare upstreams: pointing a resolver at itself
+  still makes every pre-FTL lookup in the container depend on FTL already
+  listening, including whatever `pihole -g` downloads. Untested and not worth
+  testing.
+- **pihole — no `services.pihole-ftl.lists`**: setting it is what creates
+  pihole-ftl-setup.service, which re-POSTs every list to the FTL API on each
+  boot. FTL 6.7 rejects that twice over: "Database not available" while
+  gravity.db isn't open yet (the failure seen at every boot on both piholes)
+  and "The item is already present" on a duplicate (seen on manual re-runs).
+  nixpkgs#551979 (merged 2026-08-16) only tolerates the duplicate, so it
+  would not have fixed the boot failure. The unit is gated on
+  `length cfg.lists > 0`, so dropping `lists` removes it entirely. The
+  adlists are already in gravity.db and stay there — container roots are
+  persistent btrfs subvolumes — and pihole-gravity-update rebuilds gravity at
+  boot+10min and daily. Cost: adlists are state now, not config. To reseed a
+  from-scratch container, add the list once in the web UI, or in SQL — note
+  pihole-FTL is NOT on the container's PATH, so derive it from the unit:
+
+  ```bash
+  # inside the container (machinectl shell <pihole> …/bin/bash -c '…')
+  ftl=$(systemctl show pihole-ftl -p ExecStart --value \
+        | grep -o '/nix/store/[^ ]*/pihole-FTL' | head -1)
+  $ftl sqlite3 /var/lib/pihole/gravity.db \
+    "insert into adlist (address, enabled, comment, type)
+     values ('<url>', 1, '<comment>', 0);"   # type 0 = block, 1 = allow
+  pihole -g
+  ```
 - **transmission — chroot sandbox dropped**: the module's RootDirectory +
   MountAPIVFS sandbox can't be set up inside nspawn — MountAPIVFS makes
   systemd stage /run/host/.os-release-stage/, but /run/host belongs to nspawn
@@ -551,6 +587,20 @@ the speed-test helpers.
   gb_grid role on each boot; idempotent, so rotating is just
   `sops secrets/gb-grid.yaml` + redeploy. pg_hba overridden to require
   scram-sha-256 from LAN clients.
+
+#### nspawn stop race
+
+A busy container that ignores SIGTERM past the stop timeout gets SIGKILLed,
+and the SIGKILL leaks `/run/systemd/nspawn/unix-export/<name>` — the
+immediate restart then dies with "Mount point exists already, refusing", the
+container@ unit fails, and switch-to-configuration exits non-zero, so a
+deploy rolls itself back even though nothing in the config is wrong. Seen
+2026-08-19 with plex mid-encode (90s default stop timeout vs. 20h of CPU
+state). Mitigations on every container@ unit (container-host.nix):
+TimeoutStopSec 3min so the SIGKILL is a last resort, and an ExecStartPre
+that removes any stale unix-export dir. Restart=on-failure means the leaked
+case would recover on the next retry anyway — the cleanup just makes the
+first retry succeed instead of the second.
 
 ### Hosts
 
@@ -770,8 +820,8 @@ bridges 1Password differently and is left untouched.
 - [ ] **framework**: restore suspend-then-hibernate + HibernateDelaySec once crash fixed upstream (see [2026-07-12 hibernate crash](#2026-07-12-hibernate-crash))
 - [ ] **framework**: charge cap 90% — bump to 100 before a trip (hosts/chris-framework.nix)
 - [ ] **uptime**: replace reused laptop master sops key with a dedicated uptime key + re-encrypt (hosts/containers/uptime.nix)
-- [ ] **usbip**: kernel-version coupling — hutch pinned 6.18, minihutch tracks nixpkgs default; usbip breaks if they diverge (see [Kernel pin](#kernel-pin))
 - [ ] **nas**: B2 bucket lifecycle + app-key scoping configured by hand in the B2 console — document or automate; check if restores misbehave (modules/nas.nix)
 - [ ] **nas**: drop zfs_arc_shrinker_seeks to 1 if the 8 GiB sys-free floor proves too tight (modules/nas.nix)
 - [ ] **gatus**: route uptime.mcneill.fyi through the Cloudflare tunnel to Gatus:3001 — currently LAN-only
 - [ ] **network-optimizer**: InfluxDB onboarding is manual/one-time; not set up: OpenSpeedTest sidecar, WAN steering, proxy features (hosts/containers/network-optimizer.nix)
+- [ ] **pihole**: re-adopt `services.pihole-ftl.lists` once pihole-ftl-setup is both idempotent (nixpkgs#551979) AND survives FTL's boot-time "Database not available" window — until then adlists are state in gravity.db, not config (hosts/containers/pihole-common.nix)

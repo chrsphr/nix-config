@@ -196,6 +196,12 @@ curl -sI https://uptime.mcneill.fyi | head -1
 # pihole-2 resolving
 dig +short google.com @192.168.1.10
 
+# pihole-2 is actually BLOCKING, not just resolving — adlists live in
+# gravity.db (state, not config), so a from-scratch container root comes up
+# with an empty gravity table and answers everything.
+# why: docs/notes.md#container-one-offs
+dig +short doubleclick.net @192.168.1.10   # expect: 0.0.0.0
+
 # tailscale is up and still advertising the subnet route
 ssh root@192.168.1.3 'systemd-run -M tailscale --wait tailscale status'
 

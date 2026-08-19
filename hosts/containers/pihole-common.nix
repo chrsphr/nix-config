@@ -13,16 +13,12 @@
   services.pihole-ftl = {
     enable = true;
     openFirewallDHCP = true;
-    
+
     queryLogDeleter.enable = true;
-    lists = [
-      {
-        url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts";
-        type = "block";
-        enabled = true;
-        description = "Steven Black's unified adlist";
-      }
-    ];
+    # NO `lists` here — it is what creates pihole-ftl-setup.service, which
+    # fails on every boot. The adlists live in gravity.db (state, not config)
+    # and pihole-gravity-update below rebuilds from them.
+    # why: docs/notes.md#container-one-offs
     settings = {
       dns = {
         domainNeeded = true;

@@ -32,8 +32,7 @@ in
     nixos-generators
     drawio
     google-chrome
-    # Pinned to stable — unstable's build aborts at launch (see notes Pending).
-    darktable
+    pkgs-unstable.darktable
     onnxruntime
     python3
     gemini-cli

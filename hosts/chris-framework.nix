@@ -8,6 +8,7 @@
     ../modules/btrfs-maintenance.nix
     ../modules/keyboard-backlight-timeout.nix
     ../modules/nfs-home-automount.nix
+    ../modules/suspend-then-hibernate.nix
   ];
 
   networking.hostName = "chris-framework";
@@ -86,7 +87,8 @@
   networking.networkmanager.wifi.powersave = false;
 
 
-  # Hibernate disabled — amdgpu corruption on resume.
+  # Plain "suspend" actions are upgraded to suspend-then-hibernate (6h) by
+  # modules/suspend-then-hibernate.nix. Re-enabled 2026-08-20 on kernel 7.2 —
   # history: docs/notes.md#2026-07-12-hibernate-crash
   services.logind.settings.Login.HandleLidSwitch = "suspend";
   services.logind.settings.Login.HandlePowerKey = "suspend";

@@ -6,6 +6,7 @@
     ../modules/common-desktop.nix
     ../modules/luks-tpm.nix
     ../modules/btrfs-maintenance.nix
+    ../modules/suspend-then-hibernate.nix
   ];
 
   networking.hostName = "chris-desktop";

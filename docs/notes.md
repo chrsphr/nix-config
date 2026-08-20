@@ -659,12 +659,37 @@ The battery-tuning notebook behind hosts/chris-framework.nix:
   clicking sounds occur.
 - **Charge cap 90%** (framework_laptop EC): extends cycle life. Bump before a
   trip: `echo 100 | sudo tee /sys/class/power_supply/BAT1/charge_control_end_threshold`.
-- **Hibernate disabled** — see [2026-07-12 hibernate crash](#2026-07-12-hibernate-crash).
+- **Suspend-then-hibernate (6h)** — restored 2026-08-20; see
+  [Suspend-then-hibernate](#suspend-then-hibernate) and
+  [2026-07-12 hibernate crash](#2026-07-12-hibernate-crash).
 - **Journal capped 500M**: was 2.1 GB uncapped — steady write amplification on
   compressed btrfs, working against the dirty_writeback batching sysctl.
 - **Docker socket-activated** (`enableOnBoot = false`): dockerd is only wanted
   inside the gb-grid dev shell. Containers with `--restart=always` won't
   survive a reboot under this — flip back to true if ever needed.
+
+#### Suspend-then-hibernate
+
+Desktop and Framework suspend normally, then wake on the RTC alarm to
+hibernate 6h later (`HibernateDelaySec = "6h"`,
+modules/suspend-then-hibernate.nix). An explicit delay disables systemd's
+battery-estimate auto-hibernation — the documented trade-off for a fixed
+delay.
+
+The catch is GNOME: every GNOME suspend path (idle auto-suspend in
+gsd-power, menu item via gnome-session) calls logind's plain `Suspend()`,
+and logind only routes its own v256 "sleep" *action* through
+suspend-then-hibernate — never `Suspend()`. So `systemd-suspend.service`'s
+ExecStart is overridden to run `systemd-sleep suspend-then-hibernate`,
+upgrading every caller (GNOME, lid switch, power key, `systemctl suspend`)
+at one point. `HibernateOnACPower` defaults to true, so the always-on-AC
+desktop hibernates too. Both hosts resume from the btrfs swapfile inside
+LUKS (`boot.resumeDevice` + `resume_offset`).
+
+Framework history: hibernate was disabled 2026-07-12 for amdgpu corruption
+on resume ([2026-07-12 hibernate crash](#2026-07-12-hibernate-crash));
+restored 2026-08-20 on kernel 7.2 — if hard-locks after resume-from-
+hibernate return, drop the module import from hosts/chris-framework.nix.
 
 #### Desktop
 
@@ -774,8 +799,9 @@ later GPU submission (ttm_lru_bulk_move_tail oops / list_del corruption in
 amdgpu_cs_ioctl). 16 identical crashes since suspend-then-hibernate was
 enabled 2026-05-29, across kernels 7.0.10 through 7.1.3 — an upstream amdgpu
 bug, not a kernel regression. pstore dumps: /var/lib/systemd/pstore/.
-Restore suspend-then-hibernate + HibernateDelaySec once fixed upstream
-(tracked in Pending).
+Suspend-then-hibernate restored 2026-08-20 on kernel 7.2.0 (crashes spanned
+7.0.10–7.1.3) — watch for recurrence; revert by dropping the module import
+from hosts/chris-framework.nix.
 
 ### 2026-07-03 magicrollback lockout
 
@@ -817,8 +843,6 @@ bridges 1Password differently and is left untouched.
 - [ ] **home**: unpin darktable from stable once unstable's gflags static/dynamic conflict is fixed (home/common-home.nix)
 - [ ] **framework**: recheck amd_hfi/ITMT core ranking after kernel bumps — look for sched_itmt_enabled (hosts/chris-framework.nix)
 - [ ] **framework**: NVMe runtime-PM benefit unproven — check runtime_suspended_time after a few hours; drop the rule if still 0 (hosts/chris-framework.nix)
-- [ ] **framework**: restore suspend-then-hibernate + HibernateDelaySec once crash fixed upstream (see [2026-07-12 hibernate crash](#2026-07-12-hibernate-crash))
-- [ ] **framework**: charge cap 90% — bump to 100 before a trip (hosts/chris-framework.nix)
 - [ ] **uptime**: replace reused laptop master sops key with a dedicated uptime key + re-encrypt (hosts/containers/uptime.nix)
 - [ ] **nas**: B2 bucket lifecycle + app-key scoping configured by hand in the B2 console — document or automate; check if restores misbehave (modules/nas.nix)
 - [ ] **nas**: drop zfs_arc_shrinker_seeks to 1 if the 8 GiB sys-free floor proves too tight (modules/nas.nix)

@@ -419,15 +419,16 @@ Caveats worth knowing before debugging at 1am:
 #### Kernel pin
 
 Both baremetal hosts import modules/kernel-pin.nix, which sets
-`boot.kernelPackages` to the newest kernel in `pkgs.linuxKernel.packages`
-whose ZFS module isn't marked broken, computed at eval time. It can jump
-back and forth as kernels are added, removed, or (un)marked broken in
-nixpkgs.
+`boot.kernelPackages` to the newest kernel in
+`pkgs-unstable.linuxKernel.packages` whose ZFS module isn't marked broken,
+computed at eval time. It is resolved against nixos-unstable (not the 26.05
+base) so the baremetal hosts ride the newest kernels. It can jump back and
+forth as kernels are added, removed, or (un)marked broken in nixpkgs.
 
 hutch needs the ZFS bound; minihutch has no ZFS but shares the module so the
 two can never diverge — the usbip userspace is kernel-matched
 (`boot.kernelPackages.usbip`), and the tuner attach breaks the moment the
-hosts run different kernels. Both currently resolve to 6.18.44.
+hosts run different kernels. Both currently resolve to 7.2.
 
 ### Containers
 

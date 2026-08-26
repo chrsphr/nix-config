@@ -32,7 +32,7 @@ in
     nixos-generators
     drawio
     google-chrome
-    pkgs-unstable.darktable
+    (pkgs-unstable.darktable.override { withAi = true; })
     onnxruntime
     python3
     gemini-cli

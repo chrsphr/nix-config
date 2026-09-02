@@ -13,10 +13,25 @@
     # Fonts for Oh-My-Zsh / terminals
     nerd-fonts.fira-code
     nerd-fonts.meslo-lg
+    nerd-fonts.jetbrains-mono
     gh
-    pkgs-unstable.ghostty
     pkgs-unstable.opencode
   ];
+
+  # Ghostty terminal (installs pkgs-unstable.ghostty)
+  programs.ghostty = {
+    enable = true;
+    package = pkgs-unstable.ghostty;
+    enableZshIntegration = true;
+    settings = {
+      theme = "Adwaita Dark";
+      font-family = "JetBrainsMono Nerd Font Mono";
+      # Touchpad (precision) scroll was too fast at the default of 1; halve it.
+      mouse-scroll-multiplier = "precision:0.3,discrete:3";
+      # Right-click pastes instead of opening the context menu.
+      right-click-action = "paste";
+    };
+  };
 
   # Git configuration
   programs.git = {

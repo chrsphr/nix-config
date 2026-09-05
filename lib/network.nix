@@ -11,7 +11,13 @@ let
   # Host definitions
   #
   # Per-host fields:
-  #   ip, port, caddy, subdomain, https, headers — used by Caddy generation
+  #   ip, port, caddy, subdomain, https — used by Caddy generation
+  #   headers  = bool    forward X-Real-IP (Caddy already sets X-Forwarded-For/
+  #                      Proto/Host by default; immich's docs explicitly also
+  #                      want X-Real-IP)
+  #   maxBody  = string  request body limit (e.g. "50GB")
+  #   timeouts = string  upstream read/write timeout (e.g. "600s")
+  #   redirect = string  redirect "/" here before proxying (e.g. "/transmission/web/")
   #   monitor — Gatus monitor spec (attrset or list of attrsets), see below
   #
   # monitor schema (all fields optional unless noted):
@@ -67,6 +73,9 @@ let
       parent = "hutch";
       port = 2283;
       caddy = true;
+      headers = true;
+      maxBody = "50GB";
+      timeouts = "600s";
       monitor = {
         type = "http"; name = "Immich"; path = "/api/server/ping";
         group = "Hutch Primary Services";
@@ -126,6 +135,7 @@ let
       parent = "hutch";
       port = 9091;
       caddy = true;
+      redirect = "/transmission/web/";
       monitor = {
         type = "http"; name = "Transmission"; path = "/transmission/web/";
       };
@@ -225,25 +235,34 @@ let
       backend = if cfg.https or false
         then "https://${cfg.ip}:${toString cfg.port}"
         else "${cfg.ip}:${toString cfg.port}";
-      tlsConfig = lib.optionalString (cfg.https or false) ''
-        transport http {
-          tls_insecure_skip_verify
-        }
-      '';
-      headersConfig = lib.optionalString (cfg.headers or false) ''
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-Host {host}
-      '';
-      hasInnerConfig = (cfg.https or false) || (cfg.headers or false);
-      innerBlock = if hasInnerConfig then '' {
-${headersConfig}${tlsConfig}      }'' else "";
-    in ''
-        @${lib.strings.sanitizeDerivationName name} host ${subdomain}.${domain}
-        handle @${lib.strings.sanitizeDerivationName name} {
-          reverse_proxy ${backend}${innerBlock}
-        }
-    '';
+
+      # Lines emitted inside the reverse_proxy block. Caddy already forwards
+      # X-Forwarded-For/Proto/Host by default, so `headers` only adds
+      # X-Real-IP (which Caddy does not set on its own).
+      transportLines =
+        lib.optional (cfg.https or false) "tls_insecure_skip_verify"
+        ++ lib.optionals (cfg ? timeouts) [
+          "read_timeout ${cfg.timeouts}"
+          "write_timeout ${cfg.timeouts}"
+        ];
+      proxyLines =
+        lib.optional (cfg.headers or false) "header_up X-Real-IP {remote_host}"
+        ++ lib.optionals (transportLines != [])
+          ([ "transport http {" ] ++ map (line: "  ${line}") transportLines ++ [ "}" ]);
+      proxyBlock = lib.optionalString (proxyLines != [])
+        (" {\n"
+          + lib.concatMapStringsSep "\n" (line: "    ${line}") proxyLines
+          + "\n  }");
+    in lib.concatStringsSep "\n"
+      ([
+        "@${lib.strings.sanitizeDerivationName name} host ${subdomain}.${domain}"
+        "handle @${lib.strings.sanitizeDerivationName name} {"
+      ]
+      ++ lib.optional (cfg ? redirect) "    redir / ${cfg.redirect} 302"
+      # request_body is a top-level directive, NOT a reverse_proxy
+      # sub-directive — it must be a sibling, not nested inside it.
+      ++ lib.optional (cfg ? maxBody) "    request_body { max_size ${cfg.maxBody} }"
+      ++ [ "    reverse_proxy ${backend}${proxyBlock}" "}" ]);
 
   # Build a single Gatus endpoint from a (host, monitor) pair
   mkGatusEndpoint = hostName: hostCfg: m: defaultAlerts:

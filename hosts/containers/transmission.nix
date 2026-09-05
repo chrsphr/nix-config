@@ -37,5 +37,9 @@
     MountAPIVFS = lib.mkForce false;
     BindPaths = lib.mkForce [];
     BindReadOnlyPaths = lib.mkForce [];
+    # ProtectSystem=strict re-mounts EVERYTHING read-only at unit start,
+    # including the rw /mnt/media bind mount nspawn set up — hence EROFS.
+    ProtectSystem = lib.mkForce false;
+    ProtectHome = lib.mkForce false;
   };
 }

@@ -20,7 +20,7 @@
       "webm"
     ],
     "acceptedVideoCodecs": [
-      "h264"
+      "hevc"
     ],
     "bframes": -1,
     "cqMode": "auto",
@@ -31,8 +31,8 @@
     "preset": "medium",
     "refs": 0,
     "targetAudioCodec": "aac",
-    "targetResolution": "720",
-    "targetVideoCodec": "h264",
+    "targetResolution": "original",
+    "targetVideoCodec": "hevc",
     "temporalAQ": false,
     "threads": 0,
     "tonemap": "hable",

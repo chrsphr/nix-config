@@ -7,16 +7,25 @@
 let
   keys = import ./keys.nix;
 
-  # What goes offsite, as <remote subdir> -> <local path>. Everything here is
-  # mirrored, so adding a path costs B2 storage and removing one deletes it
+  # What goes offsite, as <remote subdir> -> {path, excludes}. Everything here
+  # is mirrored, so adding a path costs B2 storage and removing one deletes it
   # from the remote on the next run (subject to the 30-day lifecycle window).
-  backupPaths = {
-    "TV"      = "/mnt/Hutch/Media/TV";
-    "Movies"  = "/mnt/Hutch/Media/Movies";
-    "Photos"  = "/mnt/Hutch/Media/Photos";
-    "Sites"   = "/mnt/Hutch/Media/Sites";
-    "Music"   = "/mnt/Hutch/Media/Music";
-    "Backups" = "/mnt/Hutch/Backups";
+  backupPaths = let
+    plain = path: { inherit path; excludes = []; };
+  in {
+    "TV"      = plain "/mnt/Hutch/Media/TV";
+    "Movies"  = plain "/mnt/Hutch/Media/Movies";
+    "Photos"  = { path = "/mnt/Hutch/Media/Photos";
+                  # Immich regenerates these from originals — don't pay B2 for
+                  # ~130G of webp thumbs + transcodes. why: docs/notes.md#immich
+                  excludes = [
+                    "--exclude /thumbs/**"
+                    "--exclude /encoded-video/**"
+                  ];
+                };
+    "Sites"   = plain "/mnt/Hutch/Media/Sites";
+    "Music"   = plain "/mnt/Hutch/Media/Music";
+    "Backups" = plain "/mnt/Hutch/Backups";
   };
 in
 {
@@ -142,11 +151,11 @@ in
     # Each rclone is guarded so one failing path doesn't skip the rest.
     script = ''
       failed=""
-    '' + lib.concatStrings (lib.mapAttrsToList (dest: src: ''
-      echo "==> ${src} -> b2crypt:${dest}"
+    '' + lib.concatStrings (lib.mapAttrsToList (dest: spec: ''
+      echo "==> ${spec.path} -> b2crypt:${dest}"
       ${pkgs.rclone}/bin/rclone \
         --config ${config.sops.templates."rclone.conf".path} \
-        sync ${lib.escapeShellArg src} b2crypt:${dest} \
+        sync ${lib.escapeShellArg spec.path} b2crypt:${dest} \
         --fast-list \
         --b2-chunk-size 96M \
         --transfers 8 \
@@ -158,6 +167,7 @@ in
         --track-renames-strategy modtime,leaf \
         --stats 5m \
         --stats-one-line \
+        ${lib.concatStringsSep " \\\n        " spec.excludes} \
         || failed="$failed ${dest}"
     '') backupPaths) + ''
       if [ -n "$failed" ]; then

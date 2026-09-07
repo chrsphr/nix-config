@@ -49,7 +49,7 @@
     },
     "preview": {
       "format": "webp",
-      "quality": 95,
+      "quality": 85,
       "size": 1440
     },
     "thumbnail": {

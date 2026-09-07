@@ -147,6 +147,17 @@ let
       port = 3001;
       caddy = true;
     };
+    homepage = {
+      ip = "192.168.1.32";
+      sshUser = "deploy";
+      parent = "minihutch";
+      port = 8082;
+      caddy = true;
+      monitor = {
+        type = "http"; name = "Homepage"; path = "/";
+        group = "Hutch Primary Services";
+      };
+    };
     network-optimizer = {
       ip = "192.168.1.84";
       sshUser = "deploy";

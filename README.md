@@ -44,6 +44,7 @@ server deploys its containers with it**. The "On" column below says which.
 | `sonarr` | 192.168.1.75 | hutch | TV automation |
 | `prowlarr` | 192.168.1.75 | hutch | Indexer manager (co-located on sonarr host) |
 | `uptime` | 192.168.1.31 | minihutch | Uptime monitoring (Gatus, declarative via `lib/network.nix`). LAN-only at `http://192.168.1.31:3001` — tunnel routing is pending (see `docs/notes.md`). |
+| `homepage` | 192.168.1.32 | minihutch | Homelab dashboard (Homepage v2 from pkgs-unstable) |
 | `tailscale` | 192.168.1.207 | minihutch | VPN exit node |
 | `gb-grid` | 192.168.1.28 | hutch | GB power grid Postgres + BMRS ingester |
 | `beeper` | 192.168.1.40 | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp from nixpkgs; Telegram and Bluesky are Go bridgev2 bridges built from pinned upstream releases. One-time `bbctl login` bootstrap required — see below. |

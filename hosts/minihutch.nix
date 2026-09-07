@@ -81,6 +81,12 @@ in
   users.users.root.openssh.authorizedKeys.keys = [ keys.chris ];
   security.sudo.wheelNeedsPassword = false;
 
+  # Glances system telemetry web API (consumed by Homepage dashboard)
+  services.glances = {
+    enable = true;
+    openFirewall = true;
+  };
+
   # Nix settings
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];

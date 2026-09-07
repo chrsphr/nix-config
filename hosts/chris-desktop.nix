@@ -130,4 +130,7 @@
 
   # Liquidctl udev rules for NZXT fan/RGB control
   services.udev.packages = [ pkgs.liquidctl ];
+
+  # CoolerControl daemon and GUI for fan curve management
+  programs.coolercontrol.enable = true;
 }

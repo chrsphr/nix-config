@@ -11,12 +11,10 @@
 
   # Framework-specific packages
   home.packages = with pkgs; [
-    gearlever
     appimage-run
     moonlight-qt
     lm_sensors
     trayscale  # Tailscale GUI tray app
-    pkgs-unstable.claude-code
 
   ];
 

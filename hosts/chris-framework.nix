@@ -9,6 +9,7 @@
     ../modules/keyboard-backlight-timeout.nix
     ../modules/nfs-home-automount.nix
     ../modules/suspend-then-hibernate.nix
+    ../modules/niri.nix
   ];
 
   networking.hostName = "chris-framework";

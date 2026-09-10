@@ -30,6 +30,10 @@
       mouse-scroll-multiplier = "precision:0.3,discrete:3";
       # Right-click pastes instead of opening the context menu.
       right-click-action = "paste";
+      # Clipboard permissions & selection
+      clipboard-read = "allow";
+      clipboard-write = "allow";
+      copy-on-select = "clipboard";
     };
   };
 

@@ -740,6 +740,15 @@ hibernate return, drop the module import from hosts/chris-framework.nix.
   systemd-tmpfiles-resetup concurrently, which is exactly how it failed the
   first time. ExecStartPre is ordered by construction and keeps Plex
   independent of whether minihutch is up.
+- tvOS AV1 direct play: no Apple TV has an AV1 hardware decoder, but the
+  tvOS Plex app software-decodes AV1 fine — PMS transcodes anyway because its
+  built-in tvOS client profile doesn't list AV1. The plex container installs
+  a custom `Profiles/tvOS.xml` (github.com/currifi/plex_av1_tvos inlined, so
+  it can't drift) that advertises AV1 as direct-play; PMS then streams the
+  file untouched and the Apple TV CPU decodes it. Loaded at PMS start; verify
+  on the Dashboard ("Direct Play"). AV1 HDR may render wrong (nothing
+  tone-maps), and the profile can silently drift from upstream Plex defaults
+  since it REPLACES the built-in one — delete the tmpfiles rules to revert.
 - Keys-only SSH states BOTH `PasswordAuthentication=false` and
   `KbdInteractiveAuthentication=false`: with UsePAM the latter would
   otherwise *advertise* a keyboard-interactive path (blocked only by pam_deny

@@ -22,6 +22,10 @@ Host ha
   HostName 192.168.1.11
   User root
 
+Host homepage
+  HostName 192.168.1.32
+  User deploy
+
 Host hutch
   HostName 192.168.1.2
   User deploy

@@ -684,8 +684,12 @@ suspend-then-hibernate — never `Suspend()`. So `systemd-suspend.service`'s
 ExecStart is overridden to run `systemd-sleep suspend-then-hibernate`,
 upgrading every caller (GNOME, lid switch, power key, `systemctl suspend`)
 at one point. `HibernateOnACPower` defaults to true, so the always-on-AC
-desktop hibernates too. Both hosts resume from the btrfs swapfile inside
+Framework hibernates too. The host resumes from the btrfs swapfile inside
 LUKS (`boot.resumeDevice` + `resume_offset`).
+
+Desktop diverged 2026-09-13: no hibernate — plain suspend after 15 min idle
+(dconf `sleep-inactive-ac-timeout = 900` in home/desktop.nix); it no longer
+imports this module.
 
 Framework history: hibernate was disabled 2026-07-12 for amdgpu corruption
 on resume ([2026-07-12 hibernate crash](#2026-07-12-hibernate-crash));

@@ -6,7 +6,6 @@
     ../modules/common-desktop.nix
     ../modules/luks-tpm.nix
     ../modules/btrfs-maintenance.nix
-    ../modules/suspend-then-hibernate.nix
   ];
 
   networking.hostName = "chris-desktop";
@@ -17,11 +16,11 @@
   # Desktop-specific kernel modules
   boot.kernelModules = [ "sg" ];
 
-  # Hibernate from the btrfs swapfile inside LUKS. why: docs/notes.md#desktop
-  boot.resumeDevice = "/dev/mapper/cryptroot";
+  # Hibernate is intentionally unused on the desktop (plain suspend only, see
+  # home/desktop.nix), so no boot.resumeDevice / resume_offset here. zswap stays
+  # as a compressed swap cache.
   boot.kernelParams = [
-    "resume_offset=533760"
-    "zswap.enabled=1"  # hibernate-compatible, unlike zram
+    "zswap.enabled=1"
   ];
 
   # AMD GPU configuration

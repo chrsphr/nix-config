@@ -6,8 +6,9 @@
 # suspend-then-hibernate (only the v256 "sleep" action does that), so
 # systemd-suspend.service itself is redirected: GNOME, lid switch, power key
 # and `systemctl suspend` all get the 6h hibernate timer through the same
-# unit. HibernateOnACPower defaults to true, so the always-on-AC desktop
-# hibernates too. Requires boot.resumeDevice + resume_offset (both hosts).
+# unit. HibernateOnACPower defaults to true, so the always-on-AC Framework
+# hibernates too. Requires boot.resumeDevice + resume_offset (Framework only;
+# the desktop no longer imports this module — plain 15-min suspend).
 # why: docs/notes.md#suspend-then-hibernate
 {
   systemd.sleep.settings.Sleep.HibernateDelaySec = "6h";

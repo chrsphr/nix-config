@@ -28,6 +28,8 @@
       font-family = "JetBrainsMono Nerd Font Mono";
       # Touchpad (precision) scroll was too fast at the default of 1; halve it.
       mouse-scroll-multiplier = "precision:0.3,discrete:3";
+      # Copy selected text immediately, without needing Ctrl+Shift+C.
+      copy-on-select = true;
       # Right-click pastes instead of opening the context menu.
       right-click-action = "paste";
     };

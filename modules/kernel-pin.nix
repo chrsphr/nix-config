@@ -4,9 +4,9 @@
 # against, picked at eval time instead of a manual linuxPackages_X_Y pin.
 # Resolved against pkgs-unstable (nixos-unstable), not the 26.05 base, so
 # hutch and minihutch ride the newest kernels. hutch needs the ZFS bound;
-# minihutch has no ZFS but must run the SAME kernel because the usbip
-# userspace is kernel-matched. May jump back and forth as kernels are added,
-# removed, or (un)marked broken in nixpkgs.
+# minihutch has no ZFS but shares the module so the fleet never diverges.
+# May jump back and forth as kernels are added, removed, or (un)marked broken
+# in nixpkgs.
 # why: docs/notes.md#kernel-pin
 
 let

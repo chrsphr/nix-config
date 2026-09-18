@@ -1,7 +1,6 @@
 { config, pkgs, pkgs-unstable, sops-nix, gb-grid, gb-grid-pkg, lib, ... }:
 
 let
-  hostsLib = import ../lib/network.nix { inherit lib; };
   keys = import ../modules/keys.nix;
 
   # Containers that read the media library from the local ZFS pool. Guarded
@@ -11,7 +10,7 @@ in
 {
   imports = [
     ../modules/locale.nix
-    # Newest ZFS-compatible kernel, shared with minihutch (usbip coupling).
+    # Newest ZFS-compatible kernel.
     ../modules/kernel-pin.nix
     # Host-level secrets (decrypted with hutch's own SSH host key).
     sops-nix.nixosModules.sops
@@ -19,19 +18,8 @@ in
     ../modules/nas.nix
     # LAN bond/bridge + every container with `parent = "hutch"`.
     ../modules/container-host.nix
-    # Attaches the USB TV tuner physically plugged into minihutch.
-    ../modules/usbip-tuner.nix
   ];
 
-  # The tuner is projected from minihutch for the plex container below.
-  # why: docs/notes.md#hutch
-  usbipTuner.attach = {
-    enable = true;
-    server = hostsLib.getIP "minihutch";
-    busid = "3-1";
-    # Keep /dev/dvb present so plex's bind mount survives the tuner's absence.
-    preCreate = [ "/dev/dvb" ];
-  };
   # Cores reach C10, but the package stops at PC3 because the r8169 driver
   # disables ASPM on its own links. NOT a BIOS or _OSC problem — the NVMe on
   # the same bus runs ASPM L1 fine, and BIOS Native ASPM is already Enabled.
@@ -78,42 +66,31 @@ in
       };
 
       # iGPU (QSV) transcode for plex + immich; verify with `vainfo` in each
-      # container. char-DVB matches major 212, not the individual nodes —
-      # absent-path DeviceAllow entries are silently dropped at unit load.
-      # why: docs/notes.md#hutch
+      # container. why: docs/notes.md#hutch
       plex.allowedDevices   = [
         { node = "/dev/dri/renderD128"; modifier = "rw"; }
-        { node = "char-DVB";            modifier = "rw"; }
       ];
       plex.bindMounts."/dev/dri"   = { hostPath = "/dev/dri"; isReadOnly = false; };
-      # The USB/IP tuner; /dev/dvb is pre-created so the mount always succeeds.
-      plex.bindMounts."/dev/dvb"   = { hostPath = "/dev/dvb"; isReadOnly = false; };
       immich.allowedDevices = [ { node = "/dev/dri/renderD128"; modifier = "rw"; } ];
       immich.bindMounts."/dev/dri" = { hostPath = "/dev/dri"; isReadOnly = false; };
     };
   };
 
   # Media containers can't start against an unmounted (empty) library.
-  # mkMerge, not `//` — plex is in both sets and `//` would drop the guard.
   # why: docs/notes.md#hutch
-  systemd.services = lib.mkMerge [
-    (lib.genAttrs (map (n: "container@${n}") withMediaGuard) (_: {
-      requires = [ "zfs-mount.service" ];
-      after = [ "zfs-mount.service" ];
-      unitConfig.ConditionPathIsMountPoint = "/mnt/Hutch/Media";
-    }))
-    {
-      # ExecStartPre, not tmpfiles: tmpfiles races container restarts on
-      # deploy. why: docs/notes.md#hutch
-      "container@plex".serviceConfig.ExecStartPre = [
-        "${pkgs.coreutils}/bin/mkdir -p /dev/dvb"
-      ];
-    }
-  ];
+  systemd.services = lib.genAttrs (map (n: "container@${n}") withMediaGuard) (_: {
+    requires = [ "zfs-mount.service" ];
+    after = [ "zfs-mount.service" ];
+    unitConfig.ConditionPathIsMountPoint = "/mnt/Hutch/Media";
+  });
 
   # Boot loader
   boot.loader = {
     systemd-boot.enable = true;
+    # Cap boot entries: the 512M ESP holds ~9 kernel+initrd pairs, and no
+    # nix.gc runs here, so generations would otherwise fill /boot and every
+    # deploy would die copying the new kernel before the builder prunes.
+    systemd-boot.configurationLimit = 5;
     efi.canTouchEfiVariables = true;
   };
 

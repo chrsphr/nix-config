@@ -381,40 +381,37 @@ in [Service].
 `discard=async` (disko) handles TRIM at free-time; the weekly fstrim timer is
 belt-and-braces and also covers /boot vfat, which doesn't do async discard.
 
-### USB-IP and kernel pin
+### TV tuner
 
-#### usbip tuner design
+#### TVHeadend on minihutch
 
-Why USB/IP exists: the Xbox One Digital TV Tuner (045e:02d5, dib0700 +
-Panasonic MN88472, DVB-T/T2) is plugged into minihutch, but Plex — which
-reads DVB tuners straight off /dev/dvb — runs in a container on hutch. USB
-doesn't cross machines, so minihutch exports the device and hutch imports it,
-after which /dev/dvb/adapter0 appears on hutch as if local.
+The Xbox One Digital TV Tuner (045e:02d5, dib0700 + Panasonic MN88472,
+DVB-T/T2) is plugged into minihutch. Plex's own DVR scanner only ever tunes
+DVB-T with this tuner — it never attempts DVB-T2 — so it locks the SD muxes
+but never either transmitter's DVB-T2/HD mux. (Plex also lists the tuner with
+`unsupported=true`.) The old USB/IP projection into a plex container on hutch
+is retired; the tuner stays local to minihutch and TVHeadend owns it:
 
-    minihutch                              hutch
-    ─────────                              ─────
-    usbip-host driver ─► usbipd :3240 ═══► vhci-hcd ─► /dev/dvb/adapter0
-    (device leaves the                                  │
-     local DVB stack)                                   └─► plex container
+    minihutch (podman)
+    ──────────────────
+    Xbox tuner ─► /dev/dvb ─► TVHeadend :9981 ─► Antennas :5004 ─► Plex (hutch)
+                               (DVB-T/T2)          (HDHomeRun API)
 
-The tradeoff this encodes: binding to usbip-host DETACHES the device from
-minihutch's own DVB stack — /dev/dvb disappears there. The tuner belongs to
-exactly one host at a time, and that host is hutch.
+- TVHeadend (`ghcr.io/tvheadend/tvheadend`) reads local DVB and does the
+  DVB-T2 tuning Plex cannot. Runs as root with `--device /dev/dvb` and host
+  networking; config persists in /var/lib/tvheadend.
+- Antennas (`thejf/antennas`) re-exposes TVHeadend as an HDHomeRun, the only
+  tuner type Plex's DVR understands. Plex adds it as a DVR by IP
+  (minihutch:5004) and gets its lineup/EPG from there.
+- Plex does the recording (onto hutch's pool); TVHeadend only serves the live
+  TS.
+- Both images were **removed from nixpkgs** (unmaintained, stuck on FFmpeg 4 —
+  nixpkgs PR #332259), so they run under podman via
+  `virtualisation.oci-containers` rather than a NixOS module.
 
-Caveats worth knowing before debugging at 1am:
-
-- DVB is a real-time bulk-transfer workload; over USB/IP it's sensitive to
-  LAN hiccups — dropouts show up as recording glitches, not errors.
-- Both hosts must run the SAME kernel version (see [Kernel pin](#kernel-pin))
-  — the usbip userspace is kernel-matched (`boot.kernelPackages.usbip`).
-- There is no NixOS module for usbip, hence the hand-rolled units.
-- The attach side is a long-running supervisor loop, not a oneshot: the
-  attachment dies whenever the server reboots, the dongle is replugged, or
-  the LAN blips, and nothing else would notice. Re-checking every 30s makes
-  recovery automatic instead of a manual `usbip attach` after every
-  minihutch deploy.
-- usbipd has no authentication whatsoever — anyone who can reach tcp/3240 can
-  claim the device — so `allowFrom` pins it to hutch's IP.
+One-time setup is via the TVHeadend UI (http://minihutch:9981): add a DVB-T2
+network, scan, map services to channels, then create an anonymous `*` user
+with streaming rights for Antennas.
 
 #### Kernel pin
 
@@ -422,13 +419,10 @@ Both baremetal hosts import modules/kernel-pin.nix, which sets
 `boot.kernelPackages` to the newest kernel in
 `pkgs-unstable.linuxKernel.packages` whose ZFS module isn't marked broken,
 computed at eval time. It is resolved against nixos-unstable (not the 26.05
-base) so the baremetal hosts ride the newest kernels. It can jump back and
-forth as kernels are added, removed, or (un)marked broken in nixpkgs.
-
-hutch needs the ZFS bound; minihutch has no ZFS but shares the module so the
-two can never diverge — the usbip userspace is kernel-matched
-(`boot.kernelPackages.usbip`), and the tuner attach breaks the moment the
-hosts run different kernels. Both currently resolve to 7.2.
+base) so hutch and minihutch ride the newest kernels. It can jump back and
+forth as kernels are added, removed, or (un)marked broken in nixpkgs. hutch
+needs the ZFS bound; minihutch has no ZFS but shares the module so the two
+never diverge. Both currently resolve to 7.2.
 
 ### Containers
 
@@ -717,9 +711,10 @@ hibernate return, drop the module import from hosts/chris-framework.nix.
 
 #### Hutch
 
-- The TV tuner lives on minihutch (no free/reachable port on hutch), but Plex
-  reads DVB straight off /dev/dvb, so it's projected over USB/IP and passed
-  into the plex container (see [usbip tuner design](#usbip-tuner-design)).
+- The TV tuner lives on minihutch and is served by TVHeadend there; Plex on
+  hutch reaches it as an HDHomeRun via Antennas (see
+  [TVHeadend on minihutch](#tvheadend-on-minihutch)). The plex container no
+  longer needs /dev/dvb.
 - iGPU transcode (plex + immich): the i5-12600K's UHD 770 renderD128 is
   exposed by bind mount + allowedDevices — no passthrough gid mapping to
   arrange. The userspace half (intel-media-driver, vpl-gpu-rt, video/render
@@ -728,22 +723,9 @@ hibernate return, drop the module import from hosts/chris-framework.nix.
   /run/opengl-driver. Without those lines both apps silently transcode on
   CPU. Verify with `vainfo` inside each container — it should report the iHD
   driver and H264/HEVC VLD+encode entrypoints.
-- `char-DVB` (major 212) rather than individual frontend0/demux0/dvr0 nodes:
-  those only exist while the tuner is attached, and DeviceAllow entries for
-  absent paths are dropped at unit-load time — naming them would silently
-  deny access on every boot where plex started before the tuner did.
 - Media mount guard: containers reading the library are gated on
   ConditionPathIsMountPoint so they can't start against an empty dir if the
   pool didn't import — nspawn would happily bind an empty host dir.
-  `mkMerge`, not `//`, because plex appears in both attribute sets and `//`
-  would silently drop the guard.
-- plex ExecStartPre `mkdir -p /dev/dvb`: nspawn refuses to start when a
-  bindMount source is missing, and /dev/dvb only exists while the tuner is
-  attached. tmpfiles (preCreate) covers boot but races on deploy —
-  switch-to-configuration restarts container@plex and
-  systemd-tmpfiles-resetup concurrently, which is exactly how it failed the
-  first time. ExecStartPre is ordered by construction and keeps Plex
-  independent of whether minihutch is up.
 - Keys-only SSH states BOTH `PasswordAuthentication=false` and
   `KbdInteractiveAuthentication=false`: with UsePAM the latter would
   otherwise *advertise* a keyboard-interactive path (blocked only by pam_deny
@@ -764,9 +746,9 @@ hibernate return, drop the module import from hosts/chris-framework.nix.
   read off the live ISO on the actual box, 2026-08-09. The box also has WiFi
   (wlp1s0, rtw89); bond slaves match on Type=ether and WiFi is Type=wlan, so
   it is never enslaved.
-- Tuner export: binding to usbip-host hands the device to hutch entirely —
-  minihutch's own /dev/dvb goes away; fine, nothing local uses it. usbipd is
-  unauthenticated, so allowFrom pins it to hutch's IP.
+- Tuner: the DVB stick is read locally by TVHeadend/Antennas under podman
+  (see [TVHeadend on minihutch](#tvheadend-on-minihutch)); Plex on hutch
+  consumes it over the LAN.
 - caddy + uptime decrypt with age keys placed by hand at
   /var/lib/sops-nix/<name>/keys.txt (NOT in the repo) —
   docs/minihutch-install.md step 7.

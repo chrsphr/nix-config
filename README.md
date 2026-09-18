@@ -370,7 +370,6 @@ modules/                   # Reusable NixOS modules
   locale.nix               # Locale/timezone
   luks-tpm.nix             # LUKS root with TPM2 auto-unlock
   btrfs-maintenance.nix    # btrfs scrub + fstrim + store dedup (AC-gated)
-  usbip-tuner.nix          # USB/IP export/attach for the DVB tuner
   keys.nix                 # SSH public keys
   container-snapshots.nix  # btrfs subvolumes + nightly snapshots for container roots
 home/                      # Home Manager profiles

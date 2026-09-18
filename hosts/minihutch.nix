@@ -6,28 +6,71 @@
 
 let
   keys = import ../modules/keys.nix;
+  hostsLib = import ../lib/network.nix { inherit lib; };
 in
 {
   imports = [
     ../modules/locale.nix
+    # Newest ZFS-compatible kernel, shared with hutch — the fleet runs one
+    # kernel even though only hutch has ZFS.
+    ../modules/kernel-pin.nix
     # LAN bond/bridge + every container with `parent = "minihutch"`.
     ../modules/container-host.nix
-    # Exports the USB TV tuner to hutch, where Plex consumes it.
-    ../modules/usbip-tuner.nix
-    # No ZFS here, but the kernel must match hutch exactly — the usbip
-    # userspace is kernel-matched. why: docs/notes.md#kernel-pin
-    ../modules/kernel-pin.nix
   ];
 
-  # The tuner is plugged in here but belongs to hutch while exported.
-  # why: docs/notes.md#minihutch
-  usbipTuner.export = {
-    enable = true;
-    busid = "3-1";
-    idVendor = "045e";
-    idProduct = "02d5";
-    # usbipd is unauthenticated; only hutch may claim the tuner.
-    allowFrom = "192.168.1.2";
+  # ── TV tuner server ──────────────────────────────────────────────────────
+  # The Xbox tuner is plugged in here, so TVHeadend reads it directly off the
+  # local DVB stack (no USB/IP). Antennas re-exposes TVHeadend as an
+  # HDHomeRun, which is the only tuner type Plex's DVR understands.
+  # why: docs/notes.md#tvheadend-on-minihutch
+  virtualisation.oci-containers = {
+    backend = "podman";
+    containers = {
+      tvheadend = {
+        image = "ghcr.io/tvheadend/tvheadend:latest";
+        # Root so it can open the root:video DVB nodes regardless of the
+        # image's group IDs.
+        user = "root:root";
+        devices = [ "/dev/dvb" ];
+        volumes = [ "/var/lib/tvheadend:/var/lib/tvheadend:rw" ];
+        environment.TZ = "Europe/London";
+        # --firstrun creates a no-username/no-password account when none
+        # exists so the web UI can be reached for first-time setup; it is a
+        # no-op once a real user exists (remove it after setup if you like).
+        cmd = [ "--firstrun" "--config" "/var/lib/tvheadend" "--nosatip" ];
+        # Host networking: simplest for discovery/streaming, and means the
+        # NixOS firewall governs the ports below.
+        extraOptions = [ "--network=host" ];
+        pull = "newer";
+      };
+      antennas = {
+        image = "thejf/antennas:latest";
+        dependsOn = [ "tvheadend" ];
+        environment = {
+          # LAN address, not localhost: Antennas bakes this into the stream
+          # URLs in lineup.json, and Plex (on hutch) must be able to reach them.
+          TVHEADEND_URL = "http://${hostsLib.getIP "minihutch"}:9981";
+          # Address Plex uses to reach the emulated HDHomeRun.
+          ANTENNAS_URL = "http://${hostsLib.getIP "minihutch"}:5004";
+          TUNER_COUNT = "1";
+        };
+        extraOptions = [ "--network=host" ];
+        pull = "newer";
+      };
+    };
+  };
+
+  # TVHeadend config + recordings live on local disk; Plex does the recording,
+  # TVHeadend only serves the live TS.
+  systemd.tmpfiles.rules = [ "d /var/lib/tvheadend 0755 root root -" ];
+
+  # 9981 = TVHeadend web UI/HTSP, 5004 = Antennas (HDHomeRun to Plex).
+  networking.firewall.allowedTCPPorts = [ 9981 5004 ];
+
+  # The container can't start before the DVB frontend node exists.
+  systemd.services."podman-tvheadend" = {
+    after = [ "dev-dvb-adapter0-frontend0.device" ];
+    wants = [ "dev-dvb-adapter0-frontend0.device" ];
   };
 
   networking.hostName = "minihutch";
@@ -51,6 +94,10 @@ in
   # Boot loader
   boot.loader = {
     systemd-boot.enable = true;
+    # Cap boot entries: the 512M ESP holds ~9 kernel+initrd pairs, and no
+    # nix.gc runs here, so generations would otherwise fill /boot and every
+    # deploy would die copying the new kernel before the builder prunes.
+    systemd-boot.configurationLimit = 5;
     efi.canTouchEfiVariables = true;
   };
 

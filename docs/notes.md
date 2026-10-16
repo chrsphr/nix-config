@@ -23,6 +23,19 @@ immich, plex and chris-desktop consume it.
 platform actually built/deployed from. Evaluating them for every deploy-rs
 platform quadruples `nix flake check`.
 
+#### opencode version
+
+`overlays/opencode.nix` bumps opencode ahead of what nixpkgs-unstable ships,
+applied to the shared `pkgs-unstable` instance in flake.nix (not the host
+nixpkgs, since only `pkgs-unstable.opencode` is consumed). To bump: set
+`version`, refetch the `src` hash (`nix-prefetch-url --unpack
+https://github.com/anomalyco/opencode/archive/refs/tags/vX.Y.Z.tar.gz` then
+`nix hash convert --to sri`), and rebuild — a hash mismatch on the
+`node_modules` fixed-output derivation prints the new `node_modulesHash` only
+if bun deps changed. Failure mode: upstream's version-specific `postPatch`
+substitutions may stop matching; the build will then fail at `postPatch` and
+the patch strings need updating.
+
 #### magicRollback disabled
 
 `magicRollback = false` on every deploy node — see

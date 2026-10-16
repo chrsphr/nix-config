@@ -47,6 +47,8 @@
       config.allowUnfree = true;
       # libolm, pulled by the beeper bridges (end-to-bridge encryption).
       config.permittedInsecurePackages = [ "olm-3.2.16" ];
+      # opencode ahead of nixpkgs. why: docs/notes.md#opencode-version
+      overlays = [ (import ./overlays/opencode.nix) ];
     };
 
     # Base builder: every host gets pkgs-unstable in specialArgs.

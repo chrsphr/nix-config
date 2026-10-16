@@ -1,0 +1,87 @@
+{ gnome51, system }:
+let
+  pkgs51 = import gnome51 {
+    inherit system;
+    config.allowUnfree = true;
+  };
+in
+final: prev:
+{
+  gnome = pkgs51.gnome;
+  inherit (pkgs51)
+    adwaita-fonts
+    adwaita-icon-theme
+    at-spi2-core
+    blueprint-compiler
+    dconf
+    epiphany
+    evolution
+    evolution-data-server
+    evolution-ews
+    gcr_4
+    gdm
+    gjs
+    glib
+    glib-networking
+    glibmm_2_4
+    glibmm_2_68
+    glycin-loaders
+    gnome-autoar
+    gnome-backgrounds
+    gnome-calculator
+    gnome-calendar
+    gnome-characters
+    gnome-clocks
+    gnome-connections
+    gnome-console
+    gnome-contacts
+    gnome-control-center
+    gnome-desktop
+    gnome-extensions-app
+    gnome-initial-setup
+    gnome-maps
+    gnome-remote-desktop
+    gnome-session
+    gnome-settings-daemon
+    gnome-shell
+    gnome-software
+    gnome-system-monitor
+    gnome-tecla
+    gnome-text-editor
+    gnome-user-docs
+    gsettings-desktop-schemas
+    gst-thumbnailers
+    gtk4
+    gtkmm3
+    gtkmm4
+    gtranslator
+    gvfs
+    libadwaita
+    libcloudproviders
+    libdex
+    libfoundry
+    libglycin
+    libglycin-gtk4
+    libmsgraph
+    librsvg
+    libsecret
+    libshumate
+    libsoup_3
+    localsearch
+    loupe
+    ministream
+    mutter
+    mutter48
+    nautilus
+    orca
+    pango
+    pangomm_2_48
+    papers
+    rygel
+    snapshot
+    sushi
+    sysprof
+    tinysparql
+    xdg-desktop-portal-gnome
+    yelp;
+}

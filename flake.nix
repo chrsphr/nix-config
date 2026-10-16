@@ -50,10 +50,12 @@
     };
 
     # Base builder: every host gets pkgs-unstable in specialArgs.
-    mkHost = { modules, specialArgs ? {} }: lib.nixosSystem {
-      inherit system modules;
-      specialArgs = { inherit pkgs-unstable; } // specialArgs;
-    };
+    mkHost = { modules, specialArgs ? {}, nixpkgsInput ? nixpkgs, overlays ? [] }:
+      nixpkgsInput.lib.nixosSystem {
+        inherit system;
+        modules = modules ++ lib.optionals (overlays != []) [ { nixpkgs.overlays = overlays; } ];
+        specialArgs = { inherit pkgs-unstable; } // specialArgs;
+      };
 
     # Home-manager integration shared by the personal machines. Only the home
     # profile path differs per host, so the rest is factored out here.
@@ -72,9 +74,10 @@
     ];
 
     # Personal machine: home-manager plus the pinned deploy-rs CLI.
-    mkMachine = { host, home, extraModules ? [] }: mkHost {
+    mkMachine = { host, home, extraModules ? [], nixpkgsInput ? nixpkgs, overlays ? [] }: mkHost {
       modules = [ host ] ++ extraModules ++ mkHomeModules home;
       specialArgs.deploy-rs-pkg = deploy-rs.packages.${system}.default;
+      inherit nixpkgsInput overlays;
     };
 
     # Generate deploy-rs nodes for all hosts that exist in both lib/network.nix and nixosConfigurations
@@ -128,7 +131,7 @@
       };
 
       ### Personal machines (hosts/)
-      chris-framework = mkMachine {
+chris-framework = mkMachine {
         host = ./hosts/chris-framework.nix;
         home = ./home/framework.nix;
         extraModules = [

@@ -25,16 +25,17 @@ platform quadruples `nix flake check`.
 
 #### opencode version
 
-`overlays/opencode.nix` bumps opencode ahead of what nixpkgs-unstable ships,
-applied to the shared `pkgs-unstable` instance in flake.nix (not the host
-nixpkgs, since only `pkgs-unstable.opencode` is consumed). To bump: set
-`version`, refetch the `src` hash (`nix-prefetch-url --unpack
-https://github.com/anomalyco/opencode/archive/refs/tags/vX.Y.Z.tar.gz` then
-`nix hash convert --to sri`), and rebuild — a hash mismatch on the
-`node_modules` fixed-output derivation prints the new `node_modulesHash` only
-if bun deps changed. Failure mode: upstream's version-specific `postPatch`
-substitutions may stop matching; the build will then fail at `postPatch` and
-the patch strings need updating.
+`overlays/opencode.nix` replaces `pkgs-unstable.opencode` with the prebuilt
+2.x binary from npm (`@opencode/cli-linux-x64`), applied to the shared
+`pkgs-unstable` instance in flake.nix. 2.x is not tagged on GitHub and nixpkgs
+builds from GitHub, so the 1.x source build no longer applies. x86_64-linux only.
+
+To bump: set `version` and the sha512 `hash` from
+`https://registry.npmjs.org/@opencode/cli-linux-x64/<version>` (`dist.integrity`).
+
+Only the interpreter is patched (`patchelf --set-interpreter`). Do not use
+`autoPatchelfHook`: its rpath rewrite corrupts the appended bun payload, and
+`--version` then reports a stale `1.4.2`.
 
 #### magicRollback disabled
 

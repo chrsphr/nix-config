@@ -158,6 +158,17 @@ let
         group = "Hutch Primary Services";
       };
     };
+    prometheus = {
+      ip = "192.168.1.33";
+      sshUser = "deploy";
+      parent = "minihutch";
+      port = 9090;
+      caddy = true;
+      monitor = {
+        type = "http"; name = "Prometheus"; path = "/-/healthy";
+        group = "Hutch Primary Services";
+      };
+    };
     network-optimizer = {
       ip = "192.168.1.84";
       sshUser = "deploy";

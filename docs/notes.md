@@ -529,6 +529,47 @@ NuGet feed special case; MinVer is overridden (no git metadata in the nix
 build); Grpc.Tools ships glibc binaries needing autoPatchelf; tools/ contains
 the speed-test helpers.
 
+#### Prometheus and journal-remote
+
+Minimal metrics + centralized logging without Grafana or Loki
+(hosts/containers/prometheus.nix on minihutch, .33):
+
+- **Metrics**: Prometheus scrapes full `node_exporter` (+ `systemd` collector)
+  and `smartctl_exporter` on `hutch` and `minihutch` (declared once in
+  modules/container-host.nix). Inside containers (hosts/containers/common.nix),
+  `node_exporter` runs with `--collector.disable-defaults` and only `systemd` +
+  `netdev` enabled: all containers share the parent kernel, RAM and filesystems,
+  so scraping full defaults in each guest would duplicate host metrics 12x while
+  only per-container systemd unit states and `eth0` counters are distinct.
+  Scrape targets derive automatically from `lib/network.nix` (`parent` implies
+  container), and `host` is relabeled to `instance` so queries read
+  `instance="immich"` rather than `instance="192.168.1.127:9100"`.
+- **Built-in alerts**: evaluated by Prometheus and visible at `/alerts` — covers
+  `up == 0`, failed long-running systemd units anywhere on the fleet (oneshots
+  excluded: a failed oneshot stays failed until its next run), <10% free filesystem
+  space, non-online ZFS pool state, SMART health failure, HGST `Load_Cycle_Count`
+  >300/day (#disk-apm), `enp4s0` RX drops on `hutch` (#aspm-package-cstates), CPU,
+  memory, swap and OOM, and Pi-hole stats going stale. Nothing delivers these yet:
+  there is no Alertmanager.
+- **Memory and ZFS ARC**: `MemAvailable` leaves out ARC (live: 25 GB available of
+  67 GB on hutch, with 37 GB in ARC), so the rule adds `node_zfs_arc_size` back where
+  it exists.
+- **Pi-hole stats**: not `eko/pihole-exporter`. The nixpkgs build (1.2.0) logs in on
+  every request (1.5–4 s of FTL CPU each) and wedges after a timeout on v6 (upstream
+  eko/pihole-exporter#332). `pihole-metrics` reads the summary every 5 minutes with the
+  `cli_pw` login instead, into a textfile for node_exporter.
+- **Caddy and file logs**: Caddy metrics are on `:9180`, plain HTTP. The admin API is
+  not used because it has no auth. `modules/file-logs.nix` tails plain-text log files
+  into the journal.
+- **Centralized journals**: `systemd-journal-remote` listens on HTTP `:19532`
+  (LAN-only, `SplitMode=host`, `MaxUse=4G`) and writes to
+  `/var/log/journal/remote/`. Both hosts (container-host.nix) and all containers
+  (common.nix) run `systemd-journal-upload` without `--merge`, so each machine
+  uploads only its own journal from its own IP (avoiding duplicate uploads of
+  nspawn's `--link-journal=try-guest` symlinks on the parent hosts).
+  `StartLimitIntervalSec=0` on `systemd-journal-upload` keeps clients retrying
+  across `prometheus` container restarts instead of tripping systemd's burst cap.
+
 #### Container one-offs
 
 - **common.nix — default gateway**: hostBridge puts the container straight on
@@ -596,6 +637,11 @@ the speed-test helpers.
   gb_grid role on each boot; idempotent, so rotating is just
   `sops secrets/gb-grid.yaml` + redeploy. pg_hba overridden to require
   scram-sha-256 from LAN clients.
+- **prometheus — PrivateUsers and PrivateNetwork off**: `prometheus.service`
+  defaults to `PrivateUsers=true`, which fails remounting the bind-mounted
+  `/nix/store` inside nspawn; `systemd-journal-remote.service` defaults to
+  `PrivateNetwork=yes`, which fails with `225/NETWORK` inside nspawn. Both are
+  disabled in `hosts/containers/prometheus.nix`.
 
 #### nspawn stop race
 

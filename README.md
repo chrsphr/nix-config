@@ -45,6 +45,7 @@ server deploys its containers with it**. The "On" column below says which.
 | `prowlarr` | 192.168.1.75 | hutch | Indexer manager (co-located on sonarr host) |
 | `uptime` | 192.168.1.31 | minihutch | Uptime monitoring (Gatus, declarative via `lib/network.nix`). LAN-only at `http://192.168.1.31:3001` — tunnel routing is pending (see `docs/notes.md`). |
 | `homepage` | 192.168.1.32 | minihutch | Homelab dashboard (Homepage v2 from pkgs-unstable) |
+| `prometheus` | 192.168.1.33 | minihutch | Metrics & centralized journal logs (Prometheus + `systemd-journal-remote`) |
 | `tailscale` | 192.168.1.207 | minihutch | VPN exit node |
 | `gb-grid` | 192.168.1.28 | hutch | GB power grid Postgres + BMRS ingester |
 | `beeper` | 192.168.1.40 | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp from nixpkgs; Telegram and Bluesky are Go bridgev2 bridges built from pinned upstream releases. One-time `bbctl login` bootstrap required — see below. |
@@ -237,6 +238,39 @@ Gatus reloads on activation. State (uptime history) lives in `/var/lib/gatus/dat
 
 Pending work (e.g. tunnel routing for external access) is tracked in the
 Pending section of `docs/notes.md`.
+
+---
+
+## Metrics & Logs (`prometheus`)
+
+The `prometheus` container on `minihutch` (`192.168.1.33`, `https://prometheus.mcneill.fyi`) runs a minimal two-piece observability stack:
+
+1. **Prometheus (`:9090`)** — scrapes `node_exporter` (`:9100`) and `smartctl_exporter` (`:9633`) on `hutch` and `minihutch`, `node_exporter` (`:9100`, scoped to `systemd` + `netdev` collectors) on every container in `lib/network.nix`, Gatus (`:3001/metrics`), Caddy (`:9180`), and gb-grid's Postgres (`:9187`). Pi-hole stats come in as a textfile through `node_exporter` on `pihole-1` and `pihole-2`.
+   - Built-in alert rules (`https://prometheus.mcneill.fyi/alerts`) watch for unreachable targets, failed long-running systemd units (oneshots excluded), low disk space (<10%), ZFS pool degradation, SMART disk failures, HGST `Load_Cycle_Count` runaway (>300/day), `enp4s0` RX missed packets, CPU over 90% busy for 30 minutes, under 10% memory available (ZFS ARC counted as available), swap over half used, OOM kills, and Pi-hole stats missing or stale.
+   - Adding a container in `lib/network.nix` automatically enrolls it in Prometheus and journal shipping via `hosts/containers/common.nix`.
+2. **`systemd-journal-remote` (`:19532`)** — receives systemd journals pushed via `systemd-journal-upload` from both baremetal hosts and every container, stored per source under `/var/log/journal/remote/` (capped at 4 GiB).
+   - Caddy access logs (query strings and token headers stripped), Plex's log file, and Pi-hole's FTL and webserver logs are tailed into the journal by `file-log-*` units, so they show up in `fleet-logs` too.
+
+### Querying centralized logs
+
+SSH into `prometheus` (`192.168.1.33`) and use the `fleet-logs` wrapper (which runs `journalctl -D /var/log/journal/remote`):
+
+```bash
+# Follow all logs across both servers and all containers
+ssh deploy@192.168.1.33 'fleet-logs -f'
+
+# All errors across the fleet in the last 24h
+ssh deploy@192.168.1.33 'fleet-logs -p err --since "24 hours ago"'
+
+# Logs from a specific container or host
+ssh deploy@192.168.1.33 'fleet-logs _HOSTNAME=immich -n 100'
+
+# Plex's log file, tailed into the journal
+ssh deploy@192.168.1.33 'fleet-logs -t plex -n 100'
+
+# Logs for a specific systemd unit across the fleet
+ssh deploy@192.168.1.33 'fleet-logs -u rclone-b2-backup.service'
+```
 
 ---
 

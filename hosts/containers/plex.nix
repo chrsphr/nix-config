@@ -44,6 +44,7 @@ in
 {
   imports = [
     ./common.nix
+    ../../modules/file-logs.nix
   ];
 
   networking.hostName = "plex";
@@ -57,6 +58,9 @@ in
   };
 
   users.users.plex.extraGroups = [ "video" "render" ];
+
+  # Plex logs to its own file, not the journal. why: docs/notes.md#prometheus-and-journal-remote
+  services.fileLogs.plex = "${config.services.plex.dataDir}/Plex Media Server/Logs/Plex Media Server.log";
 
   # Install the custom tvOS client profile (declared above) into PMS's
   # Profiles dir. PMS loads it at startup and it overrides the built-in

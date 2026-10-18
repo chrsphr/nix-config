@@ -76,5 +76,21 @@ in
   # Common group for media access
   users.groups.media = {};
 
+  # Per-container systemd + network metrics and journal shipping to the
+  # prometheus container. Host-level CPU/RAM/filesystem collectors are
+  # disabled here to avoid scraping the parent kernel 12 times.
+  # why: docs/notes.md#prometheus-and-journal-remote
+  services.prometheus.exporters.node = {
+    enable = true;
+    openFirewall = true;
+    extraFlags = [ "--collector.disable-defaults" ];
+    enabledCollectors = [ "systemd" "netdev" ];
+  };
+  services.journald.upload = {
+    enable = true;
+    settings.Upload.URL = "http://${hostsLib.getIP "prometheus"}:19532";
+  };
+  systemd.services.systemd-journal-upload.unitConfig.StartLimitIntervalSec = 0;
+
   nixpkgs.config.allowUnfree = true;
 }

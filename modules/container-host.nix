@@ -163,7 +163,7 @@ in
     # deploy. So: allow 3min before the SIGKILL, and remove any stale
     # unix-export dir before each start (%i = container name).
     # why: docs/notes.md#nspawn-stop-race
-    systemd.services = lib.genAttrs
+    systemd.services = (lib.genAttrs
       (map (n: "container@${n}") (builtins.attrNames (hostsLib.getContainers hostName)))
       (_: {
         serviceConfig = {
@@ -172,7 +172,28 @@ in
             "-${pkgs.coreutils}/bin/rm -rf /run/systemd/nspawn/unix-export/%i"
           ];
         };
-      });
+      })) // {
+      # Keep retrying indefinitely while the prometheus container restarts.
+      systemd-journal-upload.unitConfig.StartLimitIntervalSec = 0;
+    };
+
+    # Host telemetry + journal shipping to the prometheus container.
+    # why: docs/notes.md#prometheus-and-journal-remote
+    services.prometheus.exporters = {
+      node = {
+        enable = true;
+        openFirewall = true;
+        enabledCollectors = [ "systemd" ];
+      };
+      smartctl = {
+        enable = true;
+        openFirewall = true;
+      };
+    };
+    services.journald.upload = {
+      enable = true;
+      settings.Upload.URL = "http://${hostsLib.getIP "prometheus"}:19532";
+    };
 
     systemd.tmpfiles.rules =
       map (n: "d /var/lib/sops-nix/${n} 0700 root root -") cfg.withSecrets;

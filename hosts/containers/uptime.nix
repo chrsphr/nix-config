@@ -32,6 +32,7 @@ in
     enable = true;
     settings = {
       web.port = 3001;
+      metrics = true;
 
       storage = {
         type = "sqlite";

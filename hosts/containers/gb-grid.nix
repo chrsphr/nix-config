@@ -25,6 +25,15 @@ in
     firewall.allowedTCPPorts = [ 5432 ];
   };
 
+  # Postgres metrics on :9187 for prometheus. Runs as the local superuser so it
+  # uses peer auth over the socket: no password to store.
+  # why: docs/notes.md#prometheus-and-journal-remote
+  services.prometheus.exporters.postgres = {
+    enable = true;
+    runAsLocalSuperUser = true;
+    openFirewall = true;
+  };
+
   # The laptop age key, copied out of band from 1Password.
   sops = {
     defaultSopsFile = ../../secrets/gb-grid.yaml;

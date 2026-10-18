@@ -15,7 +15,8 @@ in
 
   networking = {
     hostName = "caddy";
-    firewall.allowedTCPPorts = [ 80 443 ];
+    # 9180: Caddy metrics for prometheus (see the :9180 block below).
+    firewall.allowedTCPPorts = [ 80 443 9180 ];
   };
 
   sops = {
@@ -35,14 +36,38 @@ in
     enable = true;
     package = pkgs.caddy.withPlugins {
       plugins = [ "github.com/caddy-dns/cloudflare@v0.2.2" ];
-      hash = "sha256-xAw+kBA+rdhzABdogwNCo9zEtNMPG7zj5rgPpFxvpDo=";
+      hash = "sha256-UPd4CWjm8Cq5EZ9OkBCglE23hD8+przFBSw8Ey6zMz8=";
     };
     email = "cmj2405@gmail.com";
 
+    # Turns metrics collection on for the :9180 endpoint below.
+    globalConfig = ''
+      metrics
+    '';
+
     extraConfig = ''
+      # Metrics on plain HTTP for prometheus. Not the admin API: that has no
+      # auth and must stay on localhost.
+      :9180 {
+        metrics
+      }
+
       *.${hostsLib.domain} {
         tls {
           dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+        }
+
+        # Access logs go to the journal. Query strings and token-bearing headers
+        # are stripped: Plex, Sonarr and Pi-hole put API keys in them.
+        log {
+          output stdout
+          format filter {
+            request>uri regexp `\?.*` `?REDACTED`
+            request>headers>Referer delete
+            request>headers>X-Plex-Token delete
+            request>headers>X-Api-Key delete
+            request>headers>X-Ftl-Sid delete
+          }
         }
 
 ${hostsLib.generateCaddyConfig}

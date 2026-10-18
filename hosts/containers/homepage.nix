@@ -41,7 +41,7 @@ in
         };
         "Network & Core" = {
           style = "row";
-          columns = 3;
+          columns = 4;
         };
       };
     };
@@ -138,6 +138,17 @@ in
               widget = {
                 type = "gatus";
                 url = "http://${hostsLib.getIP "uptime"}:3001";
+              };
+            };
+          }
+          {
+            Prometheus = {
+              icon = "prometheus.png";
+              href = "https://prometheus.${hostsLib.domain}";
+              description = "Metrics & Alerts";
+              widget = {
+                type = "prometheus";
+                url = "http://${hostsLib.getIP "prometheus"}:9090";
               };
             };
           }

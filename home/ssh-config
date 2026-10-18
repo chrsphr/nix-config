@@ -54,6 +54,10 @@ Host plex
   HostName 192.168.1.209
   User deploy
 
+Host prometheus
+  HostName 192.168.1.33
+  User deploy
+
 Host prowlarr
   HostName 192.168.1.75
   User deploy

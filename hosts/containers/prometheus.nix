@@ -45,15 +45,10 @@ in
     # A copy of the laptop master key — accepted tradeoff.
     # why: docs/notes.md#secrets-under-var
     age.keyFile = "/var/secrets/keys.txt";
-    secrets.smtp_password = { };
-    # Alertmanager has no password-file option; it reads SMTP_PASSWORD from an
-    # EnvironmentFile rendered by sops-nix. The configured path is a symlink to
-    # the rendered value under /run/secrets; container activation recreates it
-    # before systemd starts.
-    templates."alertmanager.env" = {
-      content = "SMTP_PASSWORD=${config.sops.placeholder.smtp_password}";
-      path = "/var/lib/sops/alertmanager.env";
-      # Pick up a rotated app password without a separate container restart.
+    secrets.smtp_password = {
+      # Alertmanager reads this through a systemd credential, so the file
+      # itself stays root-only. Rotating it restarts the service.
+      path = "/var/lib/sops/smtp_password";
       restartUnits = [ "alertmanager.service" ];
     };
   };
@@ -211,14 +206,6 @@ in
                 annotations.summary = "High Load_Cycle_Count growth on {{ $labels.device }} ({{ $labels.instance }})";
               }
               {
-                # why: docs/notes.md#aspm-package-cstates
-                alert = "RealtekRxMissed";
-                expr = ''increase(node_network_receive_drop_total{instance="hutch",device="enp4s0"}[1h]) > 0'';
-                for = "5m";
-                labels.severity = "warning";
-                annotations.summary = "RX missed/dropped packets on hutch enp4s0 (check ASPM L1)";
-              }
-              {
                 # Textfile written by pihole-metrics (hosts/containers/pihole-common.nix).
                 alert = "PiholeStatsDown";
                 expr = ''pihole_up == 0 or time() - node_textfile_mtime_seconds{file="pihole.prom"} > 900'';
@@ -310,7 +297,6 @@ in
   services.prometheus.alertmanager = {
     enable = true;
     listenAddress = "127.0.0.1";
-    environmentFile = config.sops.templates."alertmanager.env".path;
 
     configuration = {
       global = {
@@ -318,7 +304,9 @@ in
         smtp_smarthost = "smtp.fastmail.com:587";
         smtp_from = "chris@mcneill.fyi";
         smtp_auth_username = "chris@mcneill.fyi";
-        smtp_auth_password = "$SMTP_PASSWORD";
+        # Read from the service's systemd credentials directory; no secret is
+        # ever interpolated into alertmanager.yml or an EnvironmentFile.
+        smtp_auth_password_file = "/run/credentials/alertmanager.service/smtp_password";
         smtp_require_tls = true;
       };
 
@@ -351,6 +339,12 @@ in
       ];
     };
   };
+
+  # Feed the SMTP password to Alertmanager as a systemd credential. The unit
+  # runs as a DynamicUser, which cannot read the root-only sops file directly.
+  systemd.services.alertmanager.serviceConfig.LoadCredential = [
+    "smtp_password:${config.sops.secrets.smtp_password.path}"
+  ];
 
   # Nested user namespaces (PrivateUsers=true) conflict with nspawn's bind-mounted
   # /nix/store when ProtectSystem remounts the tree. why: docs/notes.md#container-one-offs

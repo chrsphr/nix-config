@@ -548,15 +548,15 @@ Minimal metrics + centralized logging without Grafana or Loki
   `up == 0`, failed long-running systemd units anywhere on the fleet (oneshots
   excluded: a failed oneshot stays failed until its next run), <10% free filesystem
   space, non-online ZFS pool state, SMART health failure, HGST `Load_Cycle_Count`
-  >300/day (#disk-apm), `enp4s0` RX drops on `hutch` (#aspm-package-cstates), CPU,
+  >300/day (#disk-apm), CPU,
   memory, swap and OOM, and Pi-hole stats going stale.
 - **Email delivery**: Alertmanager runs beside Prometheus in the same container,
   bound to loopback, and emails firing and resolved alerts to
   `chris@mcneill.fyi` via `smtp.fastmail.com:587` (STARTTLS). Critical alerts
   repeat hourly; everything else repeats every four hours. The Fastmail app
-  password lives in `secrets/prometheus.yaml`; sops renders it into the
-  service's EnvironmentFile as `SMTP_PASSWORD`, and the NixOS module's envsubst
-  step substitutes it into `alertmanager.yml`. The container needs
+  password lives in `secrets/prometheus.yaml` and reaches the service as a
+  systemd credential; Alertmanager reads it via `smtp_auth_password_file`, so it
+  is never interpolated into `alertmanager.yml`. The container needs
   `/var/lib/sops-nix/prometheus/keys.txt` — see
   `docs/minihutch-install.md` step 7. The Alertmanager UI is not exposed on the
   LAN; query it from inside the container or add a Caddy vhost if needed.

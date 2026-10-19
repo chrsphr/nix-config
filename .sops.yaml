@@ -14,9 +14,10 @@ keys:
 # immich and uptime used to have per-host keys too, but both died with the
 # hardware they lived on (see hosts/containers/uptime.nix). They now decrypt
 # with a copy of the *laptop* key, deployed to /var/lib/sops-nix/<name>/ on
-# hutch — so their old recipients are gone from here. Tradeoff: the master key
-# lives on hutch, so compromising that box exposes every secret. Acceptable for
-# a homelab; issue dedicated keys and re-run `sops updatekeys` to undo it.
+# their host — so their old recipients are gone from here. prometheus uses the
+# same key for its SMTP password. Tradeoff: the master key lives on hutch and
+# minihutch, so compromising either box exposes every secret. Acceptable for a
+# homelab; issue dedicated keys and re-run `sops updatekeys` to undo it.
 creation_rules:
   - path_regex: .*secrets/caddy\.yaml$
     key_groups:

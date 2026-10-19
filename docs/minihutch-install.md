@@ -147,10 +147,10 @@ rollback copy — **keep them until minihutch is verified**, then delete with
 
 ## 7. Place the sops keys on minihutch
 
-`containerHost.withSecrets = [ "caddy" "uptime" ]` creates
-`/var/lib/sops-nix/{caddy,uptime}/` (mode 0700, root) and bind-mounts each
-read-only into its container at `/var/secrets`. The key files themselves are
-manual:
+`containerHost.withSecrets = [ "caddy" "uptime" "prometheus" ]` creates
+`/var/lib/sops-nix/{caddy,prometheus,uptime}/` (mode 0700, root) and
+bind-mounts each read-only into its container at `/var/secrets`. The key files
+themselves are manual:
 
 ```bash
 # from hutch, or from 1Password
@@ -158,18 +158,20 @@ ssh root@192.168.1.2 cat /var/lib/sops-nix/caddy/keys.txt  | \
   ssh root@192.168.1.3 'install -m600 -D /dev/stdin /var/lib/sops-nix/caddy/keys.txt'
 ssh root@192.168.1.2 cat /var/lib/sops-nix/uptime/keys.txt | \
   ssh root@192.168.1.3 'install -m600 -D /dev/stdin /var/lib/sops-nix/uptime/keys.txt'
+# prometheus decrypts with the same laptop master key as uptime
+ssh root@192.168.1.3 'install -m600 -D /var/lib/sops-nix/uptime/keys.txt /var/lib/sops-nix/prometheus/keys.txt'
 ```
 
 Note what this means: the **laptop master key now lives on two boxes**, since
-uptime decrypts with a copy of it (see `.sops.yaml`). Compromising either box
-exposes every secret. Issuing minihutch its own key and re-running
-`sops updatekeys` is the fix if that stops being acceptable.
+uptime and prometheus decrypt with a copy of it (see `.sops.yaml`).
+Compromising either box exposes every secret. Issuing minihutch its own key and
+re-running `sops updatekeys` is the fix if that stops being acceptable.
 
-Restart the two containers so sops-nix re-runs activation with the keys
+Restart the affected containers so sops-nix re-runs activation with the keys
 present:
 
 ```bash
-ssh deploy@192.168.1.3 'sudo machinectl reboot caddy; sudo machinectl reboot uptime'
+ssh deploy@192.168.1.3 'sudo machinectl reboot caddy; sudo machinectl reboot uptime; sudo machinectl reboot prometheus'
 ```
 
 ## 8. Restore beeper state

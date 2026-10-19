@@ -83,7 +83,7 @@ in
     macAddress = "10:02:b5:86:02:0a";
 
     # Age keys placed by hand — docs/minihutch-install.md step 7.
-    withSecrets = [ "caddy" "uptime" ];
+    withSecrets = [ "caddy" "uptime" "prometheus" ];
 
     perContainer = {
       # /dev/net/tun + CAP_NET_ADMIN for tailscaled.

@@ -1,8 +1,9 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, sops-nix, lib, ... }:
 
 # Prometheus metrics + systemd-journal-remote log sink as a NixOS container on
 # minihutch. Targets are derived from lib/network.nix; every host and container
-# uploads its journal here over HTTP (:19532).
+# uploads its journal here over HTTP (:19532). Alertmanager runs alongside
+# Prometheus and emails alerts over the Fastmail SMTP relay.
 # why: docs/notes.md#prometheus-and-journal-remote
 
 let
@@ -29,12 +30,32 @@ in
 {
   imports = [
     ./common.nix
+    sops-nix.nixosModules.sops
   ];
 
   networking = {
     hostName = "prometheus";
     # 9090: Prometheus web UI / API. 19532: systemd-journal-remote HTTP sink.
+    # Alertmanager stays on loopback: only Prometheus talks to it.
     firewall.allowedTCPPorts = [ 9090 19532 ];
+  };
+
+  sops = {
+    defaultSopsFile = ../../secrets/prometheus.yaml;
+    # A copy of the laptop master key — accepted tradeoff.
+    # why: docs/notes.md#secrets-under-var
+    age.keyFile = "/var/secrets/keys.txt";
+    secrets.smtp_password = { };
+    # Alertmanager has no password-file option; it reads SMTP_PASSWORD from an
+    # EnvironmentFile rendered by sops-nix. The configured path is a symlink to
+    # the rendered value under /run/secrets; container activation recreates it
+    # before systemd starts.
+    templates."alertmanager.env" = {
+      content = "SMTP_PASSWORD=${config.sops.placeholder.smtp_password}";
+      path = "/var/lib/sops/alertmanager.env";
+      # Pick up a rotated app password without a separate container restart.
+      restartUnits = [ "alertmanager.service" ];
+    };
   };
 
   services.prometheus = {
@@ -47,6 +68,17 @@ in
       scrape_interval = "30s";
       evaluation_interval = "30s";
     };
+
+    # Alertmanager shares the container; loopback keeps it off the LAN.
+    alertmanagers = [
+      {
+        static_configs = [
+          {
+            targets = [ "127.0.0.1:9093" ];
+          }
+        ];
+      }
+    ];
 
     scrapeConfigs = [
       {
@@ -270,6 +302,54 @@ in
         ];
       })
     ];
+  };
+
+  # Email delivery for the rules above. The NixOS module runs envsubst over
+  # the generated config, so $SMTP_PASSWORD comes from sops at service start
+  # (alertmanager itself has no password-file option).
+  services.prometheus.alertmanager = {
+    enable = true;
+    listenAddress = "127.0.0.1";
+    environmentFile = config.sops.templates."alertmanager.env".path;
+
+    configuration = {
+      global = {
+        resolve_timeout = "5m";
+        smtp_smarthost = "smtp.fastmail.com:587";
+        smtp_from = "chris@mcneill.fyi";
+        smtp_auth_username = "chris@mcneill.fyi";
+        smtp_auth_password = "$SMTP_PASSWORD";
+        smtp_require_tls = true;
+      };
+
+      route = {
+        receiver = "email";
+        group_by = [ "alertname" "instance" "job" ];
+        group_wait = "30s";
+        group_interval = "5m";
+        repeat_interval = "4h";
+        routes = [
+          {
+            # Critical alerts repeat hourly instead of every four hours.
+            matchers = [ "severity=critical" ];
+            receiver = "email";
+            repeat_interval = "1h";
+          }
+        ];
+      };
+
+      receivers = [
+        {
+          name = "email";
+          email_configs = [
+            {
+              to = "chris@mcneill.fyi";
+              send_resolved = true;
+            }
+          ];
+        }
+      ];
+    };
   };
 
   # Nested user namespaces (PrivateUsers=true) conflict with nspawn's bind-mounted

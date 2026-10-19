@@ -68,7 +68,9 @@ let
       Group = "beeper";
       WorkingDirectory = stateDir;
       ExecStart = "${bbctl} run --no-update --custom-startup-command ${command} sh-${name}";
-      Restart = "on-failure";
+      # bbctl exits 0 when its startup whoami fails (e.g. DNS not up yet at
+      # boot), so on-failure would leave the bridge down until the next deploy.
+      Restart = "always";
       RestartSec = "30s";
     };
   };

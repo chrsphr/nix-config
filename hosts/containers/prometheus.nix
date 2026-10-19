@@ -141,6 +141,15 @@ in
                 annotations.summary = "systemd unit {{ $labels.name }} failed on {{ $labels.instance }}";
               }
               {
+                # Bridges should stay active once bbctl has logged in. bbctl
+                # exits 0 on startup DNS failures, so state="failed" misses them.
+                alert = "BeeperBridgeDown";
+                expr = ''node_systemd_unit_state{host="beeper",name=~"mautrix-.+[.]service",state="active"} == 0'';
+                for = "10m";
+                labels.severity = "warning";
+                annotations.summary = "Beeper bridge {{ $labels.name }} is not active";
+              }
+              {
                 alert = "FilesystemSpaceLow";
                 expr = ''(node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs"} / node_filesystem_size_bytes) < 0.10'';
                 for = "10m";

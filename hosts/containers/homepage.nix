@@ -91,6 +91,14 @@ in
             };
           }
           {
+            Radarr = {
+              icon = "radarr.png";
+              href = "https://radarr.${hostsLib.domain}";
+              description = "Movie Automation";
+              siteMonitor = "http://${hostsLib.getIP "radarr"}:7878/ping";
+            };
+          }
+          {
             Transmission = {
               icon = "transmission.png";
               href = "https://transmission.${hostsLib.domain}";

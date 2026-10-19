@@ -29,7 +29,9 @@
       # Touchpad (precision) scroll was too fast at the default of 1; halve it.
       mouse-scroll-multiplier = "precision:0.3,discrete:3";
       # Copy selected text immediately, without needing Ctrl+Shift+C.
-      copy-on-select = true;
+      # `clipboard` copies to the system clipboard AND primary selection; `true`
+      # only fills the primary selection on Linux, so Ctrl+V elsewhere gets nothing.
+      copy-on-select = "clipboard";
       # Right-click pastes instead of opening the context menu.
       right-click-action = "paste";
     };

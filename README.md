@@ -42,6 +42,7 @@ server deploys its containers with it**. The "On" column below says which.
 | `plex` | 192.168.1.209 | hutch | Media server |
 | `transmission` | 192.168.1.136 | hutch | Torrent client |
 | `sonarr` | 192.168.1.75 | hutch | TV automation |
+| `radarr` | 192.168.1.76 | hutch | Movie automation |
 | `prowlarr` | 192.168.1.75 | hutch | Indexer manager (co-located on sonarr host) |
 | `uptime` | 192.168.1.31 | minihutch | Uptime monitoring (Gatus, declarative via `lib/network.nix`). LAN-only at `http://192.168.1.31:3001` — tunnel routing is pending (see `docs/notes.md`). |
 | `homepage` | 192.168.1.32 | minihutch | Homelab dashboard (Homepage v2 from pkgs-unstable) |

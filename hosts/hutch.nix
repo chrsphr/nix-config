@@ -5,7 +5,7 @@ let
 
   # Containers that read the media library from the local ZFS pool. Guarded
   # below so they can't start against an empty dir if the pool didn't import.
-  withMediaGuard = [ "immich" "plex" "sonarr" "transmission" ];
+  withMediaGuard = [ "immich" "plex" "radarr" "sonarr" "transmission" ];
 in
 {
   imports = [
@@ -55,8 +55,13 @@ in
         "/media/TV"     = { hostPath = "/mnt/Hutch/Media/TV";     isReadOnly = true; };
       };
 
-      # The whole Media dataset, rw, at the path both apps are configured for.
+      # The whole Media dataset, rw, at the path the media apps are
+      # configured for.
       sonarr.bindMounts."/mnt/media" = {
+        hostPath = "/mnt/Hutch/Media";
+        isReadOnly = false;
+      };
+      radarr.bindMounts."/mnt/media" = {
         hostPath = "/mnt/Hutch/Media";
         isReadOnly = false;
       };

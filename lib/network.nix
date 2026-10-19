@@ -121,6 +121,16 @@ let
         type = "http"; name = "Sonarr API"; path = "/ping";
       };
     };
+    radarr = {
+      ip = "192.168.1.76";
+      sshUser = "deploy";
+      parent = "hutch";
+      port = 7878;
+      caddy = true;
+      monitor = {
+        type = "http"; name = "Radarr API"; path = "/ping";
+      };
+    };
     # Co-located with sonarr in the same container, so no `parent` (and no
     # container) of its own.
     prowlarr = {

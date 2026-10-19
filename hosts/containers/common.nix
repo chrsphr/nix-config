@@ -90,7 +90,15 @@ in
     enable = true;
     settings.Upload.URL = "http://${hostsLib.getIP "prometheus"}:19532";
   };
-  systemd.services.systemd-journal-upload.unitConfig.StartLimitIntervalSec = 0;
+  # A receiver restart makes the uploader exit; restart it straight away so it
+  # is back in `active` before switch-to-configuration checks unit states.
+  # With RestartSec=3 (the NixOS default) it sits in activating (auto-restart)
+  # during the check, which counts as failed and rolls the deploy back.
+  # StartLimitIntervalSec=0 keeps a longer outage from tripping the burst cap.
+  systemd.services.systemd-journal-upload = {
+    unitConfig.StartLimitIntervalSec = 0;
+    serviceConfig.RestartSec = lib.mkForce 0;
+  };
 
   nixpkgs.config.allowUnfree = true;
 }

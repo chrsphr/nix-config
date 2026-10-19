@@ -27,6 +27,16 @@ let
     "Music"   = plain "/mnt/Hutch/Media/Music";
     "Backups" = plain "/mnt/Hutch/Backups";
   };
+
+  # Written by ExecStartPost, so it only runs after the sync exits 0. A failed
+  # or hung run leaves the timestamp stale, which BackupStale alerts on.
+  textfileDir = "/var/lib/node-exporter-textfile";
+  markBackupDone = pkgs.writeShellScript "mark-b2-backup-done" ''
+    tmp=$(mktemp ${textfileDir}/.rclone-b2-backup.XXXXXX)
+    echo "rclone_b2_backup_last_success_timestamp_seconds $(date +%s)" > "$tmp"
+    chmod 0644 "$tmp"
+    mv "$tmp" ${textfileDir}/rclone-b2-backup.prom
+  '';
 in
 {
   # ZFS: import the existing pool "Hutch", don't create anything. Datasets
@@ -146,7 +156,12 @@ in
       # Bulk background transfer — don't starve Plex of disk or CPU.
       Nice = 10;
       IOSchedulingClass = "idle";
+      # Success marker for BackupStale. why: docs/notes.md#prometheus-and-journal-remote
+      ExecStartPost = [ "${markBackupDone}" ];
     };
+
+    # date/mktemp/chmod/mv for ExecStartPost.
+    path = [ pkgs.coreutils ];
 
     # Each rclone is guarded so one failing path doesn't skip the rest.
     script = ''
@@ -186,6 +201,13 @@ in
       RandomizedDelaySec = "30m";
     };
   };
+
+  # node_exporter textfile collector, destination for the backup success marker.
+  services.prometheus.exporters.node = {
+    enabledCollectors = [ "textfile" ];
+    extraFlags = [ "--collector.textfile.directory=${textfileDir}" ];
+  };
+  systemd.tmpfiles.rules = [ "d ${textfileDir} 0755 root root -" ];
 
   powerManagement.powertop.enable = true;
   powerManagement.cpuFreqGovernor = "powersave";

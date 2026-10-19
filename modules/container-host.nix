@@ -173,8 +173,14 @@ in
           ];
         };
       })) // {
-      # Keep retrying indefinitely while the prometheus container restarts.
-      systemd-journal-upload.unitConfig.StartLimitIntervalSec = 0;
+      # Keep retrying indefinitely while the prometheus container restarts, and
+      # restart at once so switch-to-configuration finds the unit active rather
+      # than in activating (auto-restart), which it reports as failed.
+      # why: docs/notes.md#prometheus-and-journal-remote
+      systemd-journal-upload = {
+        unitConfig.StartLimitIntervalSec = 0;
+        serviceConfig.RestartSec = lib.mkForce 0;
+      };
     };
 
     # Host telemetry + journal shipping to the prometheus container.

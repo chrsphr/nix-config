@@ -235,6 +235,38 @@ in
               }
             ];
           }
+          {
+            name = "backups";
+            rules = [
+              {
+                # Immediate notice; SystemdUnitFailed skips oneshots.
+                alert = "BackupFailed";
+                expr = ''node_systemd_unit_state{name="rclone-b2-backup.service",state="failed"} == 1'';
+                for = "2m";
+                labels.severity = "critical";
+                annotations.summary = "B2 backup unit failed on {{ $labels.instance }}";
+              }
+              {
+                # The daily run can take hours, and TimeoutStartSec=infinity means
+                # a hung run never fails, so catch staleness as well as failure.
+                # The timestamp is written by ExecStartPost in modules/nas.nix.
+                alert = "BackupStale";
+                expr = ''time() - rclone_b2_backup_last_success_timestamp_seconds > 26 * 3600'';
+                for = "10m";
+                labels.severity = "critical";
+                annotations.summary = "No successful B2 backup in the last 26h on {{ $labels.instance }}";
+              }
+              {
+                # No marker at all: the first run after this deploy has not
+                # succeeded yet, or the textfile was lost.
+                alert = "BackupNeverSucceeded";
+                expr = ''absent(rclone_b2_backup_last_success_timestamp_seconds)'';
+                for = "26h";
+                labels.severity = "critical";
+                annotations.summary = "B2 backup has written no success marker for 26h";
+              }
+            ];
+          }
         ];
       })
     ];

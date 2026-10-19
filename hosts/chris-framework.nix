@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, options, ... }:
 
 {
   imports = [
@@ -130,5 +130,11 @@
   users.users.chris.extraGroups = [ "docker" ];
 
   # Cap the journal — write amplification on compressed btrfs.
-  services.journald.extraConfig = "SystemMaxUse=500M";
+  # nixpkgs-unstable replaced extraConfig with settings.Journal; nixpkgs (and
+  # so the servers) has not. Pick whichever this nixpkgs declares.
+  services.journald = if options ? services.journald.settings then {
+    settings.Journal.SystemMaxUse = "500M";
+  } else {
+    extraConfig = "SystemMaxUse=500M";
+  };
 }

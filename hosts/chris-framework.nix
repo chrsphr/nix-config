@@ -40,15 +40,18 @@
     "amdgpu.cwsr_enable=0"
     "pcie_aspm.policy=powersupersave"
     "resume_offset=533760"
-    # Re-enable PSR, overriding nixos-hardware's dcdebugmask=0x10; revert to
-    # 0x10 if the internal panel flickers.
-    "amdgpu.dcdebugmask=0x0"
     # Compressed swap cache (hibernate-compatible, unlike zram).
     "zswap.enabled=1"
     # Lazy RCU: fewer idle wakeups.
     "rcu_nocbs=all"
     "rcutree.enable_rcu_lazy=1"
   ];
+
+  # Re-enable PSR. nixos-hardware sets disablePsr (dcdebugmask=0x10) via
+  # mkDefault; false drops the param so the driver default applies. Set it to
+  # true to revert if the internal panel flickers.
+  # why: docs/notes.md#framework-power-tuning
+  hardware.amdgpu.dcDebugMask.disablePsr = false;
 
   # AMD GPU / OpenCL
   hardware.graphics.extraPackages = with pkgs; [
@@ -65,13 +68,6 @@
 
   # ppd owns runtime power policy; powertop auto-tune deliberately not enabled.
   services.power-profiles-daemon.enable = true;
-
-  # Targeted PCI runtime PM for the NVMe only (benefit unproven — see notes
-  # Pending). No iwlwifi rule: the driver overrides it.
-  # why: docs/notes.md#framework-power-tuning
-  services.udev.extraRules = ''
-    ACTION=="add", SUBSYSTEM=="pci", DRIVERS=="nvme", ATTR{power/control}="auto"
-  '';
 
   # GNOME's file indexer: CPU + NVMe wakeups for a search feature unused here.
   services.gnome.localsearch.enable = false;

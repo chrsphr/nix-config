@@ -687,32 +687,39 @@ The battery-tuning notebook behind hosts/chris-framework.nix:
   16 CPUs, no amd_hfi kernel messages — despite CONFIG_SCHED_MC_PRIO=y +
   CONFIG_AMD_HFI=y and a clearly hybrid topology (amd_pstate_highest_perf
   alternates 196/135). sched_itmt_enabled only appears once a driver calls
-  sched_set_itmt_support(), so this is an upstream driver gap. Recheck after
-  kernel bumps (tracked in Pending).
+  sched_set_itmt_support(), so this is an upstream driver gap. Rechecked on
+  7.3.0 (2026-10-21): still no sched_itmt_enabled, cpu_capacity still uniform,
+  prefcore reads disabled. 7.3's asymmetric-capacity scheduler fix has nothing
+  to act on here. Recheck after kernel bumps (tracked in Pending).
 - **ABM off** (no `amdgpu.abmlevel`): content-adaptive (not ambient) backlight
   management; level 3 caused visible flicker/brightness drift on changing
   content. Stable with it off. Level 1 (barely perceptible) is the option if
   the battery saving is ever worth revisiting.
-- **PSR re-enabled** (`amdgpu.dcdebugmask=0x0`): nixos-hardware's
-  framework-amd-ai-300-series module disables Panel Self-Refresh via
-  dcdebugmask=0x10 for historical panel flicker, but on this kernel/Mesa PSR
-  is reliable and saves ~1W on static content. The host's param lands after
-  nixos-hardware's on the cmdline, so last-wins re-enables it. Revert to 0x10
-  on any internal-panel flicker/corruption.
+- **PSR re-enabled** (`hardware.amdgpu.dcDebugMask.disablePsr = false`):
+  nixos-hardware's framework-amd-ai-300-series module sets `disablePsr` via
+  mkDefault, which emits dcdebugmask=0x10 for historical panel flicker.
+  Setting it false drops the param entirely, so the driver default (0)
+  applies. Before 2026-10-21 the host added `amdgpu.dcdebugmask=0x0` after
+  nixos-hardware's param instead (last-wins); the effective state is the same.
+  On this kernel/Mesa PSR is reliable and saves ~1W on static content. The 7.3
+  amdgpu pull includes PSR and Replay fixes. Revert with `disablePsr = true` on
+  any internal-panel flicker/corruption.
 - **Lazy RCU** (`rcu_nocbs=all`, `rcutree.enable_rcu_lazy=1`): offload and
   batch non-urgent RCU callbacks to cut idle wakeups; used by ChromeOS,
   reported as a measurable win on the Framework AMD battery-tuning thread.
 - **No powertop auto-tune**: it blanket-enables USB autosuspend (input-device
   stutter after idle) and re-applies knobs power-profiles-daemon then manages
   differently — ppd owns runtime power policy.
-- **Targeted PCI runtime PM** (udev rule, nvme driver only): the NVMe comes up
-  with power/control=on and never idles its link. Scoped by driver so USB is
-  untouched and ppd keeps owning the rest; amdgpu excluded — `on` is correct
-  for an iGPU. No iwlwifi rule: tried, and the driver overrides it — udevadm
-  confirms the rule writes "auto" but the AX210 reports
+- **NVMe PCI runtime PM rule: removed 2026-10-21.** It was a udev rule setting
+  `power/control=auto` on the nvme driver only, so USB and ppd's other devices
+  stayed untouched. Added because the NVMe came up with power/control=on and
+  never idled its link. On 7.3.0 the device reports runtime_usage=1 and stays
+  active with 0 ms suspended: something holds a runtime-PM reference, so `auto`
+  can't suspend it and the rule was a no-op. amdgpu was excluded (`on` is
+  correct for an iGPU). No iwlwifi rule: tried, and the driver overrides it —
+  udevadm confirms the rule writes "auto", but the AX210 reports
   runtime_enabled=forbidden with runtime_usage=2; iwlwifi holds PM references
   and doesn't support PCI runtime PM on this device (d0i3 removed years ago).
-  NVMe benefit unproven (tracked in Pending).
 - **localsearch off**: GNOME's indexer re-scans on every large tree change
   (nix-config checkouts, builds) for a search feature unused here. Filename
   search in Files still works; full-text does not.
@@ -756,8 +763,10 @@ imports this module.
 
 Framework history: hibernate was disabled 2026-07-12 for amdgpu corruption
 on resume ([2026-07-12 hibernate crash](#2026-07-12-hibernate-crash));
-restored 2026-08-20 on kernel 7.2 — if hard-locks after resume-from-
-hibernate return, drop the module import from hosts/chris-framework.nix.
+restored 2026-08-20 on kernel 7.2.0, which was still inside the CVE-2026-98166
+window (fixed in 7.2.8 and 7.3.0). Three pstore dumps since then are listed in
+the incident and in Pending. If hard-locks after resume-from-hibernate return
+on a fixed kernel, drop the module import from hosts/chris-framework.nix.
 
 #### Desktop
 
@@ -853,11 +862,29 @@ Hibernate disabled on the Framework 2026-07-12: resume-from-hibernate
 corrupts amdgpu's TTM LRU bulk-move state, hard-locking the machine on a
 later GPU submission (ttm_lru_bulk_move_tail oops / list_del corruption in
 amdgpu_cs_ioctl). 16 identical crashes since suspend-then-hibernate was
-enabled 2026-05-29, across kernels 7.0.10 through 7.1.3 — an upstream amdgpu
-bug, not a kernel regression. pstore dumps: /var/lib/systemd/pstore/.
-Suspend-then-hibernate restored 2026-08-20 on kernel 7.2.0 (crashes spanned
-7.0.10–7.1.3) — watch for recurrence; revert by dropping the module import
-from hosts/chris-framework.nix.
+enabled 2026-05-29, across kernels 7.0.10 through 7.1.3. pstore dumps:
+/var/lib/systemd/pstore/.
+
+Likely cause (matched 2026-10-21, not yet confirmed against the dumps): a
+kernel regression in the drm/ttm memory manager that amdgpu uses, not an
+amdgpu hardware fault. Commit b2ed01e7ad3d ("drm/ttm: Fix ttm_bo_swapout()
+infinite LRU walk on swapout failure") moved the bulk-move bookkeeping under
+`if (!ret)`, so successful swapouts left a dangling cursor that later caused
+a use-after-free. Tracked as CVE-2026-98166; fixed by stable commits
+1169fe8c11ca45e3f91d59a73eb271d0ca8a7fb0 and
+3db7d7d583419f7b1f2e141e36418802dbb25cf8. Per the kernel CNA record,
+7.0.10 through 7.2.7 are affected and 7.2.8 and 7.3 are fixed. The 16 crashes
+fall in that window, and the signature matches the CVE (list_del corruption,
+ttm_lru_bulk_move_tail).
+
+Suspend-then-hibernate was restored 2026-08-20 on kernel 7.2.0, inside the
+affected range. Three pstore dumps followed: 2026-09-03 20:55 (7.2.x, inferred
+at most 7.2.4 from generation build dates), 2026-09-14 19:20 (7.2.4 or
+earlier), and 2026-09-14 21:21 (7.2.4 or 7.2.5, depending on whether the
+machine was rebooted after the 20:16 switch). None are read yet (root-only),
+and there have been no dumps since 09-14. A hibernate cycle on 7.3.0 hasn't
+been checked yet. Revert by dropping the module import from
+hosts/chris-framework.nix if hibernate hard-locks again on a fixed kernel.
 
 ### 2026-07-03 magicrollback lockout
 
@@ -897,8 +924,9 @@ bridges 1Password differently and is left untouched.
 - [ ] **snapshots**: off-disk copy of container snapshots (→ /mnt/Hutch/Backups → B2); fold in /var/lib/sops-nix/<name> when added (modules/container-snapshots.nix)
 - [ ] **desktop**: re-enable capSysNice when nixpkgs#524488 lands (workaround for nixpkgs#523200) (hosts/chris-desktop.nix)
 - [ ] **home**: unpin darktable from stable once unstable's gflags static/dynamic conflict is fixed (home/common-home.nix)
-- [ ] **framework**: recheck amd_hfi/ITMT core ranking after kernel bumps — look for sched_itmt_enabled (hosts/chris-framework.nix)
-- [ ] **framework**: NVMe runtime-PM benefit unproven — check runtime_suspended_time after a few hours; drop the rule if still 0 (hosts/chris-framework.nix)
+- [ ] **framework**: recheck amd_hfi/ITMT core ranking after kernel bumps — look for sched_itmt_enabled; last checked on 7.3.0, still absent (hosts/chris-framework.nix)
+- [ ] **framework**: read the pstore dumps 1788465300, 1789410055 and 1789417269 (root-only) with `sudo grep -a -E 'ttm|list_del|BUG:|Oops' /var/lib/systemd/pstore/<id>/001/dmesg.txt` to confirm they are CVE-2026-98166 crashes (docs/notes.md#2026-07-12-hibernate-crash)
+- [ ] **framework**: first suspend-then-hibernate cycle on 7.3.0, then check /var/lib/systemd/pstore for new dumps (docs/notes.md#2026-07-12-hibernate-crash)
 - [ ] **uptime**: replace reused laptop master sops key with a dedicated uptime key + re-encrypt (hosts/containers/uptime.nix)
 - [ ] **nas**: B2 bucket lifecycle + app-key scoping configured by hand in the B2 console — document or automate; check if restores misbehave (modules/nas.nix)
 - [ ] **nas**: drop zfs_arc_shrinker_seeks to 1 if the 8 GiB sys-free floor proves too tight (modules/nas.nix)

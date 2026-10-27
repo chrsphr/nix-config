@@ -19,7 +19,9 @@
   # Dev-focused packages for WSL
   home.packages = with pkgs; [
     # Development tools
-    pkgs-unstable.azure-cli
+    # azure-cli stays on stable: the unstable build pulls fabric, which nixpkgs
+    # marks broken against invoke >= 3 (fabric#2376), breaking eval of this host.
+    azure-cli
     terraform
 
     # Terminal utilities

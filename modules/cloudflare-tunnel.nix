@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, pkgs-unstable ? pkgs, lib, ... }:
 
 {
   options.services.cloudflare-tunnel = {
@@ -11,7 +11,7 @@
   };
 
   config = lib.mkIf config.services.cloudflare-tunnel.enable {
-    environment.systemPackages = [ pkgs.cloudflared ];
+    environment.systemPackages = [ pkgs-unstable.cloudflared ];
 
     systemd.services.cloudflared-tunnel = {
       description = "Cloudflare Tunnel";
@@ -19,7 +19,7 @@
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
       script = ''
-        ${pkgs.cloudflared}/bin/cloudflared tunnel --no-autoupdate run --token "$(cat ${config.services.cloudflare-tunnel.tokenFile})"
+        ${pkgs-unstable.cloudflared}/bin/cloudflared tunnel --no-autoupdate run --token "$(cat ${config.services.cloudflare-tunnel.tokenFile})"
       '';
       serviceConfig = {
         Restart = "on-failure";

@@ -91,6 +91,29 @@ it the bridge adopts the lowest port MAC — and container veths get random
 ones, so br0's (and the host IP's) MAC would change whenever a container with
 a low MAC starts or stops.
 
+#### VLAN-scoped containers
+
+A host entry with `vlan = <id>` in `lib/network.nix` gets its own bridge
+instead of br0:
+
+    bond0 ─┬─ br0                 (untagged LAN) ◄─ normal containers
+           └─ bond0.<id> ─► br<id> (tagged VLAN)  ◄─ vlan container
+
+`modules/container-host.nix` creates `bond0.<id>` + `br<id>` for every VLAN
+used by a container on that host. The container's veth is attached to br<id>,
+so it sees an ordinary untagged eth0; the 802.1Q tag is added by the host.
+br<id> is deliberately unnumbered — the UniFi gateway is the router, not hutch.
+
+The parent bond's `.network` must also list the VLAN child (`VLAN=bond0.<id>`).
+On systemd 260 a `.netdev` alone is not enough: br<id> appears, but the stacked
+`bond0.<id>` device is never created, leaving the bridge with no uplink.
+
+The switch port(s) feeding the host must trunk the VLAN (native VLAN 1,
+tagged VLAN <id>). A VLAN is L2 isolation only: inter-VLAN access is governed
+by UniFi firewall rules. For a public service, allow only Caddy to reach the
+container's port, and set `GOKAPI_TRUSTED_PROXIES` (or equivalent) to Caddy's
+IP.
+
 #### ASPM package cstates
 
 hutch's cores reach C10 fine, but the package sat at PC3 forever — PC6/8/10
@@ -652,6 +675,75 @@ Minimal metrics + centralized logging without Grafana or Loki
   `PrivateNetwork=yes`, which fails with `225/NETWORK` inside nspawn. Both are
   disabled in `hosts/containers/prometheus.nix`.
 
+#### Gokapi and VLAN 5
+
+Gokapi runs on hutch on VLAN 5 (ID 5, subnet 192.168.6.0/24, container
+192.168.6.68). Its host entry sets `vlan = 5`, so
+`modules/container-host.nix` attaches it to `br5` rather than `br0`; see
+#vlan-scoped-containers for the topology.
+
+UniFi state (Network 11.0.99, applied via API):
+
+- VLAN 5 already existed as **Isolated Services**, in the **Dmz** zone.
+- Hutch's uplink is **Port 1 on USW Flex 2.5G 8 PoE**. That port is custom:
+  native Default, tagged VLAN 5, with IoT/IoT (No Internet)/Devices excluded
+  from the tagged set.
+- Internal -> Dmz policies: Caddy `192.168.1.239` -> `192.168.6.68:53842`,
+  Prometheus `192.168.1.33` -> `192.168.6.68:9100`, then a NEW-only block for
+  everything else. Dmz -> Internal: Gokapi -> Prometheus `:19532`.
+- The old broad "Allow Access to Isolated Services" and "accsess to Plex"
+  policies are disabled. Network Isolation is left off because it would also
+  block the two explicit Caddy/Prometheus allows; policies do the isolation.
+
+The container's own firewall only accepts 53842 from Caddy; do not add it to
+`allowedTCPPorts`. `GOKAPI_TRUSTED_PROXIES` is set to Caddy's IP so client
+addresses survive the proxy.
+
+`gokapi` has `privateUsers = "pick"` because it has no host bind mounts and
+its data lives in `/var/lib/gokapi` inside the container root (covered by the
+nightly container snapshot). Adding a host bind mount later requires either
+dropping `privateUsers` or deliberately mapping the dataset to the picked UID
+range — do not just add `bindMounts` and hope.
+
+Gokapi runs as a static container UID **3002**, not the module's default
+DynamicUser. DynamicUser's UID changed across container restarts, leaving the
+persisted SQLite/config files owned by the old UID and producing
+`permission denied`; the static user also makes a future data move predictable.
+The service also needs `WorkingDirectory = /var/lib/gokapi` because Gokapi
+writes its database URL as relative `sqlite://./data/...` after setup.
+
+The admin user is `chris`; setup is complete. The initial password was set
+via `--deployment-password` and should be changed after first login. The
+upload caps are 20 GiB per file with a 10 GiB free-space floor; both are in
+`hosts/containers/gokapi.nix`.
+
+Setup defaults Gokapi's index redirect to the upstream GitHub page; we set
+`settings.RedirectUrl = "/login"` so `/` lands on the local login screen.
+
+The tunnel module now uses `cloudflared ... --token-file`, not
+`--token "$(cat ...)"`; the latter puts the tunnel token in the process
+command line and journal.
+
+Public ingress is a dedicated outbound-only **cloudflared** sidecar on VLAN 5
+(`192.168.6.69`), not Caddy. It forwards the Cloudflare hostname to
+`http://192.168.6.68:53842`, so Gokapi can keep `privateUsers`; the sidecar
+owns the sops tunnel token. Caddy remains the LAN path. Both are in Gokapi's
+trusted-proxy list, and `GOKAPI_USE_CLOUDFLARE=true` makes the tunnel path use
+Cloudflare's client-IP header.
+
+For LAN clients, add a local Pi-hole record for `share.mcneill.fyi` ->
+`192.168.1.239`. The public hostname/DNS is managed on the tunnel side.
+
+VLAN 5's DHCP pool is `.6`–`.254`, so `.68` and `.69` are inside it. Add fixed
+reservations, or narrow the pool, to stop other clients being offered the same
+addresses. The containers currently have no fixed MACs, so MAC-based
+reservations also need `localMacAddress` set.
+
+Caddy's access-log filter redacts query strings, not path segments, so Gokapi
+share IDs can still appear in Caddy's journal. Add a `multi_regexp` filter on
+`request>uri` if that matters (the existing filter only allows one filter per
+field, hence `multi_regexp`).
+
 #### nspawn stop race
 
 A busy container that ignores SIGTERM past the stop timeout gets SIGKILLed,
@@ -931,5 +1023,6 @@ bridges 1Password differently and is left untouched.
 - [ ] **nas**: B2 bucket lifecycle + app-key scoping configured by hand in the B2 console — document or automate; check if restores misbehave (modules/nas.nix)
 - [ ] **nas**: drop zfs_arc_shrinker_seeks to 1 if the 8 GiB sys-free floor proves too tight (modules/nas.nix)
 - [ ] **gatus**: route uptime.mcneill.fyi through the Cloudflare tunnel to Gatus:3001 — currently LAN-only
+- [ ] **gokapi**: change the initial admin password, and fix the .68/.69 DHCP-pool overlap (reservation or narrower pool). Consider rotating the Cloudflare tunnel token, which appeared in the container journal under the old `--token` invocation.
 - [ ] **network-optimizer**: InfluxDB onboarding is manual/one-time; not set up: OpenSpeedTest sidecar, WAN steering, proxy features (hosts/containers/network-optimizer.nix)
 - [ ] **pihole**: re-adopt `services.pihole-ftl.lists` once pihole-ftl-setup is both idempotent (nixpkgs#551979) AND survives FTL's boot-time "Database not available" window — until then adlists are state in gravity.db, not config (hosts/containers/pihole-common.nix)

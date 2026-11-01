@@ -9,6 +9,40 @@ let
   hostsLib = import ../lib/network.nix { inherit lib; };
   cfg = config.containerHost;
   hostName = config.networking.hostName;
+  hostContainers = hostsLib.getContainers hostName;
+
+  # Containers with a `vlan` field get their own tagged bridge instead of
+  # br0: bond0.<id> (VLAN tag) -> br<id> (untagged container side).
+  vlanIds = lib.unique (
+    map (c: c.vlan)
+      (builtins.filter (c: c ? vlan) (builtins.attrValues hostContainers))
+  );
+  vlanNetdevs = lib.listToAttrs (map (vlan: {
+    name = "25-bond0.${toString vlan}";
+    value = {
+      netdevConfig = { Kind = "vlan"; Name = "bond0.${toString vlan}"; };
+      vlanConfig.Id = vlan;
+    };
+  }) vlanIds);
+  vlanBridges = lib.listToAttrs (map (vlan: {
+    name = "45-br${toString vlan}";
+    value.netdevConfig = { Kind = "bridge"; Name = "br${toString vlan}"; };
+  }) vlanIds);
+  vlanNetworks = lib.listToAttrs (map (vlan: {
+    name = "25-bond0.${toString vlan}";
+    value = {
+      matchConfig.Name = "bond0.${toString vlan}";
+      networkConfig.Bridge = "br${toString vlan}";
+    };
+  }) vlanIds);
+  vlanBridgeNetworks = lib.listToAttrs (map (vlan: {
+    name = "45-br${toString vlan}";
+    value = {
+      matchConfig.Name = "br${toString vlan}";
+      # The UniFi gateway routes this VLAN; the host is unnumbered on it.
+      networkConfig.LinkLocalAddressing = "no";
+    };
+  }) vlanIds);
 in
 {
   imports = [
@@ -108,7 +142,7 @@ in
         } // lib.optionalAttrs (cfg.macAddress != null) {
           MACAddress = cfg.macAddress;
         };
-      };
+      } // vlanNetdevs // vlanBridges;
       networks = lib.optionalAttrs (cfg.excludePorts != []) {
         # Sorts before the 20-lan-port catch-all, so these ports never reach
         # the bond. always-down keeps the PHY from autonegotiating at all.
@@ -124,14 +158,19 @@ in
           matchConfig = { Type = "ether"; Kind = "!*"; };
           networkConfig.Bond = "bond0";
         };
-        # The bond is the bridge's uplink port.
+        # The bond is the bridge's uplink port. VLAN children are listed here
+        # explicitly; without the parent reference networkd does not create
+        # the stacked VLAN netdev.
         "30-bond0" = {
           matchConfig.Name = "bond0";
-          networkConfig.Bridge = "br0";
+          networkConfig = {
+            Bridge = "br0";
+            VLAN = map (vlan: "bond0.${toString vlan}") vlanIds;
+          };
         };
         # networkd gets IPv6 SLAAC/RA explicitly (defaults aren't guaranteed).
         "40-br0".networkConfig.IPv6AcceptRA = true;
-      };
+      } // vlanNetworks // vlanBridgeNetworks;
     };
 
     # NixOS containers, one per lib/network.nix host with `parent = <this host>`.
@@ -139,8 +178,11 @@ in
     containers = lib.mapAttrs' (name: hostCfg:
       lib.nameValuePair name (lib.recursiveUpdate {
         privateNetwork = true;
-        hostBridge = "br0";
-        localAddress = "${hostCfg.ip}/24";
+        hostBridge =
+          if (hostCfg.vlan or null) != null
+          then "br${toString hostCfg.vlan}"
+          else "br0";
+        localAddress = "${hostCfg.ip}/${toString (hostCfg.prefixLength or 24)}";
         autoStart = true;
         # gb-grid/gb-grid-pkg are only consumed by the gb-grid container,
         # sops-nix only by the ones in withSecrets — harmless elsewhere.
@@ -153,7 +195,7 @@ in
           };
         };
       } (cfg.perContainer.${name} or {}))
-    ) (hostsLib.getContainers hostName);
+    ) hostContainers;
 
     # Stop/start race hardening, learned from a rolled-back deploy: a busy
     # container (plex mid-encode) can blow the default 90s stop timeout, the
@@ -164,7 +206,7 @@ in
     # unix-export dir before each start (%i = container name).
     # why: docs/notes.md#nspawn-stop-race
     systemd.services = (lib.genAttrs
-      (map (n: "container@${n}") (builtins.attrNames (hostsLib.getContainers hostName)))
+      (map (n: "container@${n}") (builtins.attrNames hostContainers))
       (_: {
         serviceConfig = {
           TimeoutStopSec = "3min";

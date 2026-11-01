@@ -18,8 +18,10 @@
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
+      # --token-file, not --token "$(cat ...)": the latter puts the token in
+      # the process command line and journal on every start.
       script = ''
-        ${pkgs-unstable.cloudflared}/bin/cloudflared tunnel --no-autoupdate run --token "$(cat ${config.services.cloudflare-tunnel.tokenFile})"
+        exec ${pkgs-unstable.cloudflared}/bin/cloudflared tunnel --no-autoupdate run --token-file ${config.services.cloudflare-tunnel.tokenFile}
       '';
       serviceConfig = {
         Restart = "on-failure";

@@ -3,6 +3,7 @@
 let
   keys = import ../../modules/keys.nix;
   hostsLib = import ../../lib/network.nix { inherit lib; };
+  hostCfg = hostsLib.hosts.${config.networking.hostName} or {};
 in
 {
   # Shared base for every NixOS container (systemd-nspawn) on both hosts.
@@ -24,11 +25,13 @@ in
 
   documentation.enable = false;
 
-  # Default gateway required under hostBridge. why: docs/notes.md#container-one-offs
+  # Default gateway required under hostBridge. VLAN containers override the
+  # LAN gateway/nameservers via their lib/network.nix entry.
+  # why: docs/notes.md#container-one-offs
   networking = {
-    inherit (hostsLib) nameservers;
+    nameservers = hostCfg.nameservers or hostsLib.nameservers;
     defaultGateway = {
-      address = hostsLib.gateway;
+      address = hostCfg.gateway or hostsLib.gateway;
       interface = "eth0";
     };
     firewall = {

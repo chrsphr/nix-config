@@ -49,6 +49,8 @@ server deploys its containers with it**. The "On" column below says which.
 | `prometheus` | 192.168.1.33 | minihutch | Metrics, alerting & centralized journal logs (Prometheus + Alertmanager + `systemd-journal-remote`) |
 | `tailscale` | 192.168.1.207 | minihutch | VPN exit node |
 | `gb-grid` | 192.168.1.28 | hutch | GB power grid Postgres + BMRS ingester |
+| `gokapi` | 192.168.6.68 | hutch | File sharing (Gokapi) on VLAN 5; LAN via Caddy `share.mcneill.fyi`, public via Cloudflare Tunnel |
+| `cloudflared` | 192.168.6.69 | hutch | Outbound-only Cloudflare Tunnel sidecar on VLAN 5 for Gokapi |
 | `beeper` | 192.168.1.40 | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp from nixpkgs; Telegram and Bluesky are Go bridgev2 bridges built from pinned upstream releases. One-time `bbctl login` bootstrap required — see below. |
 
 All host IPs and Caddy routing are defined in `lib/network.nix` — the single source of truth for network topology.

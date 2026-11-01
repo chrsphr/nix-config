@@ -38,7 +38,7 @@ in
     # MII poll held root port #4 out of L1. enp4s0 (RTL8125B) is the uplink.
     excludePorts = [ "enp2s0" ];
 
-    withSecrets = [ "gb-grid" "immich" ];
+    withSecrets = [ "gb-grid" "immich" "cloudflared" ];
 
     # Per-container extras, merged over the defaults in container-host.nix.
     perContainer = {
@@ -78,6 +78,11 @@ in
       plex.bindMounts."/dev/dri"   = { hostPath = "/dev/dri"; isReadOnly = false; };
       immich.allowedDevices = [ { node = "/dev/dri/renderD128"; modifier = "rw"; } ];
       immich.bindMounts."/dev/dri" = { hostPath = "/dev/dri"; isReadOnly = false; };
+
+      # Gokapi has no host bind mounts, so user namespacing is low-friction.
+      # Do NOT add a bind mount here without handling the UID mapping; see
+      # docs/notes.md#gokapi-and-vlan-5.
+      gokapi.privateUsers = "pick";
     };
   };
 

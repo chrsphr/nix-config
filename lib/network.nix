@@ -18,6 +18,9 @@ let
   #   maxBody  = string  request body limit (e.g. "50GB")
   #   timeouts = string  upstream read/write timeout (e.g. "600s")
   #   redirect = string  redirect "/" here before proxying (e.g. "/transmission/web/")
+  #   vlan     = int     put the container on a VLAN-scoped bridge (br<id>)
+  #   prefixLength = int container subnet mask (default 24)
+  #   gateway, nameservers = container L3 settings (default LAN values)
   #   monitor — Gatus monitor spec (attrset or list of attrsets), see below
   #
   # monitor schema (all fields optional unless noted):
@@ -213,6 +216,34 @@ let
       port = 3000;
       caddy = true;
       subdomain = "grid";
+    };
+    gokapi = {
+      ip = "192.168.6.68";
+      sshUser = "deploy";
+      parent = "hutch";
+      # VLAN 5 deliberately uses 192.168.6.0/24, not .5.0/24.
+      vlan = 5;
+      prefixLength = 24;
+      gateway = "192.168.6.1";
+      nameservers = [ "192.168.6.1" ];
+      port = 53842;
+      caddy = true;
+      subdomain = "share";
+      headers = true;
+      maxBody = "50GB";
+      timeouts = "600s";
+      # No Gatus probe: Gatus is on VLAN 1 and the VLAN firewall blocks it.
+    };
+    cloudflared = {
+      ip = "192.168.6.69";
+      sshUser = "deploy";
+      parent = "hutch";
+      # Dedicated outbound tunnel sidecar; Gokapi keeps privateUsers.
+      vlan = 5;
+      prefixLength = 24;
+      gateway = "192.168.6.1";
+      nameservers = [ "192.168.6.1" ];
+      # No caddy/public port; Cloudflare dials in via the token.
     };
 
     # The two baremetal container hosts (see README). Probed on sshd:22, not a

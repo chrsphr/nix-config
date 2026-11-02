@@ -607,12 +607,17 @@ Minimal metrics + centralized logging without Grafana or Loki
 - **common.nix — default gateway**: hostBridge puts the container straight on
   the LAN, but without a default route it can't reply to (or reach) anything
   off-subnet.
-- **common.nix — useHostResolvConf off**: the container profile defaults it
-  on, so resolvconf inside the container regenerates /etc/resolv.conf from
-  the HOST's copy — the systemd-resolved stub (127.0.0.53), and resolved
-  doesn't run inside the containers: every lookup fails (caddy: "lookup
-  acme-v02.api.letsencrypt.org: no such host"). Off means the container's own
-  networking.nameservers are written instead.
+- **common.nix — useHostResolvConf off + nscd after resolvconf**: the
+  container profile defaults `useHostResolvConf` on, so resolvconf inside the
+  container regenerates `/etc/resolv.conf` from the HOST's copy — the
+  systemd-resolved stub (`127.0.0.53`), and resolved doesn't run inside the
+  containers: every lookup fails (caddy: "lookup acme-v02.api.letsencrypt.org:
+  no such host"). Off means the container's own `networking.nameservers` are
+  written instead. Additionally, `nixos-containers.nix` copies the host's
+  `/etc/resolv.conf` into `$root/etc/resolv.conf` before `systemd-nspawn`
+  execs, so `nscd.service` must be ordered `after = [ "resolvconf.service" ]`
+  — otherwise `nsncd` starts first, caches `127.0.0.53`, and services like
+  Caddy time out on `*.internal` lookups until `nscd` or the service restarts.
 - **pihole — resolver must not be 127.0.0.1**: originally because
   pihole-ftl-setup curled ftl.pi-hole.net during boot before pihole-ftl (the
   port-53 listener) was up, so a 127.0.0.1 resolver deadlocked the boot —
@@ -743,6 +748,36 @@ Caddy's access-log filter redacts query strings, not path segments, so Gokapi
 share IDs can still appear in Caddy's journal. Add a `multi_regexp` filter on
 `request>uri` if that matters (the existing filter only allows one filter per
 field, hence `multi_regexp`).
+
+#### Container LAN identity & DHCP
+
+Core infrastructure containers (`caddy`, `pihole-1`, `pihole-2`, `prometheus`,
+and the VLAN 5 `gokapi`/`cloudflared` pair whose UniFi zone policies and
+iptables match IPs) keep static addresses in `lib/network.nix`. Every other
+container omits `ip` and gets a dynamic lease via `dhcpcd` on `eth0`:
+
+- **Deterministic MACs** (`lib/network.nix` `getMAC`, `modules/container-host.nix`):
+  nspawn picks a random MAC on each start unless `localMacAddress` is set.
+  Static-IP containers get `02:00:<a>:<b>:<c>:<d>` derived from their IPv4;
+  DHCP containers get `02:01:<first 4 bytes of sha256(hostname)>`. Both are
+  locally-administered unicast MACs, so leases and UniFi console records stick
+  across restarts without storing state.
+- **DHCP inside nspawn** (`modules/container-host.nix`, `hosts/containers/common.nix`):
+  `nixos-containers.nix` sets `networking.useDHCP = false` in its container
+  base config and drops `CAP_NET_ADMIN` unless `enableTun` or
+  `additionalCapabilities` grants it. For DHCP containers (`!(hostCfg ? ip)`),
+  `container-host.nix` grants `CAP_NET_ADMIN` and `common.nix` forces
+  `networking.useDHCP = true` (`interfaces.eth0.useDHCP = true`), sending the
+  container's `networking.hostName` (Option 12) and bare MAC `clientid`.
+  `container-host.nix`'s `ExecStartPre` also cleans up stale `ve-%i`/`vb-%i`
+  interfaces, since `nixos-containers.nix`'s own `preStart` only deletes them
+  when `localAddress != null`.
+- **`.internal` resolution**: UniFi's LAN networks use `internal` as their
+  domain name, so DHCP leases register `<name>.internal` in the UDM's dnsmasq.
+  Both Pi-holes (`hosts/containers/pihole-common.nix`) set conditional
+  forwarding (`revServers = [ "true,192.168.0.0/16,192.168.1.1,internal" ]`) so
+  clients on any `192.168.x.x` subnet using Pi-hole resolve `*.internal` and
+  reverse PTR records via the UDM.
 
 #### nspawn stop race
 

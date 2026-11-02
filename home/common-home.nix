@@ -119,7 +119,7 @@ in
     enableDefaultConfig = false;
     settings = (lib.mapAttrs' (name: cfg:
       lib.nameValuePair name {
-        HostName = cfg.ip;
+        HostName = network.getIP name;
         User = cfg.sshUser;
       }) network.hosts) // {
       "github.com" = {

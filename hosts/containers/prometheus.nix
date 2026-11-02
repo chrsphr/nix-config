@@ -10,7 +10,10 @@ let
   hostsLib = import ../../lib/network.nix { inherit lib; };
 
   baremetalHosts = [ "hutch" "minihutch" ];
-  containerHosts = lib.filterAttrs (_: cfg: cfg ? parent) hostsLib.hosts;
+  # VLAN-isolated containers without an exporter (cloudflared) are skipped.
+  containerHosts = lib.filterAttrs (name: cfg:
+    (cfg ? parent) && name != "cloudflared"
+  ) hostsLib.hosts;
 
   # Replace the IP:port instance label with the readable hostname from
   # lib/network.nix while preserving the scrape address.
@@ -106,7 +109,7 @@ in
       {
         job_name = "containers";
         static_configs = lib.mapAttrsToList (name: cfg: {
-          targets = [ "${cfg.ip}:9100" ];
+          targets = [ "${hostsLib.getIP name}:9100" ];
           labels = {
             host = name;
             parent = cfg.parent;

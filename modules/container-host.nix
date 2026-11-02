@@ -176,13 +176,18 @@ in
     # NixOS containers, one per lib/network.nix host with `parent = <this host>`.
     # IPs and bridge derive from lib/network.nix.
     containers = lib.mapAttrs' (name: hostCfg:
-      lib.nameValuePair name (lib.recursiveUpdate {
+      let
+        isStatic = hostCfg ? ip;
+        extra = cfg.perContainer.${name} or {};
+      in lib.nameValuePair name (lib.recursiveUpdate ({
         privateNetwork = true;
         hostBridge =
           if (hostCfg.vlan or null) != null
           then "br${toString hostCfg.vlan}"
           else "br0";
-        localAddress = "${hostCfg.ip}/${toString (hostCfg.prefixLength or 24)}";
+        # nspawn picks a random MAC per start; pin a deterministic one so the
+        # container's LAN identity and DHCP lease stay stable across restarts.
+        localMacAddress = hostsLib.getMAC name;
         autoStart = true;
         # gb-grid/gb-grid-pkg are only consumed by the gb-grid container,
         # sops-nix only by the ones in withSecrets — harmless elsewhere.
@@ -194,7 +199,15 @@ in
             isReadOnly = true;
           };
         };
-      } (cfg.perContainer.${name} or {}))
+      } // (if isStatic then {
+        localAddress = "${hostCfg.ip}/${toString (hostCfg.prefixLength or 24)}";
+      } else {
+        # dhcpcd inside the container needs CAP_NET_ADMIN to configure eth0.
+        # (enableTun also adds CAP_NET_ADMIN in nixos-containers.nix; skip
+        # duplicating it when enableTun is set.)
+        additionalCapabilities =
+          lib.optional (!(extra.enableTun or false)) "CAP_NET_ADMIN";
+      })) extra)
     ) hostContainers;
 
     # Stop/start race hardening, learned from a rolled-back deploy: a busy
@@ -204,6 +217,8 @@ in
     # refusing" — which fails switch-to-configuration and rolls back the whole
     # deploy. So: allow 3min before the SIGKILL, and remove any stale
     # unix-export dir before each start (%i = container name).
+    # Also remove any stale veth (ve-%i / vb-%i): nixos-containers.nix's
+    # preStart only deletes them when localAddress != null.
     # why: docs/notes.md#nspawn-stop-race
     systemd.services = (lib.genAttrs
       (map (n: "container@${n}") (builtins.attrNames hostContainers))
@@ -212,6 +227,8 @@ in
           TimeoutStopSec = "3min";
           ExecStartPre = [
             "-${pkgs.coreutils}/bin/rm -rf /run/systemd/nspawn/unix-export/%i"
+            "-${pkgs.iproute2}/bin/ip link del dev ve-%i"
+            "-${pkgs.iproute2}/bin/ip link del dev vb-%i"
           ];
         };
       })) // {

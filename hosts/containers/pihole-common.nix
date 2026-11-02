@@ -3,6 +3,7 @@
 let
   cliPw = "${config.services.pihole-ftl.configDirectory}/cli_pw";
   textfileDir = "/var/lib/node-exporter-textfile";
+  hostsLib = import ../../lib/network.nix { inherit lib; };
 in
 {
   imports = [
@@ -38,6 +39,16 @@ in
             "1.0.0.1#53"
             "2606:4700:4700::1111#53"
             "2606:4700:4700::1001#53"
+        ];
+        # Conditional forwarding to the UniFi gateway across all 192.168.0.0/16
+        # VLANs so *.internal (and PTR lookups for LAN clients) resolve through
+        # the router's DHCP lease table.
+        domain = {
+          name = hostsLib.internalDomain;
+          local = true;
+        };
+        revServers = [
+          "true,192.168.0.0/16,${hostsLib.gateway},${hostsLib.internalDomain}"
         ];
         # Default is 1000 queries/60s per client; bumped 10x for busy clients.
         # Set count = 0 to disable rate limiting entirely.

@@ -4,6 +4,7 @@ let
   keys = import ../../modules/keys.nix;
   hostsLib = import ../../lib/network.nix { inherit lib; };
   hostCfg = hostsLib.hosts.${config.networking.hostName} or {};
+  isStatic = hostCfg ? ip;
 in
 {
   # Shared base for every NixOS container (systemd-nspawn) on both hosts.
@@ -25,14 +26,27 @@ in
 
   documentation.enable = false;
 
-  # Default gateway required under hostBridge. VLAN containers override the
-  # LAN gateway/nameservers via their lib/network.nix entry.
+  # Static-IP containers configure defaultGateway directly; DHCP containers
+  # override nixos-containers.nix's `networking.useDHCP = false` and get their
+  # IP, route and Option 12 hostname registration (<name>.internal) from the
+  # UniFi DHCP server via dhcpcd.
   # why: docs/notes.md#container-one-offs
   networking = {
     nameservers = hostCfg.nameservers or hostsLib.nameservers;
-    defaultGateway = {
+    useDHCP = lib.mkForce (!isStatic);
+    interfaces.eth0.useDHCP = !isStatic;
+    defaultGateway = lib.mkIf isStatic {
       address = hostCfg.gateway or hostsLib.gateway;
       interface = "eth0";
+    };
+    dhcpcd = lib.mkIf (!isStatic) {
+      # Wait for an IPv4 lease before forking; default "any" exits as soon as
+      # IPv6 SLAAC completes, which can race services binding or resolving at boot.
+      wait = "ipv4";
+      extraConfig = ''
+        # Send bare MAC as ClientID so UniFi matches reservations/leases cleanly
+        clientid
+      '';
     };
     firewall = {
       enable = true;
@@ -41,8 +55,16 @@ in
   };
 
   # The host's resolved stub is dead inside nspawn — use our own nameservers.
+  # Also order nscd after resolvconf: nspawn copies the host's stub
+  # /etc/resolv.conf into the container root before boot, so if nsncd starts
+  # before resolvconf.service overwrites it, nsncd caches 127.0.0.53 and every
+  # lookup times out.
   # why: docs/notes.md#container-one-offs
   networking.useHostResolvConf = lib.mkForce false;
+  systemd.services.nscd = {
+    after = [ "resolvconf.service" ];
+    wants = [ "resolvconf.service" ];
+  };
 
   # SSH setup
   services.openssh = {

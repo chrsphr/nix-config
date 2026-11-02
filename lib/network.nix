@@ -7,11 +7,14 @@ let
   gateway = "192.168.1.1";
   nameservers = [ "192.168.1.1" ];
   domain = "mcneill.fyi";
+  internalDomain = "internal";
 
   # Host definitions
   #
   # Per-host fields:
-  #   ip, port, caddy, subdomain, https — used by Caddy generation
+  #   ip               = static IPv4 (omit for DHCP containers; they resolve via <name>.internal)
+  #   host             = override hostname for DHCP/DNS (e.g. prowlarr shares "sonarr")
+  #   port, caddy, subdomain, https — used by Caddy generation
   #   headers  = bool    forward X-Real-IP (Caddy already sets X-Forwarded-For/
   #                      Proto/Host by default; immich's docs explicitly also
   #                      want X-Real-IP)
@@ -31,7 +34,7 @@ let
   #   alerts    = list                                (else uses generateGatusEndpoints default)
   #
   #   http:
-  #     url     = full URL (overrides host ip/port/scheme/path)
+  #     url     = full URL (overrides host address/port/scheme/path)
   #     scheme  = "http" | "https"  (default "https" if host.https else "http")
   #     path    = "/foo"            (default "/")
   #     insecure= bool              (skip TLS verify, default false)
@@ -39,7 +42,7 @@ let
   #                                     ''${ENV_VARS}'' rendered via gatus env file)
   #
   #   dns:
-  #     resolver= IP of resolver    (default host.ip)
+  #     resolver= IP of resolver    (default host address)
   #     query   = name to look up   (default "google.com")
   #     family  = "v4" | "v6"       (default "v4"; sets query-type A or AAAA)
   #
@@ -71,7 +74,6 @@ let
       ];
     };
     immich = {
-      ip = "192.168.1.127";
       sshUser = "deploy";
       parent = "hutch";
       port = 2283;
@@ -94,7 +96,6 @@ let
       };
     };
     tailscale = {
-      ip = "192.168.1.207";
       sshUser = "deploy";
       parent = "minihutch";
       port = 8080;
@@ -104,7 +105,6 @@ let
       };
     };
     plex = {
-      ip = "192.168.1.209";
       sshUser = "deploy";
       parent = "hutch";
       port = 32400;
@@ -115,7 +115,6 @@ let
       };
     };
     sonarr = {
-      ip = "192.168.1.75";
       sshUser = "deploy";
       parent = "hutch";
       port = 8989;
@@ -125,7 +124,6 @@ let
       };
     };
     radarr = {
-      ip = "192.168.1.76";
       sshUser = "deploy";
       parent = "hutch";
       port = 7878;
@@ -137,13 +135,12 @@ let
     # Co-located with sonarr in the same container, so no `parent` (and no
     # container) of its own.
     prowlarr = {
-      ip = "192.168.1.75";
+      host = "sonarr";
       sshUser = "deploy";
       port = 9696;
       caddy = true;
     };
     transmission = {
-      ip = "192.168.1.136";
       sshUser = "deploy";
       parent = "hutch";
       port = 9091;
@@ -154,14 +151,12 @@ let
       };
     };
     uptime = {
-      ip = "192.168.1.31";
       sshUser = "deploy";
       parent = "minihutch";
       port = 3001;
       caddy = true;
     };
     homepage = {
-      ip = "192.168.1.32";
       sshUser = "deploy";
       parent = "minihutch";
       port = 8082;
@@ -172,6 +167,7 @@ let
       };
     };
     prometheus = {
+      # Pinned: VLAN 5 UniFi zone policies + gokapi's iptables match its IP.
       ip = "192.168.1.33";
       sshUser = "deploy";
       parent = "minihutch";
@@ -183,7 +179,6 @@ let
       };
     };
     network-optimizer = {
-      ip = "192.168.1.84";
       sshUser = "deploy";
       parent = "hutch";
       port = 8042;
@@ -196,7 +191,6 @@ let
     };
 
     beeper = {
-      ip = "192.168.1.40";
       sshUser = "deploy";
       parent = "minihutch";
       monitor = {
@@ -210,7 +204,6 @@ let
       sshUser = "chris";
     };
     gb-grid = {
-      ip = "192.168.1.28";
       sshUser = "deploy";
       parent = "hutch";
       port = 3000;
@@ -288,6 +281,10 @@ let
     };
   };
 
+  # Resolve the connectable address for a host: static IP if set, otherwise
+  # `<host>.<internalDomain>` resolved via local DNS (UniFi DHCP).
+  hostAddr = name: cfg: cfg.ip or "${cfg.host or name}.${internalDomain}";
+
   # Filter hosts that should be in Caddy
   caddyHosts = lib.filterAttrs (name: cfg: cfg.caddy or false) hosts;
 
@@ -295,9 +292,10 @@ let
   mkHostBlock = name: cfg:
     let
       subdomain = cfg.subdomain or name;
+      addr = hostAddr name cfg;
       backend = if cfg.https or false
-        then "https://${cfg.ip}:${toString cfg.port}"
-        else "${cfg.ip}:${toString cfg.port}";
+        then "https://${addr}:${toString cfg.port}"
+        else "${addr}:${toString cfg.port}";
 
       # Lines emitted inside the reverse_proxy block. Caddy already forwards
       # X-Forwarded-For/Proto/Host by default, so `headers` only adds
@@ -330,6 +328,7 @@ let
   # Build a single Gatus endpoint from a (host, monitor) pair
   mkGatusEndpoint = hostName: hostCfg: m: defaultAlerts:
     let
+      addr = hostAddr hostName hostCfg;
       type = m.type or "http";
       group = m.group or null;
       name = m.name or hostName;
@@ -346,7 +345,7 @@ let
             if m ? url then null
             else m.scheme or (if hostCfg.https or false then "https" else "http");
           path = m.path or "/";
-          url = m.url or "${scheme}://${hostCfg.ip}:${toString hostCfg.port}${path}";
+          url = m.url or "${scheme}://${addr}:${toString hostCfg.port}${path}";
           insecure = m.insecure or false;
           headers = m.headers or {};
         in base // {
@@ -356,7 +355,7 @@ let
           // lib.optionalAttrs (headers != {}) { inherit headers; }
       else if type == "dns" then
         let
-          resolver = m.resolver or hostCfg.ip;
+          resolver = m.resolver or addr;
           family = m.family or "v4";
           queryType = if family == "v6" then "AAAA" else "A";
           query = m.query or "google.com";
@@ -369,7 +368,7 @@ let
         let
           targetPort = m.targetPort or hostCfg.port;
         in base // {
-          url = "tcp://${hostCfg.ip}:${toString targetPort}";
+          url = "tcp://${addr}:${toString targetPort}";
           conditions = [ "[CONNECTED] == true" ];
         }
       else throw "lib/network.nix: unknown monitor type '${type}' for ${hostName}";
@@ -385,13 +384,33 @@ let
       map (m: mkGatusEndpoint hostName hostCfg m defaultAlerts) monitors;
 
 in {
-  inherit gateway nameservers domain hosts;
+  inherit gateway nameservers domain internalDomain hosts;
 
   # Hosts that run as NixOS containers on a given parent host
   getContainers = parent: lib.filterAttrs (name: cfg: (cfg.parent or null) == parent) hosts;
 
-  # Get IP for a host
-  getIP = hostname: hosts.${hostname}.ip;
+  # Connectable address for a host: static IP if configured, else <name>.internal
+  getIP = hostname: hostAddr hostname hosts.${hostname};
+
+  # Deterministic, locally-administered MAC for a container:
+  # - Static-IP containers: 02:00:<ipv4 octets as hex>
+  # - DHCP containers:      02:01:<first 4 bytes of sha256(hostname)>
+  # Pinned as containers.<name>.localMacAddress so a container's LAN identity
+  # and DHCP lease stay stable across restarts.
+  # why: docs/notes.md#container-lan-identity
+  getMAC = hostname:
+    let
+      cfg = hosts.${hostname};
+      hash = builtins.hashString "sha256" hostname;
+    in
+      if cfg ? ip then
+        "02:00:" + lib.concatMapStringsSep ":"
+          (octet: lib.fixedWidthString 2 "0" (lib.toLower (lib.toHexString (lib.toInt octet))))
+          (lib.splitString "." cfg.ip)
+      else
+        "02:01:" + lib.concatMapStringsSep ":"
+          (i: builtins.substring (i * 2) 2 hash)
+          [ 0 1 2 3 ];
 
   # Generate full Caddy extraConfig
   generateCaddyConfig = lib.concatStringsSep "\n" (lib.mapAttrsToList mkHostBlock caddyHosts);

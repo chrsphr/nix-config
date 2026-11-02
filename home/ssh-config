@@ -1,9 +1,13 @@
 Host beeper
-  HostName 192.168.1.40
+  HostName beeper.internal
   User deploy
 
 Host caddy
   HostName 192.168.1.239
+  User deploy
+
+Host cloudflared
+  HostName 192.168.6.69
   User deploy
 
 Host desktop
@@ -11,19 +15,23 @@ Host desktop
   User chris
 
 Host gb-grid
-  HostName 192.168.1.28
+  HostName gb-grid.internal
   User deploy
 
 Host github.com
   IdentitiesOnly yes
   IdentityFile ~/.ssh/id_chrsphr.pub
 
+Host gokapi
+  HostName 192.168.6.68
+  User deploy
+
 Host ha
   HostName 192.168.1.11
   User root
 
 Host homepage
-  HostName 192.168.1.32
+  HostName homepage.internal
   User deploy
 
 Host hutch
@@ -31,7 +39,7 @@ Host hutch
   User deploy
 
 Host immich
-  HostName 192.168.1.127
+  HostName immich.internal
   User deploy
 
 Host minihutch
@@ -39,7 +47,7 @@ Host minihutch
   User deploy
 
 Host network-optimizer
-  HostName 192.168.1.84
+  HostName network-optimizer.internal
   User deploy
 
 Host pihole-1
@@ -51,7 +59,7 @@ Host pihole-2
   User deploy
 
 Host plex
-  HostName 192.168.1.209
+  HostName plex.internal
   User deploy
 
 Host prometheus
@@ -59,23 +67,23 @@ Host prometheus
   User deploy
 
 Host prowlarr
-  HostName 192.168.1.75
+  HostName sonarr.internal
   User deploy
 
 Host radarr
-  HostName 192.168.1.76
+  HostName radarr.internal
   User deploy
 
 Host sonarr
-  HostName 192.168.1.75
+  HostName sonarr.internal
   User deploy
 
 Host tailscale
-  HostName 192.168.1.207
+  HostName tailscale.internal
   User deploy
 
 Host transmission
-  HostName 192.168.1.136
+  HostName transmission.internal
   User deploy
 
 Host unifi
@@ -83,7 +91,7 @@ Host unifi
   User root
 
 Host uptime
-  HostName 192.168.1.31
+  HostName uptime.internal
   User deploy
 
 Host *

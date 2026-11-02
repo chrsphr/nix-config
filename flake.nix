@@ -88,7 +88,7 @@
         let
           targetSystem = configs.${name}.pkgs.stdenv.hostPlatform.system;
         in {
-          hostname = network.hosts.${name}.ip;
+          hostname = network.getIP name;
           profiles.system = {
             user = "root";
             sshUser = "deploy";

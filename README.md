@@ -31,27 +31,27 @@ only.
 Containers have no `nixosConfigurations` entry of their own — **deploying a
 server deploys its containers with it**. The "On" column below says which.
 
-| Host | IP | On | Role |
-|------|----|----|------|
+| Host | Address | On | Role |
+|------|---------|----|------|
 | `hutch` | 192.168.1.2 | — | Baremetal NAS + container host |
 | `minihutch` | 192.168.1.3 | — | Baremetal container host (no storage). Install/cutover: `docs/minihutch-install.md` |
 | `caddy` | 192.168.1.239 | minihutch | Reverse proxy + TLS (Cloudflare DNS) |
 | `pihole-1` | 192.168.1.9 | hutch | Primary DNS |
 | `pihole-2` | 192.168.1.10 | minihutch | Secondary DNS |
-| `immich` | 192.168.1.127 | hutch | Photo management |
-| `plex` | 192.168.1.209 | hutch | Media server |
-| `transmission` | 192.168.1.136 | hutch | Torrent client |
-| `sonarr` | 192.168.1.75 | hutch | TV automation |
-| `radarr` | 192.168.1.76 | hutch | Movie automation |
-| `prowlarr` | 192.168.1.75 | hutch | Indexer manager (co-located on sonarr host) |
-| `uptime` | 192.168.1.31 | minihutch | Uptime monitoring (Gatus, declarative via `lib/network.nix`). LAN-only at `http://192.168.1.31:3001` — tunnel routing is pending (see `docs/notes.md`). |
-| `homepage` | 192.168.1.32 | minihutch | Homelab dashboard (Homepage v2 from pkgs-unstable) |
+| `immich` | `immich.internal` (DHCP) | hutch | Photo management |
+| `plex` | `plex.internal` (DHCP) | hutch | Media server |
+| `transmission` | `transmission.internal` (DHCP) | hutch | Torrent client |
+| `sonarr` | `sonarr.internal` (DHCP) | hutch | TV automation |
+| `radarr` | `radarr.internal` (DHCP) | hutch | Movie automation |
+| `prowlarr` | `sonarr.internal` (DHCP) | hutch | Indexer manager (co-located on sonarr host) |
+| `uptime` | `uptime.internal` (DHCP) | minihutch | Uptime monitoring (Gatus, declarative via `lib/network.nix`). |
+| `homepage` | `homepage.internal` (DHCP) | minihutch | Homelab dashboard (Homepage v2 from pkgs-unstable) |
 | `prometheus` | 192.168.1.33 | minihutch | Metrics, alerting & centralized journal logs (Prometheus + Alertmanager + `systemd-journal-remote`) |
-| `tailscale` | 192.168.1.207 | minihutch | VPN exit node |
-| `gb-grid` | 192.168.1.28 | hutch | GB power grid Postgres + BMRS ingester |
+| `tailscale` | `tailscale.internal` (DHCP) | minihutch | VPN exit node |
+| `gb-grid` | `gb-grid.internal` (DHCP) | hutch | GB power grid Postgres + BMRS ingester |
 | `gokapi` | 192.168.6.68 | hutch | File sharing (Gokapi) on VLAN 5; LAN via Caddy `share.mcneill.fyi`, public via Cloudflare Tunnel |
 | `cloudflared` | 192.168.6.69 | hutch | Outbound-only Cloudflare Tunnel sidecar on VLAN 5 for Gokapi |
-| `beeper` | 192.168.1.40 | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp from nixpkgs; Telegram and Bluesky are Go bridgev2 bridges built from pinned upstream releases. One-time `bbctl login` bootstrap required — see below. |
+| `beeper` | `beeper.internal` (DHCP) | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp from nixpkgs; Telegram and Bluesky are Go bridgev2 bridges built from pinned upstream releases. One-time `bbctl login` bootstrap required — see below. |
 
 All host IPs and Caddy routing are defined in `lib/network.nix` — the single source of truth for network topology.
 
@@ -429,10 +429,12 @@ Services run as containers on one of the two servers; there is no separate
 machine to install. Pick `hutch` if it needs the media library or the iGPU,
 `minihutch` otherwise.
 
-1. Add the host to `lib/network.nix` with its IP and
+1. Add the host to `lib/network.nix` with
    `parent = "hutch"` / `parent = "minihutch"` (plus `caddy = true` for a
-   reverse proxy entry, and a `monitor` spec for Gatus). That one field is
-   what makes that server declare a container for it.
+   reverse proxy entry, and a `monitor` spec for Gatus). Omit `ip` so the
+   container gets a dynamic DHCP lease and registers `<name>.internal` with the
+   UniFi router automatically (or set `ip` if it requires a static address).
+   That `parent` field is what makes that server declare a container for it.
 2. Create `hosts/containers/<name>.nix` importing `./common.nix`.
 3. Add any bind mounts or per-container extras to `containerHost.perContainer`
    in that server's `hosts/<parent>.nix`.

@@ -1,7 +1,7 @@
 { config, pkgs, sops-nix, lib, ... }:
 
 # Outbound-only Cloudflare Tunnel sidecar on VLAN 5. It forwards
-# share.mcneill.fyi to Gokapi at 192.168.6.68:53842 without opening an
+# share.mcneill.fyi to Gokapi at gokapi.internal:53842 without opening an
 # inbound port; Gokapi keeps privateUsers because this container owns the
 # sops token instead.
 

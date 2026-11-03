@@ -46,11 +46,11 @@ server deploys its containers with it**. The "On" column below says which.
 | `prowlarr` | `sonarr.internal` (DHCP) | hutch | Indexer manager (co-located on sonarr host) |
 | `uptime` | `uptime.internal` (DHCP) | minihutch | Uptime monitoring (Gatus, declarative via `lib/network.nix`). |
 | `homepage` | `homepage.internal` (DHCP) | minihutch | Homelab dashboard (Homepage v2 from pkgs-unstable) |
-| `prometheus` | 192.168.1.33 | minihutch | Metrics, alerting & centralized journal logs (Prometheus + Alertmanager + `systemd-journal-remote`) |
+| `prometheus` | `prometheus.internal` (DHCP) | minihutch | Metrics, alerting & centralized journal logs (Prometheus + Alertmanager + `systemd-journal-remote`) |
 | `tailscale` | `tailscale.internal` (DHCP) | minihutch | VPN exit node |
 | `gb-grid` | `gb-grid.internal` (DHCP) | hutch | GB power grid Postgres + BMRS ingester |
-| `gokapi` | 192.168.6.68 | hutch | File sharing (Gokapi) on VLAN 5; LAN via Caddy `share.mcneill.fyi`, public via Cloudflare Tunnel |
-| `cloudflared` | 192.168.6.69 | hutch | Outbound-only Cloudflare Tunnel sidecar on VLAN 5 for Gokapi |
+| `gokapi` | `gokapi.internal` (DHCP) | hutch | File sharing (Gokapi) on VLAN 5; LAN via Caddy `share.mcneill.fyi`, public via Cloudflare Tunnel |
+| `cloudflared` | `cloudflared.internal` (DHCP) | hutch | Outbound-only Cloudflare Tunnel sidecar on VLAN 5 for Gokapi |
 | `beeper` | `beeper.internal` (DHCP) | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp from nixpkgs; Telegram and Bluesky are Go bridgev2 bridges built from pinned upstream releases. One-time `bbctl login` bootstrap required — see below. |
 
 All host IPs and Caddy routing are defined in `lib/network.nix` — the single source of truth for network topology.
@@ -246,7 +246,7 @@ Pending section of `docs/notes.md`.
 
 ## Metrics & Logs (`prometheus`)
 
-The `prometheus` container on `minihutch` (`192.168.1.33`, `https://prometheus.mcneill.fyi`) runs a minimal two-piece observability stack:
+The `prometheus` container on `minihutch` (`prometheus.internal`, `https://prometheus.mcneill.fyi`) runs a minimal two-piece observability stack:
 
 1. **Prometheus (`:9090`)** — scrapes `node_exporter` (`:9100`) and `smartctl_exporter` (`:9633`) on `hutch` and `minihutch`, `node_exporter` (`:9100`, scoped to `systemd` + `netdev` collectors) on every container in `lib/network.nix`, Gatus (`:3001/metrics`), Caddy (`:9180`), and gb-grid's Postgres (`:9187`). Pi-hole stats come in as a textfile through `node_exporter` on `pihole-1` and `pihole-2`.
    - Built-in alert rules (`https://prometheus.mcneill.fyi/alerts`) watch for unreachable targets, failed long-running systemd units (oneshots excluded), low disk space (<10%), ZFS pool degradation, SMART disk failures, HGST `Load_Cycle_Count` runaway (>300/day), `enp4s0` RX missed packets, CPU over 90% busy for 30 minutes, under 10% memory available (ZFS ARC counted as available), swap over half used, OOM kills, Pi-hole stats missing or stale, a failed B2 backup unit, and no successful B2 backup in 26 hours (the success marker is written by `ExecStartPost`, so a hung or skipped run is caught too).
@@ -256,23 +256,23 @@ The `prometheus` container on `minihutch` (`192.168.1.33`, `https://prometheus.m
 
 ### Querying centralized logs
 
-SSH into `prometheus` (`192.168.1.33`) and use the `fleet-logs` wrapper (which runs `journalctl -D /var/log/journal/remote`):
+SSH into `prometheus` (`prometheus.internal`) and use the `fleet-logs` wrapper (which runs `journalctl -D /var/log/journal/remote`):
 
 ```bash
 # Follow all logs across both servers and all containers
-ssh deploy@192.168.1.33 'fleet-logs -f'
+ssh deploy@prometheus.internal 'fleet-logs -f'
 
 # All errors across the fleet in the last 24h
-ssh deploy@192.168.1.33 'fleet-logs -p err --since "24 hours ago"'
+ssh deploy@prometheus.internal 'fleet-logs -p err --since "24 hours ago"'
 
 # Logs from a specific container or host
-ssh deploy@192.168.1.33 'fleet-logs _HOSTNAME=immich -n 100'
+ssh deploy@prometheus.internal 'fleet-logs _HOSTNAME=immich -n 100'
 
 # Plex's log file, tailed into the journal
-ssh deploy@192.168.1.33 'fleet-logs -t plex -n 100'
+ssh deploy@prometheus.internal 'fleet-logs -t plex -n 100'
 
 # Logs for a specific systemd unit across the fleet
-ssh deploy@192.168.1.33 'fleet-logs -u rclone-b2-backup.service'
+ssh deploy@prometheus.internal 'fleet-logs -u rclone-b2-backup.service'
 ```
 
 ---

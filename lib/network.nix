@@ -167,8 +167,6 @@ let
       };
     };
     prometheus = {
-      # Pinned: VLAN 5 UniFi zone policies + gokapi's iptables match its IP.
-      ip = "192.168.1.33";
       sshUser = "deploy";
       parent = "minihutch";
       port = 9090;
@@ -211,7 +209,6 @@ let
       subdomain = "grid";
     };
     gokapi = {
-      ip = "192.168.6.68";
       sshUser = "deploy";
       parent = "hutch";
       # VLAN 5 deliberately uses 192.168.6.0/24, not .5.0/24.
@@ -228,7 +225,6 @@ let
       # No Gatus probe: Gatus is on VLAN 1 and the VLAN firewall blocks it.
     };
     cloudflared = {
-      ip = "192.168.6.69";
       sshUser = "deploy";
       parent = "hutch";
       # Dedicated outbound tunnel sidecar; Gokapi keeps privateUsers.

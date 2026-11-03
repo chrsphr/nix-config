@@ -115,14 +115,28 @@ in
     enable = true;
     settings.Upload.URL = "http://${hostsLib.getIP "prometheus"}:19532";
   };
-  # A receiver restart makes the uploader exit; restart it straight away so it
-  # is back in `active` before switch-to-configuration checks unit states.
-  # With RestartSec=3 (the NixOS default) it sits in activating (auto-restart)
-  # during the check, which counts as failed and rolls the deploy back.
-  # StartLimitIntervalSec=0 keeps a longer outage from tripping the burst cap.
+  # systemd-journal-upload exits on the first DNS/connection failure. Run it
+  # in a retry loop so the unit stays `active` for switch-to-configuration
+  # (RestartSec=0 still leaves it in activating/auto-restart at check time),
+  # and an unresolvable prometheus.internal can never become a tight restart
+  # loop that floods the Pi-holes with thousands of queries/s until they
+  # rate-limit the UDM. 5s between attempts is plenty for a log shipper.
   systemd.services.systemd-journal-upload = {
     unitConfig.StartLimitIntervalSec = 0;
-    serviceConfig.RestartSec = lib.mkForce 0;
+    serviceConfig = {
+      # The empty entry resets the upstream ExecStart list in the drop-in;
+      # without it systemd sees two ExecStart= lines and rejects the unit.
+      ExecStart = lib.mkForce [
+        ""
+        (toString (pkgs.writeShellScript "journal-upload-retry" ''
+          while true; do
+            ${config.systemd.package}/lib/systemd/systemd-journal-upload --save-state || true
+            sleep 5
+          done
+        ''))
+      ];
+      RestartSec = lib.mkForce "1s";
+    };
   };
 
   nixpkgs.config.allowUnfree = true;

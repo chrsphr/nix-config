@@ -232,13 +232,29 @@ in
           ];
         };
       })) // {
-      # Keep retrying indefinitely while the prometheus container restarts, and
-      # restart at once so switch-to-configuration finds the unit active rather
-      # than in activating (auto-restart), which it reports as failed.
+      # systemd-journal-upload exits on the first DNS/connection failure. Run
+      # it in a retry loop so the unit stays `active` for
+      # switch-to-configuration, and an unresolvable prometheus.internal can
+      # never become a tight restart loop that floods the Pi-holes with
+      # thousands of queries/s until they rate-limit the UDM (which blackholes
+      # LAN DNS). 5s between attempts is plenty for a log shipper.
       # why: docs/notes.md#prometheus-and-journal-remote
       systemd-journal-upload = {
         unitConfig.StartLimitIntervalSec = 0;
-        serviceConfig.RestartSec = lib.mkForce 0;
+        serviceConfig = {
+          # The empty entry resets the upstream ExecStart list in the drop-in;
+          # without it systemd sees two ExecStart= lines and rejects the unit.
+          ExecStart = lib.mkForce [
+            ""
+            (toString (pkgs.writeShellScript "journal-upload-retry" ''
+              while true; do
+                ${config.systemd.package}/lib/systemd/systemd-journal-upload --save-state || true
+                sleep 5
+              done
+            ''))
+          ];
+          RestartSec = lib.mkForce "1s";
+        };
       };
     };
 

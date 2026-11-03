@@ -7,7 +7,7 @@ Host caddy
   User deploy
 
 Host cloudflared
-  HostName 192.168.6.69
+  HostName cloudflared.internal
   User deploy
 
 Host desktop
@@ -23,7 +23,7 @@ Host github.com
   IdentityFile ~/.ssh/id_chrsphr.pub
 
 Host gokapi
-  HostName 192.168.6.68
+  HostName gokapi.internal
   User deploy
 
 Host ha
@@ -63,7 +63,7 @@ Host plex
   User deploy
 
 Host prometheus
-  HostName 192.168.1.33
+  HostName prometheus.internal
   User deploy
 
 Host prowlarr

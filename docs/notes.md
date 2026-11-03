@@ -599,8 +599,16 @@ Minimal metrics + centralized logging without Grafana or Loki
   (common.nix) run `systemd-journal-upload` without `--merge`, so each machine
   uploads only its own journal from its own IP (avoiding duplicate uploads of
   nspawn's `--link-journal=try-guest` symlinks on the parent hosts).
-  `StartLimitIntervalSec=0` on `systemd-journal-upload` keeps clients retrying
-  across `prometheus` container restarts instead of tripping systemd's burst cap.
+  `systemd-journal-upload` exits on its first DNS/connection failure, so both
+  modules run it in a `while true; … sleep 5` loop instead of relying on
+  `Restart=`. That keeps the unit `active` for switch-to-configuration (a unit
+  sitting in `activating (auto-restart)` counts as failed and rolls a deploy
+  back) and, more importantly, stops an unresolvable `prometheus.internal`
+  from becoming a tight restart loop. With the old `RestartSec=0`, a deploy
+  that started the uploader before `prometheus` had a DHCP lease produced
+  ~2,000 queries/s, Pi-hole rate-limited the UDM, and the UDM answered
+  `REFUSED` to the whole LAN. `StartLimitIntervalSec=0` is still set so a long
+  outage doesn't trip systemd's burst cap.
 
 #### Container one-offs
 
@@ -682,27 +690,31 @@ Minimal metrics + centralized logging without Grafana or Loki
 
 #### Gokapi and VLAN 5
 
-Gokapi runs on hutch on VLAN 5 (ID 5, subnet 192.168.6.0/24, container
-192.168.6.68). Its host entry sets `vlan = 5`, so
-`modules/container-host.nix` attaches it to `br5` rather than `br0`; see
-#vlan-scoped-containers for the topology.
+Gokapi runs on hutch on VLAN 5 (ID 5, subnet 192.168.6.0/24). Its host entry
+sets `vlan = 5`, so `modules/container-host.nix` attaches it to `br5` rather
+than `br0`; see #vlan-scoped-containers for the topology. It takes a dynamic
+DHCP lease and is reached as `gokapi.internal` (same for `cloudflared`).
 
 UniFi state (Network 11.0.99, applied via API):
 
-- VLAN 5 already existed as **Isolated Services**, in the **Dmz** zone.
+- VLAN 5 already existed as **Isolated Services**, in the **Dmz** zone, with
+  the `internal` domain and DHCP enabled.
 - Hutch's uplink is **Port 1 on USW Flex 2.5G 8 PoE**. That port is custom:
   native Default, tagged VLAN 5, with IoT/IoT (No Internet)/Devices excluded
   from the tagged set.
-- Internal -> Dmz policies: Caddy `192.168.1.239` -> `192.168.6.68:53842`,
-  Prometheus `192.168.1.33` -> `192.168.6.68:9100`, then a NEW-only block for
-  everything else. Dmz -> Internal: Gokapi -> Prometheus `:19532`.
+- Internal -> Dmz policies: Caddy `192.168.1.239` -> Isolated Services
+  `:53842`, Prometheus (Internal network) -> Isolated Services `:9100`, then a
+  NEW-only block for everything else. Dmz -> Internal: Isolated Services ->
+  Prometheus `:19532`. The two per-host cloudflared policies are disabled
+  because the network-based Prometheus policies already cover them.
 - The old broad "Allow Access to Isolated Services" and "accsess to Plex"
   policies are disabled. Network Isolation is left off because it would also
   block the two explicit Caddy/Prometheus allows; policies do the isolation.
 
-The container's own firewall only accepts 53842 from Caddy; do not add it to
-`allowedTCPPorts`. `GOKAPI_TRUSTED_PROXIES` is set to Caddy's IP so client
-addresses survive the proxy.
+The container's own firewall accepts 53842 from Caddy's static IP and from the
+VLAN 5 subnet (cloudflared), and 9100 from the VLAN 1 subnet (Prometheus, now
+DHCP); do not add 53842 to `allowedTCPPorts`. `GOKAPI_TRUSTED_PROXIES` lists
+Caddy's IP plus `192.168.6.0/24` so client addresses survive both proxies.
 
 `gokapi` has `privateUsers = "pick"` because it has no host bind mounts and
 its data lives in `/var/lib/gokapi` inside the container root (covered by the
@@ -729,20 +741,19 @@ The tunnel module now uses `cloudflared ... --token-file`, not
 `--token "$(cat ...)"`; the latter puts the tunnel token in the process
 command line and journal.
 
-Public ingress is a dedicated outbound-only **cloudflared** sidecar on VLAN 5
-(`192.168.6.69`), not Caddy. It forwards the Cloudflare hostname to
-`http://192.168.6.68:53842`, so Gokapi can keep `privateUsers`; the sidecar
-owns the sops tunnel token. Caddy remains the LAN path. Both are in Gokapi's
-trusted-proxy list, and `GOKAPI_USE_CLOUDFLARE=true` makes the tunnel path use
-Cloudflare's client-IP header.
+Public ingress is a dedicated outbound-only **cloudflared** sidecar on VLAN 5,
+not Caddy. It forwards the Cloudflare hostname to `http://gokapi.internal:53842`,
+so Gokapi can keep `privateUsers`; the sidecar owns the sops tunnel token.
+Caddy remains the LAN path. Both are in Gokapi's trusted-proxy list, and
+`GOKAPI_USE_CLOUDFLARE=true` makes the tunnel path use Cloudflare's client-IP
+header.
 
 For LAN clients, add a local Pi-hole record for `share.mcneill.fyi` ->
 `192.168.1.239`. The public hostname/DNS is managed on the tunnel side.
 
-VLAN 5's DHCP pool is `.6`–`.254`, so `.68` and `.69` are inside it. Add fixed
-reservations, or narrow the pool, to stop other clients being offered the same
-addresses. The containers currently have no fixed MACs, so MAC-based
-reservations also need `localMacAddress` set.
+Both VLAN 5 containers take dynamic leases from the `.6`–`.254` pool, so they
+no longer need reservations. Their deterministic `02:01:...` MACs keep the
+leases stable across restarts.
 
 Caddy's access-log filter redacts query strings, not path segments, so Gokapi
 share IDs can still appear in Caddy's journal. Add a `multi_regexp` filter on
@@ -751,10 +762,11 @@ field, hence `multi_regexp`).
 
 #### Container LAN identity & DHCP
 
-Core infrastructure containers (`caddy`, `pihole-1`, `pihole-2`, `prometheus`,
-and the VLAN 5 `gokapi`/`cloudflared` pair whose UniFi zone policies and
-iptables match IPs) keep static addresses in `lib/network.nix`. Every other
-container omits `ip` and gets a dynamic lease via `dhcpcd` on `eth0`:
+Core infrastructure containers (`caddy`, `pihole-1`, `pihole-2`) keep static
+addresses in `lib/network.nix`, as do the bare-metal hosts and VLAN/firewall-
+pinned non-container hosts. Every other container, including `prometheus` and
+the VLAN 5 `gokapi`/`cloudflared` pair, omits `ip` and gets a dynamic lease via
+`dhcpcd` on `eth0`:
 
 - **Deterministic MACs** (`lib/network.nix` `getMAC`, `modules/container-host.nix`):
   nspawn picks a random MAC on each start unless `localMacAddress` is set.
@@ -1067,6 +1079,6 @@ bridges 1Password differently and is left untouched.
 - [ ] **nas**: B2 bucket lifecycle + app-key scoping configured by hand in the B2 console — document or automate; check if restores misbehave (modules/nas.nix)
 - [ ] **nas**: drop zfs_arc_shrinker_seeks to 1 if the 8 GiB sys-free floor proves too tight (modules/nas.nix)
 - [ ] **gatus**: route uptime.mcneill.fyi through the Cloudflare tunnel to Gatus:3001 — currently LAN-only
-- [ ] **gokapi**: change the initial admin password, and fix the .68/.69 DHCP-pool overlap (reservation or narrower pool). Consider rotating the Cloudflare tunnel token, which appeared in the container journal under the old `--token` invocation.
+- [ ] **gokapi**: change the initial admin password. Consider rotating the Cloudflare tunnel token, which appeared in the container journal under the old `--token` invocation.
 - [ ] **network-optimizer**: InfluxDB onboarding is manual/one-time; not set up: OpenSpeedTest sidecar, WAN steering, proxy features (hosts/containers/network-optimizer.nix)
 - [ ] **pihole**: re-adopt `services.pihole-ftl.lists` once pihole-ftl-setup is both idempotent (nixpkgs#551979) AND survives FTL's boot-time "Database not available" window — until then adlists are state in gravity.db, not config (hosts/containers/pihole-common.nix)

@@ -8,9 +8,12 @@
 
 let
   hostsLib = import ../../lib/network.nix { inherit lib; };
+  # Caddy keeps a static IP, so it can be matched exactly. Prometheus and
+  # cloudflared are DHCP now, so match their subnets: VLAN 1 for Prometheus,
+  # and VLAN 5 for cloudflared (this container is the only other host there).
   caddyIP = hostsLib.getIP "caddy";
-  cloudflaredIP = hostsLib.getIP "cloudflared";
-  prometheusIP = hostsLib.getIP "prometheus";
+  lanCIDR = "192.168.1.0/24";
+  vlanCIDR = "192.168.6.0/24";
 in
 {
   imports = [
@@ -34,8 +37,8 @@ in
     # may reach the app port, even inside VLAN 5.
     firewall.extraCommands = ''
       iptables -A nixos-fw -s ${caddyIP} -p tcp --dport 53842 -j nixos-fw-accept
-      iptables -A nixos-fw -s ${cloudflaredIP} -p tcp --dport 53842 -j nixos-fw-accept
-      iptables -A nixos-fw -s ${prometheusIP} -p tcp --dport 9100 -j nixos-fw-accept
+      iptables -A nixos-fw -s ${vlanCIDR} -p tcp --dport 53842 -j nixos-fw-accept
+      iptables -A nixos-fw -s ${lanCIDR} -p tcp --dport 9100 -j nixos-fw-accept
     '';
   };
 
@@ -53,8 +56,8 @@ in
     environment = {
       GOKAPI_PORT = 53842;
       # Both ingress paths: Caddy on VLAN 1 and the Cloudflare Tunnel
-      # sidecar on the same VLAN.
-      GOKAPI_TRUSTED_PROXIES = "${caddyIP},${cloudflaredIP}";
+      # sidecar on the same VLAN. Gokapi accepts IPs and CIDRs here.
+      GOKAPI_TRUSTED_PROXIES = "${caddyIP},${vlanCIDR}";
       GOKAPI_USE_CLOUDFLARE = "true";
       # Default is 15 (~90 bits); 20 is cheap extra entropy.
       GOKAPI_LENGTH_ID = 20;

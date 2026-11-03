@@ -772,12 +772,21 @@ container omits `ip` and gets a dynamic lease via `dhcpcd` on `eth0`:
   `container-host.nix`'s `ExecStartPre` also cleans up stale `ve-%i`/`vb-%i`
   interfaces, since `nixos-containers.nix`'s own `preStart` only deletes them
   when `localAddress != null`.
-- **`.internal` resolution**: UniFi's LAN networks use `internal` as their
-  domain name, so DHCP leases register `<name>.internal` in the UDM's dnsmasq.
-  Both Pi-holes (`hosts/containers/pihole-common.nix`) set conditional
-  forwarding (`revServers = [ "true,192.168.0.0/16,192.168.1.1,internal" ]`) so
-  clients on any `192.168.x.x` subnet using Pi-hole resolve `*.internal` and
-  reverse PTR records via the UDM.
+- **`.internal` resolution (no Pi-hole `revServers`!)**: UniFi's LAN networks
+  use `internal` as their domain name, so DHCP leases register `<name>.internal`
+  in the UDM's dnsmasq. Because all LAN clients and containers query the UDM
+  (`192.168.1.1`) first and the UDM uses the Pi-holes (`192.168.1.9` /
+  `192.168.1.10`) as its WAN upstream, the UDM answers `A <name>.internal`
+  directly from its DHCPv4 lease table on the first hop. However, the UDM
+  forwards unanswered `.internal` queries (including every `AAAA <name>.internal`
+  sent by dual-stack `getaddrinfo`, or `A` queries while a container is
+  restarting) to its WAN upstream (Pi-hole). Pi-hole must **not** set
+  `revServers` pointing back at `192.168.1.1`: without `revServers`, Pi-hole's
+  built-in `local=/internal/` rule terminates those queries locally with
+  `NXDOMAIN`; with `revServers`, Pi-hole replaces `local=/internal/` with
+  `server=/internal/192.168.1.1` and bounces them back to the UDM in an
+  infinite loop that trips Pi-hole's per-client rate limit on `192.168.1.1` and
+  blackholes DNS for the whole network.
 
 #### nspawn stop race
 

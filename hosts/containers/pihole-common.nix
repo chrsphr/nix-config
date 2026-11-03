@@ -40,16 +40,19 @@ in
             "2606:4700:4700::1111#53"
             "2606:4700:4700::1001#53"
         ];
-        # Conditional forwarding to the UniFi gateway across all 192.168.0.0/16
-        # VLANs so *.internal (and PTR lookups for LAN clients) resolve through
-        # the router's DHCP lease table.
+        # Do NOT enable revServers (conditional forwarding) to 192.168.1.1!
+        # Clients and containers query the UniFi gateway (192.168.1.1) first,
+        # and UniFi uses the Pi-holes as its WAN upstream. UniFi resolves A
+        # records for *.internal from its local DHCP table, but forwards
+        # unanswered queries (such as AAAA *.internal or unleased names) to its
+        # WAN upstream (Pi-hole). Without revServers, Pi-hole keeps
+        # `local=/internal/` and answers NXDOMAIN immediately; with revServers,
+        # Pi-hole forwards *.internal back to 192.168.1.1, creating a tight
+        # DNS loop that rate-limits 192.168.1.1 and takes down all LAN DNS.
         domain = {
           name = hostsLib.internalDomain;
           local = true;
         };
-        revServers = [
-          "true,192.168.0.0/16,${hostsLib.gateway},${hostsLib.internalDomain}"
-        ];
         # Default is 1000 queries/60s per client; bumped 10x for busy clients.
         # Set count = 0 to disable rate limiting entirely.
         rateLimit = {

@@ -60,6 +60,12 @@ in
           interval = 60;
         };
       };
+      # Wildcard for every mcneill.fyi name (A and AAAA) so per-service UniFi
+      # CNAMEs are not needed. The AAAA is Caddy's ULA SLAAC address.
+      misc.dnsmasq_lines = [
+        "address=/mcneill.fyi/192.168.1.239"
+        "address=/mcneill.fyi/fdc0:ffee::c0ff:fea8:1ef"
+      ];
       dhcp = {
         active = false;
 

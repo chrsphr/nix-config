@@ -1,0 +1,47 @@
+when:
+  - event: schedule
+    schedule:
+      - cron: "H 4 * * *"
+        timezone: UTC
+  - event: manual
+
+engine: microvm
+image: nixos
+
+dependencies:
+  - git
+  - openssh
+
+environment:
+  NIX_CONFIG: "experimental-features = nix-command flakes"
+
+steps:
+  - name: update, build, push
+    command: |
+      set -euo pipefail
+
+      nix flake update
+
+      if git diff --quiet -- flake.lock; then
+        echo "flake.lock unchanged, nothing to do"
+        exit 0
+      fi
+
+      for h in hutch minihutch chris-framework chris-desktop chris-wsl install-iso; do
+        nix build --no-link ".#nixosConfigurations.$h.config.system.build.toplevel"
+      done
+      nix flake check
+
+      mkdir -p ~/.ssh
+      printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/tangled_ci
+      chmod 600 ~/.ssh/tangled_ci
+      printf '%s\n' "tangled.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII2UShEm/FFPmYZUizaPnIqOJuynoCQpcLhl5PPHd02n" > ~/.ssh/known_hosts
+      export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/tangled_ci -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o IdentitiesOnly=yes"
+
+      git remote set-url origin git@tangled.org:chrsphr.uk/nix-config
+      git config user.name "tangled-ci"
+      git config user.email "tangled-ci@chrsphr.uk"
+      git checkout -B main
+      git add flake.lock
+      git commit -m "flake.lock: daily update"
+      git push -o skip-ci origin main

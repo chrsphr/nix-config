@@ -22,6 +22,8 @@ steps:
     command: |
       set -euo pipefail
 
+      echo "cpu: $(nproc)  mem: $(free -m | awk '/^Mem:/{print $2" MiB"}')  disk: $(df -h /workspace | awk 'NR==2{print $4" free"}')"
+
       # Pushes only validate; scheduled and manual runs also update the lock.
       if [ "$TANGLED_PIPELINE_KIND" != "push" ]; then
         nix flake update
@@ -31,10 +33,13 @@ steps:
         fi
       fi
 
+      # One build at a time: the microVM has little memory to spare and Nix
+      # otherwise runs as many compilers as there are cores.
       for h in hutch minihutch chris-framework chris-desktop chris-wsl install-iso; do
-        nix build --no-link ".#nixosConfigurations.$h.config.system.build.toplevel"
+        echo "=== $h"
+        nix build --no-link --max-jobs 1 --cores 1 ".#nixosConfigurations.$h.config.system.build.toplevel"
       done
-      nix flake check
+      nix flake check --max-jobs 1
 
       # Only the lock-update runs push back to main.
       [ "$TANGLED_PIPELINE_KIND" = "push" ] && exit 0

@@ -41,6 +41,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B flake-update
+          git add flake.lock
           git commit -m "flake.lock: daily update"
           git push --force origin flake-update
 

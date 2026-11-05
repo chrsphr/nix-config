@@ -1,0 +1,13 @@
+when:
+  - event: push
+    branch: main
+
+engine: microvm
+image: nixos
+
+steps:
+  - name: hello
+    command: |
+      echo "pipeline works"
+      nix --version
+      nix flake metadata . 2>&1 | head -20

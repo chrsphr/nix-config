@@ -1,0 +1,105 @@
+name: flake-update
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: flake-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Update flake.lock
+        run: nix flake update
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --quiet -- flake.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push update branch
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B flake-update
+          git commit -m "flake.lock: daily update"
+          git push --force origin flake-update
+
+      - name: Open or update PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          gh pr view flake-update --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh pr create --repo "$GITHUB_REPOSITORY" \
+                 --head flake-update --base "$BASE" \
+                 --title "flake.lock: daily update" \
+                 --body "Automated daily \`nix flake update\`. Merges automatically if all host builds and \`nix flake check\` pass."
+
+  build:
+    needs: update
+    if: needs.update.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - hutch
+          - minihutch
+          - chris-framework
+          - chris-desktop
+          - chris-wsl
+          - install-iso
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: flake-update
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Build ${{ matrix.host }}
+        run: nix build --no-link ".#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel"
+
+  check:
+    needs: update
+    if: needs.update.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: flake-update
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: nix flake check
+        run: nix flake check
+
+  merge:
+    needs: [update, build, check]
+    if: needs.update.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Squash-merge PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge flake-update --repo "$GITHUB_REPOSITORY" --squash --delete-branch

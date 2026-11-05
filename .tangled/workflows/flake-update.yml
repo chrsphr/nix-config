@@ -4,6 +4,8 @@ when:
       - cron: "H 4 * * *"
         timezone: UTC
   - event: manual
+  - event: push
+    branch: main
 
 engine: microvm
 image: nixos
@@ -20,17 +22,22 @@ steps:
     command: |
       set -euo pipefail
 
-      nix flake update
-
-      if git diff --quiet -- flake.lock; then
-        echo "flake.lock unchanged, nothing to do"
-        exit 0
+      # Pushes only validate; scheduled and manual runs also update the lock.
+      if [ "$TANGLED_PIPELINE_KIND" != "push" ]; then
+        nix flake update
+        if git diff --quiet -- flake.lock; then
+          echo "flake.lock unchanged, nothing to do"
+          exit 0
+        fi
       fi
 
       for h in hutch minihutch chris-framework chris-desktop chris-wsl install-iso; do
         nix build --no-link ".#nixosConfigurations.$h.config.system.build.toplevel"
       done
       nix flake check
+
+      # Only the lock-update runs push back to main.
+      [ "$TANGLED_PIPELINE_KIND" = "push" ] && exit 0
 
       mkdir -p ~/.ssh
       printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/tangled_ci

@@ -51,6 +51,60 @@ port: neither runs anything HTTP on the host itself, and sshd being up is
 what distinguishes "the box is alive" from "a container on it died" — the
 container-level monitors already cover the latter.
 
+#### Cloud VPS (IPv6-only)
+
+`cloudhutch` is a netcup x86_64 KVM VPS with no public IPv4. Fixed facts:
+
+- CPU is `x86_64-linux`; disk is virtio `/dev/vda` (check `lsblk` — some
+  netcup images expose `/dev/sda`) and boot is UEFI.
+- Static address `2a0a:4cc0:c0:37f8::1/64`, link-local gateway `fe80::1`.
+- DNS is Cloudflare's IPv6 resolvers — netcup's own resolvers are IPv4-only.
+- `lib/network.nix` gives it `address = "cloudhutch"` instead of `ip`, so
+  deploy-rs and the generated `~/.ssh/config` use the tailnet MagicDNS name.
+  A host with `address` is deliberately not a LAN host: no DHCP/DNS identity,
+  no Caddy, no Gatus monitor.
+- `modules/cloudhutch-network.nix` is shared by the installed host and the
+  installer ISO, so the live system comes up on the same address immediately.
+- Tailscale authentication is manual after first boot (`tailscale up
+  --authkey=…`); no auth key is stored in the repo.
+
+Build/architecture consequences:
+
+- **The host and laptop are both x86_64.** The earlier ARM64 VPS attempt was
+  abandoned; there is no binfmt/emulation setup and no native ARM builder to
+  maintain. The flake's opencode overlay applies normally.
+- **`remoteBuild = false` for cloudhutch.** deploy-rs builds locally and copies
+  the closure; the VPS is IPv6-only and cannot fetch GitHub. This is about
+  network reachability, not architecture.
+- **The server HM profile stays self-contained.** `home/server.nix` does not
+  import `home/common-terminal.nix`: that pulls Ghostty, desktop fonts, and
+  the opencode CLI, which do not belong on a VPS. It keeps the git/zsh
+  essentials without them.
+- **The exit node is IPv6-only.** `cloudhutch` advertises
+  `--advertise-exit-node`, but it has no IPv4 upstream. IPv6 client traffic can
+  exit through it; IPv4 needs NAT64/DNS64 or an IPv4 tunnel first.
+
+Two IPv6-only consequences shape the install:
+
+- **GitHub is effectively IPv4-only.** The VPS cannot clone the flake or run
+  `nix flake update` on its own. Builds happen on the laptop; deploy-rs copies
+  the closure. On-box rebuilds would need NAT64/DNS64 or an IPv4 egress path.
+- **The live ISO's store is RAM-backed.** Copying a multi-GB system closure
+  into it can OOM a small VPS. The ISO includes `/etc/nix-daemon-mnt`, a Nix
+  daemon rooted at `local?root=/mnt`, so the laptop copies the closure straight
+  onto the target disk:
+
+  ```
+  nix copy --no-check-sigs \
+    --to 'ssh-ng://root@[<v6>]?remote-program=/etc/nix-daemon-mnt' \
+    <system-closure>
+  ```
+
+`systemd-boot` uses `efi.canTouchEfiVariables = false` (fallback bootloader):
+VPS firmware does not always persist NVRAM entries. On x86_64 the fallback is
+`EFI/BOOT/BOOTX64.EFI`; systemd-boot's installer selects the architecture.
+If netcup stops finding the fallback, flip this to `true` and reinstall/deploy.
+
 ### Networking
 
 #### bond0 to br0
@@ -479,6 +533,14 @@ Bridge provenance and quirks:
   four bridges track the fast cadence — Beeper compatibility matters more
   than stability for outbound-only clients, and they update on
   `nix flake update`).
+- **signal upload patch (temporary)**: Signal-Server v20261104.0.0 made
+  `uploadLength` mandatory on `GET /v4/attachments/form/upload`, so v26.10
+  rejected every outgoing image/file with `failed to decode upload attributes:
+  unexpected response status 400`. beeper.nix overrides
+  `pkgs-unstable.mautrix-signal` with
+  `hosts/containers/mautrix-signal-upload-length.patch` (upstream
+  mautrix/signal#703, merged 2026-11-04). Drop the override once nixpkgs
+  ships v26.11.
 - **telegram**: as of v26.04 (calver tag v0.26xx.0) the bridge is a Go
   bridgev2 rewrite that speaks /provision/v3 and reports remote-connection
   state to the app. nixpkgs still ships only the old Python 0.15.3, so it's
@@ -1082,3 +1144,8 @@ bridges 1Password differently and is left untouched.
 - [ ] **gokapi**: change the initial admin password. Consider rotating the Cloudflare tunnel token, which appeared in the container journal under the old `--token` invocation.
 - [ ] **network-optimizer**: InfluxDB onboarding is manual/one-time; not set up: OpenSpeedTest sidecar, WAN steering, proxy features (hosts/containers/network-optimizer.nix)
 - [ ] **pihole**: re-adopt `services.pihole-ftl.lists` once pihole-ftl-setup is both idempotent (nixpkgs#551979) AND survives FTL's boot-time "Database not available" window — until then adlists are state in gravity.db, not config (hosts/containers/pihole-common.nix)
+- [ ] **cloudhutch**: confirm whether netcup provides NAT64/DNS64; otherwise on-box flake updates/rebuilds stay impossible and everything must be built locally (docs/notes.md#cloud-vps-ipv6-only)
+- [ ] **cloudhutch**: add a sops age recipient derived from `/etc/ssh/ssh_host_ed25519_key` if host-level secrets are needed
+- [ ] **cloudhutch**: public SSH is closed in config; management is tailnet-only with netcup VNC as the out-of-band fallback
+- [ ] **cloudhutch**: exit node is advertised, but IPv4 egress needs NAT64/DNS64 or an IPv4 tunnel; IPv6-only until then
+- [ ] **cloudhutch**: add a Gatus monitor only if the minihutch Gatus container can resolve the tailnet name

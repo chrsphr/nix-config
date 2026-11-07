@@ -42,33 +42,53 @@
 
     # Single shared unstable instance — the biggest eval-time win here.
     # why: docs/notes.md#shared-pkgs-unstable
-    pkgs-unstable = import nixpkgs-unstable {
-      inherit system;
+    #
+    # The opencode overlay repackages an x86_64 npm binary, so only apply it on
+    # x86_64. All current hosts are x86_64, including cloudhutch.
+    mkPkgsUnstable = targetSystem: import nixpkgs-unstable {
+      system = targetSystem;
       config.allowUnfree = true;
       # libolm, pulled by the beeper bridges (end-to-bridge encryption).
       config.permittedInsecurePackages = [ "olm-3.2.16" ];
       # opencode ahead of nixpkgs. why: docs/notes.md#opencode-version
-      overlays = [ (import ./overlays/opencode.nix) ];
+      overlays = lib.optionals (targetSystem == system) [ (import ./overlays/opencode.nix) ];
     };
+    pkgs-unstable = mkPkgsUnstable system;
 
-    # Base builder: every host gets pkgs-unstable in specialArgs.
-    mkHost = { modules, specialArgs ? {}, nixpkgsInput ? nixpkgs, overlays ? [] }:
+    # Base builder: every host gets a matching pkgs-unstable in specialArgs.
+    # hostSystem can override the architecture; all current hosts are x86_64.
+    mkHost = {
+      modules,
+      specialArgs ? {},
+      nixpkgsInput ? nixpkgs,
+      overlays ? [],
+      hostSystem ? system,
+      unstable ? (if hostSystem == system then pkgs-unstable else mkPkgsUnstable hostSystem),
+    }:
       nixpkgsInput.lib.nixosSystem {
-        inherit system;
+        system = hostSystem;
         modules = modules ++ lib.optionals (overlays != []) [ { nixpkgs.overlays = overlays; } ];
-        specialArgs = { inherit pkgs-unstable; } // specialArgs;
+        specialArgs = { pkgs-unstable = unstable; } // specialArgs;
       };
 
     # Home-manager integration shared by the personal machines. Only the home
     # profile path differs per host, so the rest is factored out here.
-    mkHomeModules = homeProfile: [
+    #
+    # The non-x86 branches are retained for future hosts; the current fleet is
+    # entirely x86_64.
+    mkHomeModules = homeProfile: {
+      hostSystem ? system,
+      unstable ? (if hostSystem == system then pkgs-unstable else mkPkgsUnstable hostSystem),
+      mcpPkg ? (if hostSystem == system then mcp-nixos.packages.${system}.default else null),
+    }: [
       home-manager.nixosModules.home-manager
       {
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
         home-manager.extraSpecialArgs = {
-          inherit pkgs-unstable;
-          mcp-nixos-pkg = mcp-nixos.packages.${system}.default;
+          pkgs-unstable = unstable;
+        } // lib.optionalAttrs (mcpPkg != null) {
+          mcp-nixos-pkg = mcpPkg;
         };
         home-manager.backupFileExtension = "hm-bak";
         home-manager.users.chris = import homeProfile;
@@ -76,10 +96,19 @@
     ];
 
     # Personal machine: home-manager plus the pinned deploy-rs CLI.
-    mkMachine = { host, home, extraModules ? [], nixpkgsInput ? nixpkgs, overlays ? [] }: mkHost {
-      modules = [ host ] ++ extraModules ++ mkHomeModules home;
-      specialArgs.deploy-rs-pkg = deploy-rs.packages.${system}.default;
-      inherit nixpkgsInput overlays;
+    mkMachine = {
+      host,
+      home,
+      extraModules ? [],
+      nixpkgsInput ? nixpkgs,
+      overlays ? [],
+      hostSystem ? system,
+      unstable ? (if hostSystem == system then pkgs-unstable else mkPkgsUnstable hostSystem),
+      mcpPkg ? (if hostSystem == system then mcp-nixos.packages.${system}.default else null),
+    }: mkHost {
+      modules = [ host ] ++ extraModules ++ mkHomeModules home { inherit hostSystem unstable mcpPkg; };
+      specialArgs.deploy-rs-pkg = deploy-rs.packages.${hostSystem}.default;
+      inherit nixpkgsInput overlays hostSystem unstable;
     };
 
     # Generate deploy-rs nodes for all hosts that exist in both lib/network.nix and nixosConfigurations
@@ -93,7 +122,10 @@
             user = "root";
             sshUser = "deploy";
             path = deploy-rs.lib.${targetSystem}.activate.nixos configs.${name};
-            remoteBuild = targetSystem != system;
+            # Build on the laptop and copy to the target. cloudhutch is
+            # IPv6-only and cannot fetch GitHub, so remote builds are never an
+            # option for it even though it is now x86_64.
+            remoteBuild = network.hosts.${name}.remoteBuild or (targetSystem != system);
             # Spurious rollbacks from hung confirm SSH — do not re-enable.
             # history: docs/notes.md#magicrollback-disabled
             magicRollback = false;
@@ -132,6 +164,18 @@
         };
       };
 
+      # cloudhutch: IPv6-only x86_64 netcup VPS, minimal tailnet node. No
+      # containers; deploy-rs reaches it over the tailnet (see lib/network.nix
+      # `address`). Install: docs/cloudhutch-install.md
+      cloudhutch = mkMachine {
+        host = ./hosts/cloudhutch.nix;
+        home = ./home/server.nix;
+        extraModules = [
+          ./hardware/cloudhutch-disko.nix
+          disko.nixosModules.disko
+        ];
+      };
+
       ### Personal machines (hosts/)
 chris-framework = mkMachine {
         host = ./hosts/chris-framework.nix;
@@ -156,11 +200,16 @@ chris-framework = mkMachine {
         extraModules = [ nixos-wsl.nixosModules.default ];
       };
 
-      ### Installer ISO (build only, not deployed)
+      ### Installer ISOs (build only, not deployed)
       # Minimal SSH-enabled live ISO for key-only remote installs.
       # Build: nix build .#nixosConfigurations.install-iso.config.system.build.isoImage
       install-iso = mkHost {
         modules = [ ./hosts/install-iso.nix ];
+      };
+      # cloudhutch's x86_64 ISO: static IPv6 + baked-in disko config.
+      # Build: nix build .#nixosConfigurations.cloudhutch-iso.config.system.build.isoImage
+      cloudhutch-iso = mkHost {
+        modules = [ ./hosts/cloudhutch-iso.nix ];
       };
     };
 

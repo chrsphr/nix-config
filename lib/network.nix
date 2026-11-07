@@ -13,6 +13,8 @@ let
   #
   # Per-host fields:
   #   ip               = static IPv4 (omit for DHCP containers; they resolve via <name>.internal)
+  #   address          = reachable address for SSH/deploy, e.g. a tailnet name.
+  #                      Overrides `ip` for getIP; use for hosts not on the LAN.
   #   host             = override hostname for DHCP/DNS (e.g. prowlarr shares "sonarr")
   #   port, caddy, subdomain, https — used by Caddy generation
   #   headers  = bool    forward X-Real-IP (Caddy already sets X-Forwarded-For/
@@ -253,6 +255,16 @@ let
         group = "Servers";
       };
     };
+    # IPv6-only cloud VPS. Not on the LAN: `address` is the tailnet MagicDNS
+    # name, used by deploy-rs and the generated ~/.ssh/config. No `ip`, so it
+    # never gets a LAN DHCP/DNS identity or a Caddy/monitor entry.
+    cloudhutch = {
+      sshUser = "deploy";
+      address = "cloudhutch";
+      # Build on the laptop and let deploy-rs copy the closure; the VPS is
+      # IPv6-only and cannot fetch GitHub, so it cannot build remotely either.
+      remoteBuild = false;
+    };
 
     # Non-NixOS hosts (for Caddy config + monitoring)
     ha = {
@@ -277,9 +289,13 @@ let
     };
   };
 
-  # Resolve the connectable address for a host: static IP if set, otherwise
-  # `<host>.<internalDomain>` resolved via local DNS (UniFi DHCP).
-  hostAddr = name: cfg: cfg.ip or "${cfg.host or name}.${internalDomain}";
+  # Resolve the connectable address for a host: explicit `address` (e.g. a
+  # tailnet name), then static IP, otherwise `<host>.<internalDomain>`
+  # resolved via local DNS (UniFi DHCP).
+  hostAddr = name: cfg:
+    if cfg ? address then cfg.address
+    else if cfg ? ip then cfg.ip
+    else "${cfg.host or name}.${internalDomain}";
 
   # Filter hosts that should be in Caddy
   caddyHosts = lib.filterAttrs (name: cfg: cfg.caddy or false) hosts;
@@ -385,7 +401,8 @@ in {
   # Hosts that run as NixOS containers on a given parent host
   getContainers = parent: lib.filterAttrs (name: cfg: (cfg.parent or null) == parent) hosts;
 
-  # Connectable address for a host: static IP if configured, else <name>.internal
+  # Connectable address for a host: `address` if configured, then static IP,
+  # else <name>.internal
   getIP = hostname: hostAddr hostname hosts.${hostname};
 
   # Deterministic, locally-administered MAC for a container:

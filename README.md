@@ -28,6 +28,11 @@ as `parent`. `hutch` additionally **is the NAS** (ZFS pool `Hutch`, NFS,
 snapshots, encrypted B2 backup — `modules/nas.nix`); `minihutch` is compute
 only.
 
+There is also one cloud VPS, `cloudhutch`, which is a minimal IPv6-only x86_64
+tailnet node — no containers. It lives outside the LAN, so `lib/network.nix`
+gives it an `address` (its tailnet MagicDNS name) instead of an `ip`. Install
+runbook: `docs/cloudhutch-install.md`.
+
 Containers have no `nixosConfigurations` entry of their own — **deploying a
 server deploys its containers with it**. The "On" column below says which.
 
@@ -35,6 +40,7 @@ server deploys its containers with it**. The "On" column below says which.
 |------|---------|----|------|
 | `hutch` | 192.168.1.2 | — | Baremetal NAS + container host |
 | `minihutch` | 192.168.1.3 | — | Baremetal container host (no storage). Install/cutover: `docs/minihutch-install.md` |
+| `cloudhutch` | `cloudhutch` (tailnet) | — | IPv6-only x86_64 netcup VPS, minimal tailnet node + IPv6-only exit node. Install: `docs/cloudhutch-install.md` |
 | `caddy` | 192.168.1.239 | minihutch | Reverse proxy + TLS (Cloudflare DNS) |
 | `pihole-1` | 192.168.1.9 | hutch | Primary DNS |
 | `pihole-2` | 192.168.1.10 | minihutch | Secondary DNS |
@@ -53,7 +59,11 @@ server deploys its containers with it**. The "On" column below says which.
 | `cloudflared` | `cloudflared.internal` (DHCP) | hutch | Outbound-only Cloudflare Tunnel sidecar on VLAN 5 for Gokapi |
 | `beeper` | `beeper.internal` (DHCP) | minihutch | Self-hosted Beeper bridges (Signal, WhatsApp, Telegram, Bluesky) via bbctl. Outbound-only — no inbound/Caddy. Signal/WhatsApp from nixpkgs; Telegram and Bluesky are Go bridgev2 bridges built from pinned upstream releases. One-time `bbctl login` bootstrap required — see below. |
 
-All host IPs and Caddy routing are defined in `lib/network.nix` — the single source of truth for network topology.
+All host IPs, tailnet addresses and Caddy routing are defined in
+`lib/network.nix` — the single source of truth for network topology. A host
+entry with `address` (rather than `ip`) is reached at that address by both
+deploy-rs and the generated `~/.ssh/config`; `cloudhutch` uses this for its
+tailnet name.
 
 ---
 
@@ -73,7 +83,11 @@ sudo nixos-rebuild switch --flake /home/chris/nix-config#chris-framework
 
 ### Remote deployment with deploy-rs
 
-Remote deploys use [deploy-rs](https://github.com/serokell/deploy-rs). Deploy nodes are auto-generated from `lib/network.nix` — any host that exists in both `lib/network.nix` and `nixosConfigurations` gets a deploy node. In practice that is `hutch` and `minihutch`: the containers have no `nixosConfigurations` entry, so **deploying a server deploys every service on it**. All builds happen locally and closures are copied to the target.
+Remote deploys use [deploy-rs](https://github.com/serokell/deploy-rs). Deploy nodes are auto-generated from `lib/network.nix` — any host that exists in both `lib/network.nix` and `nixosConfigurations` gets a deploy node. In practice that is `hutch`, `minihutch` and `cloudhutch`: the containers have no `nixosConfigurations` entry, so **deploying a server deploys every service on it**. All builds happen locally and closures are copied to the target.
+
+`cloudhutch` is reached over the tailnet (`address = "cloudhutch"` in `lib/network.nix`), not the LAN. It is `x86_64-linux`, matching the laptop, but `remoteBuild = false` still tells deploy-rs to build locally and copy the closure: the VPS is IPv6-only and cannot fetch GitHub.
+
+Its public interface is IPv6-only and GitHub is effectively IPv4-only, so continue to build on the laptop and let deploy-rs copy the closure; don't run `nixos-rebuild`/`nix flake update` on the VPS unless you have NAT64/DNS64 or an IPv4 egress path.
 
 Deploy the server:
 
@@ -87,7 +101,7 @@ Dry run — preview what would change without activating:
 deploy .#hutch --dry-activate
 ```
 
-Magic rollback is **disabled** on this fleet (its confirmation SSH round-trip hung intermittently and triggered spurious rollbacks — see `docs/notes.md#magicrollback-disabled`). Verify a deploy by checking services afterwards; the server's physical console is the recovery path if an activation goes bad.
+Magic rollback is **disabled** on this fleet (its confirmation SSH round-trip hung intermittently and triggered spurious rollbacks — see `docs/notes.md#magicrollback-disabled`). Verify a deploy by checking services afterwards; the server's physical console (or netcup's VNC console for `cloudhutch`) is the recovery path if an activation goes bad.
 
 The `deploy` user has passwordless sudo configured. SSH key auth is required.
 
@@ -389,6 +403,8 @@ hosts/                     # One file per machine
   chris-desktop.nix        # Desktop (gaming/workstation)
   chris-wsl.nix            # WSL
   install-iso.nix          # Minimal SSH-enabled live installer ISO (build only)
+  cloudhutch.nix           # IPv6-only x86_64 netcup VPS, minimal tailnet node
+  cloudhutch-iso.nix       # cloudhutch x86_64 installer ISO (build only)
   containers/              # NixOS containers — one per service, either server
     common.nix             # Shared base for every container
     caddy.nix              # Reverse proxy
@@ -401,6 +417,7 @@ modules/                   # Reusable NixOS modules
   container-host.nix       # Container-host role: LAN bond/bridge + container generation
   nas.nix                  # NAS role: ZFS, NFS, sanoid, smartd, encrypted rclone->B2
   common-desktop.nix       # Base for desktop machines (GNOME, Tailscale, etc.)
+  cloudhutch-network.nix   # cloudhutch static IPv6 WAN (host + installer ISO)
   cloudflare-tunnel.nix    # Cloudflare tunnel service wrapper
   nfs-home-automount.nix   # Smart NFS mount (WiFi/Tailscale aware)
   keyboard-backlight-timeout.nix  # Framework keyboard backlight
@@ -414,6 +431,7 @@ home/                      # Home Manager profiles
   framework.nix            # Framework-specific user packages
   desktop.nix              # Desktop-specific user packages
   wsl.nix                  # WSL: Python, 1Password SSH bridge
+  server.nix               # Headless servers: shared CLI profile, no GUI
 pkgs/                      # Local packages (network-optimizer + pinned deps)
 docs/                      # notes.md (decisions/incidents/pending) + install runbooks
 secrets/                   # sops-nix encrypted YAML files

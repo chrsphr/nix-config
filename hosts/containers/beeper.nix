@@ -12,6 +12,15 @@ let
   # proxy, no python-style launch. why: docs/notes.md#beeper-bridges
   bbctl = "${pkgs-unstable.beeper-bridge-manager}/bin/bbctl";
 
+  # Signal-Server v20261104.0.0 made uploadLength mandatory on
+  # GET /v4/attachments/form/upload, so every outgoing attachment failed with
+  # a 400 ("failed to decode upload attributes"). Fixed upstream in
+  # mautrix/signal#703 after v26.10; drop this once nixpkgs ships v26.11.
+  # why: docs/notes.md#beeper-bridges
+  mautrix-signal = pkgs-unstable.mautrix-signal.overrideAttrs (old: {
+    patches = (old.patches or []) ++ [ ./mautrix-signal-upload-length.patch ];
+  });
+
   # Go bridgev2 bridges not in nixpkgs, built from the upstream tag. Bump
   # version + both hashes to upgrade. Without a valid Tag in ldflags the
   # bridges panic at startup. why: docs/notes.md#beeper-bridges
@@ -48,7 +57,7 @@ let
   # signal/whatsapp/gmessages track unstable so they update on flake bumps.
   # See README "Beeper bridges" for add/remove and the login bootstrap.
   bridges = {
-    signal    = "${pkgs-unstable.mautrix-signal}/bin/mautrix-signal";
+    signal    = "${mautrix-signal}/bin/mautrix-signal";
     whatsapp  = "${pkgs-unstable.mautrix-whatsapp}/bin/mautrix-whatsapp";
     telegram  = "${mautrix-telegram}/bin/mautrix-telegram";
     bluesky   = "${mautrix-bluesky}/bin/mautrix-bluesky";
@@ -98,10 +107,9 @@ in
 
   environment.systemPackages = (with pkgs-unstable; [
     mautrix-whatsapp
-    mautrix-signal
     mautrix-gmessages
     beeper-bridge-manager
-  ]) ++ [ mautrix-telegram mautrix-bluesky ];
+  ]) ++ [ mautrix-signal mautrix-telegram mautrix-bluesky ];
 
   systemd.services = lib.mapAttrs'
     (name: command: lib.nameValuePair "mautrix-${name}" (mkBridgeService name command))

@@ -934,6 +934,14 @@ on a fixed kernel, drop the module import from hosts/chris-framework.nix.
 - No cpu-epp oneshot (unlike hutch): GNOME's power-profiles-daemon already
   sets balance_performance on the default profile and re-asserts it on
   changes.
+- **PCIe wake sources disabled** (`disable-wake-sources.service`): GPP0 (NVMe
+  root port) asserts a PME that aborts every S3 sleep ~3 ms after entry; GPP8
+  is the GPU's root port. `/proc/acpi/wakeup` is a *toggle*, not a setter, so
+  the unit writes a device only when it reads `*enabled`. The old
+  unconditional `echo GPP0` re-armed both on every rebuild that restarted the
+  unit — 2026-11-07 sleep began waking after ~6 s (GPE04, one event per
+  suspend) and 77 cycles were logged before it was noticed. Verify with
+  `grep GPP0 /proc/acpi/wakeup` (must be `*disabled`).
 
 #### Hutch
 

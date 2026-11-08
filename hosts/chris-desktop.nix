@@ -104,15 +104,22 @@
   # equivalent) in BIOS for wake from full power-off.
   networking.interfaces.eno1.wakeOnLan.enable = true;
 
-  # Disable problematic wake sources
+  # Disable problematic PCIe wake sources. GPP0 is the NVMe root port (its PME
+  # aborts every S3 sleep ~3 ms after entry) and GPP8 the GPU's. `/proc/acpi/
+  # wakeup` is a *toggle*, so only write a device when it currently reads
+  # *enabled: a blind `echo` re-armed both whenever a rebuild restarted this
+  # unit (2026-11-07: sleep started waking again ~6 s after every suspend).
+  # Check with `grep GPP0 /proc/acpi/wakeup` — it should say *disabled.
   systemd.services.disable-wake-sources = {
-    description = "Disable USB wake sources";
+    description = "Disable PCIe wake sources (NVMe/GPU root ports)";
     wantedBy = [ "multi-user.target" ];
     after = [ "multi-user.target" ];
     script = ''
-      echo GPP0 > /proc/acpi/wakeup
-      echo GPP8 > /proc/acpi/wakeup
-
+      for dev in GPP0 GPP8; do
+        if grep -q "^$dev[[:space:]].*\*enabled" /proc/acpi/wakeup; then
+          echo "$dev" > /proc/acpi/wakeup
+        fi
+      done
     '';
     serviceConfig = {
       Type = "oneshot";

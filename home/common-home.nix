@@ -16,7 +16,7 @@ in
   home.packages = with pkgs; [
     pkgs-unstable.beeper
     ## pkgs-unstable.qgis
-    qgis.ltr
+    qgis-ltr
     pkgs-unstable.vscode
     spotify
     conda

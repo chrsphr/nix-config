@@ -17,6 +17,9 @@ in
     pkgs-unstable.beeper
     ## pkgs-unstable.qgis
     qgis-ltr
+    # nixpkgs 26.05's vscode 1.144 fails at patchPhase: it still expects
+    # the pre-1.122 ripgrep path. Unstable has the fix. Revert once the
+    # backport lands: https://github.com/NixOS/nixpkgs/pull/585147
     pkgs-unstable.vscode
     spotify
     conda

@@ -15,8 +15,9 @@ in
   # Shared GUI packages for both desktop and framework laptop
   home.packages = with pkgs; [
     pkgs-unstable.beeper
-    pkgs-unstable.qgis
-    vscode
+    ## pkgs-unstable.qgis
+    qgis.ltr
+    pkgs-unstable.vscode
     spotify
     conda
     (pkgs.symlinkJoin {

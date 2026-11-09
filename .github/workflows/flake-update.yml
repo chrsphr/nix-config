@@ -13,6 +13,14 @@ concurrency:
   group: flake-update
   cancel-in-progress: true
 
+# Upstream source fetches (github.com archive CDN) intermittently return
+# 503/504. These settings make Nix retry harder before giving up.
+env:
+  NIX_CONFIG: |
+    download-attempts = 10
+    connect-timeout = 30
+    stalled-download-timeout = 300
+
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -51,11 +59,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BASE: ${{ github.event.repository.default_branch }}
         run: |
-          gh pr view flake-update --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh pr create --repo "$GITHUB_REPOSITORY" \
-                 --head flake-update --base "$BASE" \
-                 --title "flake.lock: daily update" \
-                 --body "Automated daily \`nix flake update\`. Merges automatically if all host builds and \`nix flake check\` pass."
+          # Match only an open PR: a closed one with the same head is still
+          # found by `gh pr view`, which would silently skip creating a new one.
+          if gh pr view flake-update --state open --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "PR already open"
+            exit 0
+          fi
+          gh pr reopen flake-update --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && exit 0
+          gh pr create --repo "$GITHUB_REPOSITORY" \
+            --head flake-update --base "$BASE" \
+            --title "flake.lock: daily update" \
+            --body "Automated daily \`nix flake update\`. Merges automatically if all host builds and \`nix flake check\` pass."
 
   build:
     needs: update
@@ -79,7 +93,15 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Build ${{ matrix.host }}
-        run: nix build --no-link ".#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel"
+        run: |
+          for attempt in 1 2 3; do
+            if nix build --no-link ".#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel"; then
+              exit 0
+            fi
+            echo "build attempt $attempt failed, retrying in $((attempt * 30))s"
+            sleep $((attempt * 30))
+          done
+          exit 1
 
   check:
     needs: update
@@ -93,7 +115,15 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: nix flake check
-        run: nix flake check
+        run: |
+          for attempt in 1 2 3; do
+            if nix flake check; then
+              exit 0
+            fi
+            echo "check attempt $attempt failed, retrying in $((attempt * 30))s"
+            sleep $((attempt * 30))
+          done
+          exit 1
 
   merge:
     needs: [update, build, check]

@@ -4,12 +4,6 @@
 # /mnt/media (see hosts/hutch.nix). Movies only — Sonarr handles TV.
 
 {
-  imports = [
-    ./common.nix
-  ];
-
-  networking.hostName = "radarr";
-
   services.radarr = {
     enable = true;
     openFirewall = true;

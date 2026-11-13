@@ -1,4 +1,4 @@
-{ config, pkgs, sops-nix, lib, ... }:
+{ config, pkgs, lib, network, ... }:
 
 # Prometheus metrics + systemd-journal-remote log sink as a NixOS container on
 # minihutch. Targets are derived from lib/network.nix; every host and container
@@ -7,13 +7,12 @@
 # why: docs/notes.md#prometheus-and-journal-remote
 
 let
-  hostsLib = import ../../lib/network.nix { inherit lib; };
 
   baremetalHosts = [ "hutch" "minihutch" ];
   # VLAN-isolated containers without an exporter (cloudflared) are skipped.
   containerHosts = lib.filterAttrs (name: cfg:
     (cfg ? parent) && name != "cloudflared"
-  ) hostsLib.hosts;
+  ) network.hosts;
 
   # Replace the IP:port instance label with the readable hostname from
   # lib/network.nix while preserving the scrape address.
@@ -31,23 +30,13 @@ let
   '';
 in
 {
-  imports = [
-    ./common.nix
-    sops-nix.nixosModules.sops
-  ];
-
-  networking = {
-    hostName = "prometheus";
-    # 9090: Prometheus web UI / API. 19532: systemd-journal-remote HTTP sink.
-    # Alertmanager stays on loopback: only Prometheus talks to it.
-    firewall.allowedTCPPorts = [ 9090 19532 ];
-  };
+  # 9090: Prometheus web UI / API. 19532: systemd-journal-remote HTTP sink.
+  # Alertmanager stays on loopback: only Prometheus talks to it.
+  networking.firewall.allowedTCPPorts = [ 9090 19532 ];
 
   sops = {
-    defaultSopsFile = ../../secrets/prometheus.yaml;
-    # A copy of the laptop master key — accepted tradeoff.
+    # Decrypted with a copy of the laptop master key — accepted tradeoff.
     # why: docs/notes.md#secrets-under-var
-    age.keyFile = "/var/secrets/keys.txt";
     secrets.smtp_password = {
       # Alertmanager reads this through a systemd credential, so the file
       # itself stays root-only. Rotating it restarts the service.
@@ -60,7 +49,7 @@ in
     enable = true;
     port = 9090;
     retentionTime = "90d";
-    webExternalUrl = "https://prometheus.${hostsLib.domain}";
+    webExternalUrl = "https://prometheus.${network.domain}";
 
     globalConfig = {
       scrape_interval = "30s";
@@ -92,7 +81,7 @@ in
       {
         job_name = "hosts";
         static_configs = map (name: {
-          targets = [ "${hostsLib.getIP name}:9100" ];
+          targets = [ "${network.getIP name}:9100" ];
           labels.host = name;
         }) baremetalHosts;
         relabel_configs = hostRelabel;
@@ -101,7 +90,7 @@ in
         job_name = "smartctl";
         scrape_interval = "60s";
         static_configs = map (name: {
-          targets = [ "${hostsLib.getIP name}:9633" ];
+          targets = [ "${network.getIP name}:9633" ];
           labels.host = name;
         }) baremetalHosts;
         relabel_configs = hostRelabel;
@@ -109,7 +98,7 @@ in
       {
         job_name = "containers";
         static_configs = lib.mapAttrsToList (name: cfg: {
-          targets = [ "${hostsLib.getIP name}:9100" ];
+          targets = [ "${network.getIP name}:9100" ];
           labels = {
             host = name;
             parent = cfg.parent;
@@ -121,7 +110,7 @@ in
         job_name = "gatus";
         static_configs = [
           {
-            targets = [ "${hostsLib.getIP "uptime"}:3001" ];
+            targets = [ "${network.getIP "uptime"}:3001" ];
             labels.host = "uptime";
           }
         ];
@@ -131,7 +120,7 @@ in
         job_name = "caddy";
         static_configs = [
           {
-            targets = [ "${hostsLib.getIP "caddy"}:9180" ];
+            targets = [ "${network.getIP "caddy"}:9180" ];
             labels.host = "caddy";
           }
         ];
@@ -141,7 +130,7 @@ in
         job_name = "postgres";
         static_configs = [
           {
-            targets = [ "${hostsLib.getIP "gb-grid"}:9187" ];
+            targets = [ "${network.getIP "gb-grid"}:9187" ];
             labels.host = "gb-grid";
           }
         ];

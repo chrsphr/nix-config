@@ -1,23 +1,19 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, network, ... }:
 
 let
   cliPw = "${config.services.pihole-ftl.configDirectory}/cli_pw";
   textfileDir = "/var/lib/node-exporter-textfile";
-  hostsLib = import ../../lib/network.nix { inherit lib; };
 in
 {
   imports = [
     ../../modules/file-logs.nix
   ];
 
-  # Open firewall ports and set custom DNS to avoid loops
-  networking = {
-    firewall = {
-      allowedTCPPorts = [ 22 53 80 443];
-      allowedUDPPorts = [ 53 ];
-    };
+  # DNS + web UI (sshd opens 22 itself).
+  networking.firewall = {
+    allowedTCPPorts = [ 53 80 443 ];
+    allowedUDPPorts = [ 53 ];
   };
-
 
   services.pihole-ftl = {
     enable = true;
@@ -35,10 +31,10 @@ in
         interface = "eth0";
         listeningMode = "BIND";
         upstreams = [
-            "1.1.1.1#53"
-            "1.0.0.1#53"
-            "2606:4700:4700::1111#53"
-            "2606:4700:4700::1001#53"
+          "1.1.1.1#53"
+          "1.0.0.1#53"
+          "2606:4700:4700::1111#53"
+          "2606:4700:4700::1001#53"
         ];
         # Do NOT enable revServers (conditional forwarding) to 192.168.1.1!
         # Clients and containers query the UniFi gateway (192.168.1.1) first,
@@ -50,7 +46,7 @@ in
         # Pi-hole forwards *.internal back to 192.168.1.1, creating a tight
         # DNS loop that rate-limits 192.168.1.1 and takes down all LAN DNS.
         domain = {
-          name = hostsLib.internalDomain;
+          name = network.internalDomain;
           local = true;
         };
         # Default is 1000 queries/60s per client; bumped 10x for busy clients.
@@ -63,24 +59,20 @@ in
       # Wildcard for every mcneill.fyi name (A and AAAA) so per-service UniFi
       # CNAMEs are not needed. The AAAA is Caddy's ULA SLAAC address.
       misc.dnsmasq_lines = [
-        "address=/mcneill.fyi/192.168.1.239"
-        "address=/mcneill.fyi/fdc0:ffee::c0ff:fea8:1ef"
+        "address=/${network.domain}/${network.getIP "caddy"}"
+        "address=/${network.domain}/fdc0:ffee::c0ff:fea8:1ef"
       ];
-      dhcp = {
-        active = false;
-
-      };
+      dhcp.active = false;
       webserver.api = {
         pwhash = "$BALLOON-SHA256$v=1$s=1024,t=32$0ryHODlDWJn1L0uBamA2Zg==$zq/YS/1/qOqhbXbcoKGf7hdWWVv3Tqd0Dn7iVwYKAf4=";
       };
     };
   };
 
-
-    services.pihole-web = {
-        enable = true;
-        ports = [ 80 ];
-    };
+  services.pihole-web = {
+    enable = true;
+    ports = [ 80 ];
+  };
 
   # Update gravity database on boot and daily
   systemd.services.pihole-gravity-update = {
@@ -165,9 +157,6 @@ in
     };
   };
 
-
-
-
   ### Packages
   environment.systemPackages = with pkgs; [
     dig
@@ -183,7 +172,4 @@ in
     "2606:4700:4700::1111"
     "2606:4700:4700::1001"
   ];
-
-
-
 }

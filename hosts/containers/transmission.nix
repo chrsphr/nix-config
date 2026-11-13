@@ -4,14 +4,7 @@
 # mounted at /mnt/media (hosts/hutch.nix).
 
 {
-  imports = [
-    ./common.nix
-  ];
-
-  networking = {
-    hostName = "transmission";
-    firewall.allowedTCPPorts = [ 9091 ];
-  };
+  networking.firewall.allowedTCPPorts = [ 9091 ];
 
   services.transmission = {
     enable = true;

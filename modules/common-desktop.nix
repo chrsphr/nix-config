@@ -154,12 +154,10 @@ in
     };
   };
 
-  # Firewall
-  networking.firewall = {
-    allowedTCPPorts = [ 22 ];
-    # Required for Tailscale exit nodes - return traffic comes via different interface
-    checkReversePath = "loose";
-  };
+  # Firewall (sshd opens 22 itself).
+  # Loose rp_filter is required for Tailscale exit nodes — return traffic
+  # comes via a different interface.
+  networking.firewall.checkReversePath = "loose";
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;

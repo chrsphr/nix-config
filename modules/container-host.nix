@@ -1,4 +1,4 @@
-{ config, pkgs, pkgs-unstable, sops-nix, gb-grid, gb-grid-pkg, lib, ... }:
+{ config, pkgs, pkgs-unstable, sops-nix, gb-grid, gb-grid-pkg, lib, network, ... }:
 
 # The container-host role: LAN bond/bridge plus every NixOS container that
 # lib/network.nix names this machine as `parent` of (see README). Per-host
@@ -6,10 +6,9 @@
 # hosts/<name>.nix.
 
 let
-  hostsLib = import ../lib/network.nix { inherit lib; };
   cfg = config.containerHost;
   hostName = config.networking.hostName;
-  hostContainers = hostsLib.getContainers hostName;
+  hostContainers = network.getContainers hostName;
 
   # Containers with a `vlan` field get their own tagged bridge instead of
   # br0: bond0.<id> (VLAN tag) -> br<id> (untagged container side).
@@ -71,10 +70,12 @@ in
       default = [];
       example = [ "caddy" "uptime" ];
       description = ''
-        Containers that decrypt secrets/<name>.yaml. The decryption key lives
-        at /var/lib/sops-nix/<name>/ on this host (root-only, NOT in the repo)
-        and is bind-mounted read-only into the container at /var/secrets. The
-        filename differs per container — see each container's sops.age.keyFile.
+        Containers that decrypt secrets/<name>.yaml. Each gets the sops-nix
+        module with that file as defaultSopsFile. The decryption key lives at
+        /var/lib/sops-nix/<name>/keys.txt on this host (root-only, NOT in the
+        repo) and is bind-mounted read-only into the container at
+        /var/secrets. A container whose key file has another name overrides
+        sops.age.keyFile.
       '';
     };
 
@@ -110,15 +111,14 @@ in
     networking = {
       useNetworkd = true;
       interfaces.br0.ipv4.addresses = [{
-        address = hostsLib.getIP hostName;
+        address = network.getIP hostName;
         prefixLength = 24;
       }];
       defaultGateway = {
-        address = hostsLib.gateway;
+        address = network.gateway;
         interface = "br0";
       };
-      inherit (hostsLib) nameservers;
-      firewall.allowedTCPPorts = [ 22 ];
+      inherit (network) nameservers;
     };
 
     systemd.network = {
@@ -178,6 +178,7 @@ in
     containers = lib.mapAttrs' (name: hostCfg:
       let
         isStatic = hostCfg ? ip;
+        hasSecrets = builtins.elem name cfg.withSecrets;
         extra = cfg.perContainer.${name} or {};
       in lib.nameValuePair name (lib.recursiveUpdate ({
         privateNetwork = true;
@@ -187,13 +188,22 @@ in
           else "br0";
         # nspawn picks a random MAC per start; pin a deterministic one so the
         # container's LAN identity and DHCP lease stay stable across restarts.
-        localMacAddress = hostsLib.getMAC name;
+        localMacAddress = network.getMAC name;
         autoStart = true;
-        # gb-grid/gb-grid-pkg are only consumed by the gb-grid container,
-        # sops-nix only by the ones in withSecrets — harmless elsewhere.
-        specialArgs = { inherit pkgs-unstable sops-nix gb-grid gb-grid-pkg; };
-        config = { imports = [ (../hosts/containers + "/${name}.nix") ]; };
-        bindMounts = lib.optionalAttrs (builtins.elem name cfg.withSecrets) {
+        # gb-grid/gb-grid-pkg are only consumed by the gb-grid container —
+        # harmless elsewhere.
+        specialArgs = { inherit pkgs-unstable gb-grid gb-grid-pkg network; };
+        # Every container = the shared base + its own file. hostName defaults
+        # to the container name (nixos-containers.nix).
+        config.imports = [
+          ../hosts/containers/common.nix
+          (../hosts/containers + "/${name}.nix")
+        ] ++ lib.optional hasSecrets {
+          imports = [ sops-nix.nixosModules.sops ];
+          sops.defaultSopsFile = lib.mkDefault (../secrets + "/${name}.yaml");
+          sops.age.keyFile = lib.mkDefault "/var/secrets/keys.txt";
+        };
+        bindMounts = lib.optionalAttrs hasSecrets {
           "/var/secrets" = {
             hostPath = "/var/lib/sops-nix/${name}";
             isReadOnly = true;
@@ -220,7 +230,7 @@ in
     # Also remove any stale veth (ve-%i / vb-%i): nixos-containers.nix's
     # preStart only deletes them when localAddress != null.
     # why: docs/notes.md#nspawn-stop-race
-    systemd.services = (lib.genAttrs
+    systemd.services = lib.genAttrs
       (map (n: "container@${n}") (builtins.attrNames hostContainers))
       (_: {
         serviceConfig = {
@@ -231,34 +241,10 @@ in
             "-${pkgs.iproute2}/bin/ip link del dev vb-%i"
           ];
         };
-      })) // {
-      # systemd-journal-upload exits on the first DNS/connection failure. Run
-      # it in a retry loop so the unit stays `active` for
-      # switch-to-configuration, and an unresolvable prometheus.internal can
-      # never become a tight restart loop that floods the Pi-holes with
-      # thousands of queries/s until they rate-limit the UDM (which blackholes
-      # LAN DNS). 5s between attempts is plenty for a log shipper.
-      # why: docs/notes.md#prometheus-and-journal-remote
-      systemd-journal-upload = {
-        unitConfig.StartLimitIntervalSec = 0;
-        serviceConfig = {
-          # The empty entry resets the upstream ExecStart list in the drop-in;
-          # without it systemd sees two ExecStart= lines and rejects the unit.
-          ExecStart = lib.mkForce [
-            ""
-            (toString (pkgs.writeShellScript "journal-upload-retry" ''
-              while true; do
-                ${config.systemd.package}/lib/systemd/systemd-journal-upload --save-state || true
-                sleep 5
-              done
-            ''))
-          ];
-          RestartSec = lib.mkForce "1s";
-        };
-      };
-    };
+      });
 
-    # Host telemetry + journal shipping to the prometheus container.
+    # Host telemetry for the prometheus container (journal shipping is
+    # modules/journal-upload.nix, via server-base).
     # why: docs/notes.md#prometheus-and-journal-remote
     services.prometheus.exporters = {
       node = {
@@ -271,11 +257,6 @@ in
         openFirewall = true;
       };
     };
-    services.journald.upload = {
-      enable = true;
-      settings.Upload.URL = "http://${hostsLib.getIP "prometheus"}:19532";
-    };
-
     systemd.tmpfiles.rules =
       map (n: "d /var/lib/sops-nix/${n} 0700 root root -") cfg.withSecrets;
   };

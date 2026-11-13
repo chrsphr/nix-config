@@ -1,20 +1,16 @@
-{ config, pkgs, pkgs-unstable, sops-nix, lib, ... }:
+{ config, pkgs, pkgs-unstable, lib, ... }:
 
 # Immich as a NixOS container on hutch. The photo library is a bind mount of
 # the local ZFS dataset (hosts/hutch.nix), exposed at /mnt/media/Photos.
 
 {
   imports = [
-    ./common.nix
     ../../modules/cloudflare-tunnel.nix
-    sops-nix.nixosModules.sops
   ];
-
-  networking.hostName = "immich";
 
   # Age key bind-mounted from the host (/var/lib/sops-nix/immich).
   sops = {
-    defaultSopsFile = ../../secrets/immich.yaml;
+    # Non-default filename: rename the host file to keys.txt to drop this.
     age.keyFile = "/var/secrets/age-keys.txt";
     secrets = {
       oauth_client_id = {

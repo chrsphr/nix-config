@@ -43,11 +43,8 @@ let
 in
 {
   imports = [
-    ./common.nix
     ../../modules/file-logs.nix
   ];
-
-  networking.hostName = "plex";
 
   services.plex = {
     enable = true;

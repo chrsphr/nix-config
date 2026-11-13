@@ -1,29 +1,24 @@
-{ config, pkgs, pkgs-unstable, lib, ... }:
+{ config, pkgs, pkgs-unstable, lib, network, ... }:
 
 # Homepage homelab dashboard as a NixOS container on minihutch.
 # Runs Homepage v2 from pkgs-unstable with Glances node metrics and service widgets.
 
 let
-  hostsLib = import ../../lib/network.nix { inherit lib; };
-  hutchIP = hostsLib.getIP "hutch";
-  minihutchIP = hostsLib.getIP "minihutch";
+  hutchIP = network.getIP "hutch";
+  minihutchIP = network.getIP "minihutch";
+  port = network.hosts.homepage.port;
+  p = toString port;
+  # http://<address>:<port from lib/network.nix><path> for a host.
+  serviceUrl = name: path:
+    "http://${network.getIP name}:${toString network.hosts.${name}.port}${path}";
 in
 {
-  imports = [
-    ./common.nix
-  ];
-
-  networking = {
-    hostName = "homepage";
-    firewall.allowedTCPPorts = [ 8082 ];
-  };
-
   services.homepage-dashboard = {
     enable = true;
     package = pkgs-unstable.homepage-dashboard;
-    listenPort = 8082;
+    listenPort = port;
     openFirewall = true;
-    allowedHosts = "localhost:8082,127.0.0.1:8082,${hostsLib.getIP "homepage"}:8082,homepage.${hostsLib.domain},home.${hostsLib.domain}";
+    allowedHosts = "localhost:${p},127.0.0.1:${p},${network.getIP "homepage"}:${p},homepage.${network.domain},home.${network.domain}";
 
     settings = {
       title = "Hutch Fleet";
@@ -77,35 +72,35 @@ in
           {
             Plex = {
               icon = "plex.png";
-              href = "https://plex.${hostsLib.domain}";
+              href = "https://plex.${network.domain}";
               description = "Media Server";
-              siteMonitor = "http://${hostsLib.getIP "plex"}:32400/identity";
+              siteMonitor = serviceUrl "plex" "/identity";
             };
           }
           {
             Sonarr = {
               icon = "sonarr.png";
-              href = "https://sonarr.${hostsLib.domain}";
+              href = "https://sonarr.${network.domain}";
               description = "TV Automation";
-              siteMonitor = "http://${hostsLib.getIP "sonarr"}:8989/ping";
+              siteMonitor = serviceUrl "sonarr" "/ping";
             };
           }
           {
             Radarr = {
               icon = "radarr.png";
-              href = "https://radarr.${hostsLib.domain}";
+              href = "https://radarr.${network.domain}";
               description = "Movie Automation";
-              siteMonitor = "http://${hostsLib.getIP "radarr"}:7878/ping";
+              siteMonitor = serviceUrl "radarr" "/ping";
             };
           }
           {
             Transmission = {
               icon = "transmission.png";
-              href = "https://transmission.${hostsLib.domain}";
+              href = "https://transmission.${network.domain}";
               description = "BitTorrent Client";
               widget = {
                 type = "transmission";
-                url = "http://${hostsLib.getIP "transmission"}:9091";
+                url = serviceUrl "transmission" "";
                 rpcUrl = "/transmission/rpc";
               };
             };
@@ -113,9 +108,9 @@ in
           {
             Immich = {
               icon = "immich.png";
-              href = "https://immich.${hostsLib.domain}";
+              href = "https://immich.${network.domain}";
               description = "Photos & Videos";
-              siteMonitor = "http://${hostsLib.getIP "immich"}:2283/api/server/ping";
+              siteMonitor = serviceUrl "immich" "/api/server/ping";
             };
           }
         ];
@@ -125,38 +120,38 @@ in
           {
             "Pi-hole Primary" = {
               icon = "pi-hole.png";
-              href = "https://pihole-1.${hostsLib.domain}/admin";
+              href = "https://pihole-1.${network.domain}/admin";
               description = "DNS 1 (hutch)";
-              ping = hostsLib.getIP "pihole-1";
+              ping = network.getIP "pihole-1";
             };
           }
           {
             "Pi-hole Secondary" = {
               icon = "pi-hole.png";
-              href = "https://pihole-2.${hostsLib.domain}/admin";
+              href = "https://pihole-2.${network.domain}/admin";
               description = "DNS 2 (minihutch)";
-              ping = hostsLib.getIP "pihole-2";
+              ping = network.getIP "pihole-2";
             };
           }
           {
             Uptime = {
               icon = "gatus.png";
-              href = "https://uptime.${hostsLib.domain}";
+              href = "https://uptime.${network.domain}";
               description = "Gatus Status";
               widget = {
                 type = "gatus";
-                url = "http://${hostsLib.getIP "uptime"}:3001";
+                url = serviceUrl "uptime" "";
               };
             };
           }
           {
             Prometheus = {
               icon = "prometheus.png";
-              href = "https://prometheus.${hostsLib.domain}";
+              href = "https://prometheus.${network.domain}";
               description = "Metrics & Alerts";
               widget = {
                 type = "prometheus";
-                url = "http://${hostsLib.getIP "prometheus"}:9090";
+                url = serviceUrl "prometheus" "";
               };
             };
           }
@@ -167,17 +162,17 @@ in
           {
             "Home Assistant" = {
               icon = "home-assistant.png";
-              href = "https://ha.${hostsLib.domain}";
+              href = "https://ha.${network.domain}";
               description = "Home Automation";
-              siteMonitor = "http://${hostsLib.getIP "ha"}:8123";
+              siteMonitor = serviceUrl "ha" "";
             };
           }
           {
             "Grid Ingester" = {
               icon = "postgres.png";
-              href = "https://grid.${hostsLib.domain}";
+              href = "https://grid.${network.domain}";
               description = "GB Power Grid & BMRS";
-              siteMonitor = "http://${hostsLib.getIP "gb-grid"}:3000";
+              siteMonitor = serviceUrl "gb-grid" "";
             };
           }
         ];

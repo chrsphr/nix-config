@@ -38,6 +38,8 @@
   let
     system = "x86_64-linux";
     lib = nixpkgs.lib;
+    # Host inventory: IPs, Caddy, monitoring, SSH. Passed to every NixOS,
+    # container and home-manager module as the `network` argument.
     network = import ./lib/network.nix { inherit lib; };
 
     # Single shared unstable instance — the biggest eval-time win here.
@@ -51,13 +53,29 @@
       overlays = [ (import ./overlays/opencode.nix) ];
     };
 
-    # Base builder: every host gets pkgs-unstable in specialArgs.
-    mkHost = { modules, specialArgs ? {}, nixpkgsInput ? nixpkgs, overlays ? [] }:
-      nixpkgsInput.lib.nixosSystem {
-        inherit system;
-        modules = modules ++ lib.optionals (overlays != []) [ { nixpkgs.overlays = overlays; } ];
-        specialArgs = { inherit pkgs-unstable; } // specialArgs;
+    # Base builder: every host gets pkgs-unstable and network in specialArgs.
+    mkHost = { modules, specialArgs ? {} }:
+      lib.nixosSystem {
+        inherit system modules;
+        specialArgs = { inherit pkgs-unstable network; } // specialArgs;
       };
+
+    # Baremetal container host: hosts/<name>.nix + hardware/<name>{,-disko}.nix.
+    # Containers are deployed BY deploying their parent — see README
+    # "Server + services". sops-nix and gb-grid pass through for the
+    # container configs that need them.
+    mkServer = name: mkHost {
+      modules = [
+        (./hosts + "/${name}.nix")
+        (./hardware + "/${name}.nix")
+        (./hardware + "/${name}-disko.nix")
+        disko.nixosModules.disko
+      ];
+      specialArgs = {
+        inherit sops-nix gb-grid;
+        gb-grid-pkg = gb-grid.packages.${system}.default;
+      };
+    };
 
     # Home-manager integration shared by the personal machines. Only the home
     # profile path differs per host, so the rest is factored out here.
@@ -67,7 +85,7 @@
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
         home-manager.extraSpecialArgs = {
-          inherit pkgs-unstable;
+          inherit pkgs-unstable network;
           mcp-nixos-pkg = mcp-nixos.packages.${system}.default;
         };
         home-manager.backupFileExtension = "hm-bak";
@@ -76,23 +94,22 @@
     ];
 
     # Personal machine: home-manager plus the pinned deploy-rs CLI.
-    mkMachine = { host, home, extraModules ? [], nixpkgsInput ? nixpkgs, overlays ? [] }: mkHost {
+    mkMachine = { host, home, extraModules ? [] }: mkHost {
       modules = [ host ] ++ extraModules ++ mkHomeModules home;
       specialArgs.deploy-rs-pkg = deploy-rs.packages.${system}.default;
-      inherit nixpkgsInput overlays;
     };
 
     # Generate deploy-rs nodes for all hosts that exist in both lib/network.nix and nixosConfigurations
     mkDeployNodes = configs:
       lib.mapAttrs (name: cfg:
         let
-          targetSystem = configs.${name}.pkgs.stdenv.hostPlatform.system;
+          targetSystem = cfg.pkgs.stdenv.hostPlatform.system;
         in {
           hostname = network.getIP name;
           profiles.system = {
             user = "root";
             sshUser = "deploy";
-            path = deploy-rs.lib.${targetSystem}.activate.nixos configs.${name};
+            path = deploy-rs.lib.${targetSystem}.activate.nixos cfg;
             remoteBuild = targetSystem != system;
             # Spurious rollbacks from hung confirm SSH — do not re-enable.
             # history: docs/notes.md#magicrollback-disabled
@@ -103,37 +120,12 @@
   in {
     nixosConfigurations = {
       ### Baremetal servers (containers; hutch additionally = NAS)
-      # Containers are deployed BY deploying their parent — see README
-      # "Server + services". sops-nix and gb-grid pass through for the
-      # container configs that need them.
-      hutch = mkHost {
-        modules = [
-          ./hosts/hutch.nix
-          ./hardware/hutch.nix
-          ./hardware/hutch-disko.nix
-          disko.nixosModules.disko
-        ];
-        specialArgs = {
-          inherit sops-nix gb-grid;
-          gb-grid-pkg = gb-grid.packages.${system}.default;
-        };
-      };
+      hutch = mkServer "hutch";
       # minihutch (.3): compute only — no ZFS, no NFS, no backup.
-      minihutch = mkHost {
-        modules = [
-          ./hosts/minihutch.nix
-          ./hardware/minihutch.nix
-          ./hardware/minihutch-disko.nix
-          disko.nixosModules.disko
-        ];
-        specialArgs = {
-          inherit sops-nix gb-grid;
-          gb-grid-pkg = gb-grid.packages.${system}.default;
-        };
-      };
+      minihutch = mkServer "minihutch";
 
       ### Personal machines (hosts/)
-chris-framework = mkMachine {
+      chris-framework = mkMachine {
         host = ./hosts/chris-framework.nix;
         home = ./home/framework.nix;
         extraModules = [

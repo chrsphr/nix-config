@@ -1,19 +1,15 @@
-{ config, pkgs, pkgs-unstable, sops-nix, gb-grid, gb-grid-pkg, lib, ... }:
+{ network, ... }:
 
 # minihutch (192.168.1.3): the second baremetal container host — compute
 # only, no ZFS/NFS/backup. Runs beeper, caddy, pihole-2, tailscale, uptime.
 # why: docs/notes.md#minihutch
 
 let
-  keys = import ../modules/keys.nix;
-  hostsLib = import ../lib/network.nix { inherit lib; };
+  ip = network.getIP "minihutch";
 in
 {
   imports = [
-    ../modules/locale.nix
-    # Newest ZFS-compatible kernel, shared with hutch — the fleet runs one
-    # kernel even though only hutch has ZFS.
-    ../modules/kernel-pin.nix
+    ../modules/server-base.nix
     # LAN bond/bridge + every container with `parent = "minihutch"`.
     ../modules/container-host.nix
   ];
@@ -49,9 +45,9 @@ in
         environment = {
           # LAN address, not localhost: Antennas bakes this into the stream
           # URLs in lineup.json, and Plex (on hutch) must be able to reach them.
-          TVHEADEND_URL = "http://${hostsLib.getIP "minihutch"}:9981";
+          TVHEADEND_URL = "http://${ip}:9981";
           # Address Plex uses to reach the emulated HDHomeRun.
-          ANTENNAS_URL = "http://${hostsLib.getIP "minihutch"}:5004";
+          ANTENNAS_URL = "http://${ip}:5004";
           TUNER_COUNT = "1";
         };
         extraOptions = [ "--network=host" ];
@@ -91,62 +87,5 @@ in
     };
   };
 
-  # Boot loader
-  boot.loader = {
-    systemd-boot.enable = true;
-    # Cap boot entries: the 512M ESP holds ~9 kernel+initrd pairs, and no
-    # nix.gc runs here, so generations would otherwise fill /boot and every
-    # deploy would die copying the new kernel before the builder prunes.
-    systemd-boot.configurationLimit = 5;
-    efi.canTouchEfiVariables = true;
-  };
-
-  # SSH + deploy user for deploy-rs. Keys only — both options stated on
-  # purpose. why: docs/notes.md#hutch
-  services.openssh = {
-    enable = true;
-    openFirewall = true;
-    settings = {
-      PermitRootLogin = "no";
-      PasswordAuthentication = false;
-      KbdInteractiveAuthentication = false;
-    };
-  };
-  users.users.deploy = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    openssh.authorizedKeys.keys = [ keys.chris ];
-  };
-  # chris: interactive login. Same uid as on hutch; password set imperatively
-  # on the box on purpose. why: docs/notes.md#hutch
-  users.users.chris = {
-    isNormalUser = true;
-    uid = 1001;
-    extraGroups = [ "wheel" ];
-    openssh.authorizedKeys.keys = [ keys.chris ];
-  };
-  users.users.root.openssh.authorizedKeys.keys = [ keys.chris ];
-  security.sudo.wheelNeedsPassword = false;
-
-  # Glances system telemetry web API (consumed by Homepage dashboard)
-  services.glances = {
-    enable = true;
-    openFirewall = true;
-  };
-
-  # Nix settings
-  nix.settings = {
-    experimental-features = [ "nix-command" "flakes" ];
-    sandbox = false;
-    require-sigs = false;
-  };
-
-  environment.systemPackages = with pkgs; [
-    vim
-    htop
-    git
-  ];
-
-  nixpkgs.config.allowUnfree = true;
   system.stateVersion = "26.05";
 }

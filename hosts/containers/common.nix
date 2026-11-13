@@ -1,13 +1,20 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, network, ... }:
+
+# Shared base for every NixOS container (systemd-nspawn) on both hosts.
+# Imported for each container by modules/container-host.nix, which also sets
+# networking.hostName (the container name) and, for containers listed in
+# containerHost.withSecrets, the sops-nix module and its defaults.
 
 let
   keys = import ../../modules/keys.nix;
-  hostsLib = import ../../lib/network.nix { inherit lib; };
-  hostCfg = hostsLib.hosts.${config.networking.hostName} or {};
+  hostCfg = network.hosts.${config.networking.hostName} or {};
   isStatic = hostCfg ? ip;
 in
 {
-  # Shared base for every NixOS container (systemd-nspawn) on both hosts.
+  imports = [
+    # Journal shipping to the prometheus container.
+    ../../modules/journal-upload.nix
+  ];
 
   system.stateVersion = "26.05";
 
@@ -32,11 +39,11 @@ in
   # UniFi DHCP server via dhcpcd.
   # why: docs/notes.md#container-one-offs
   networking = {
-    nameservers = hostCfg.nameservers or hostsLib.nameservers;
+    nameservers = hostCfg.nameservers or network.nameservers;
     useDHCP = lib.mkForce (!isStatic);
     interfaces.eth0.useDHCP = !isStatic;
     defaultGateway = lib.mkIf isStatic {
-      address = hostCfg.gateway or hostsLib.gateway;
+      address = hostCfg.gateway or network.gateway;
       interface = "eth0";
     };
     dhcpcd = lib.mkIf (!isStatic) {
@@ -48,10 +55,7 @@ in
         clientid
       '';
     };
-    firewall = {
-      enable = true;
-      allowedTCPPorts = [ 22 ];
-    };
+    firewall.enable = true;
   };
 
   # The host's resolved stub is dead inside nspawn — use our own nameservers.
@@ -66,7 +70,7 @@ in
     wants = [ "resolvconf.service" ];
   };
 
-  # SSH setup
+  # SSH setup (openFirewall opens 22)
   services.openssh = {
     enable = true;
     openFirewall = true;
@@ -101,42 +105,14 @@ in
   # Common group for media access
   users.groups.media = {};
 
-  # Per-container systemd + network metrics and journal shipping to the
-  # prometheus container. Host-level CPU/RAM/filesystem collectors are
-  # disabled here to avoid scraping the parent kernel 12 times.
+  # Per-container systemd + network metrics. Host-level CPU/RAM/filesystem
+  # collectors are disabled here to avoid scraping the parent kernel 12 times.
   # why: docs/notes.md#prometheus-and-journal-remote
   services.prometheus.exporters.node = {
     enable = true;
     openFirewall = true;
     extraFlags = [ "--collector.disable-defaults" ];
     enabledCollectors = [ "systemd" "netdev" ];
-  };
-  services.journald.upload = {
-    enable = true;
-    settings.Upload.URL = "http://${hostsLib.getIP "prometheus"}:19532";
-  };
-  # systemd-journal-upload exits on the first DNS/connection failure. Run it
-  # in a retry loop so the unit stays `active` for switch-to-configuration
-  # (RestartSec=0 still leaves it in activating/auto-restart at check time),
-  # and an unresolvable prometheus.internal can never become a tight restart
-  # loop that floods the Pi-holes with thousands of queries/s until they
-  # rate-limit the UDM. 5s between attempts is plenty for a log shipper.
-  systemd.services.systemd-journal-upload = {
-    unitConfig.StartLimitIntervalSec = 0;
-    serviceConfig = {
-      # The empty entry resets the upstream ExecStart list in the drop-in;
-      # without it systemd sees two ExecStart= lines and rejects the unit.
-      ExecStart = lib.mkForce [
-        ""
-        (toString (pkgs.writeShellScript "journal-upload-retry" ''
-          while true; do
-            ${config.systemd.package}/lib/systemd/systemd-journal-upload --save-state || true
-            sleep 5
-          done
-        ''))
-      ];
-      RestartSec = lib.mkForce "1s";
-    };
   };
 
   nixpkgs.config.allowUnfree = true;

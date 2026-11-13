@@ -85,12 +85,8 @@ let
   };
 in
 {
-  imports = [ ./common.nix ];
-
   # libolm: flagged insecure, required for end-to-bridge encryption.
   nixpkgs.config.permittedInsecurePackages = [ "olm-3.2.16" ];
-
-  networking.hostName = "beeper";
 
   # Single service user owns the bbctl login token and all bridge state/DBs.
   users.users.beeper = {

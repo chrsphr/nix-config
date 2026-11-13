@@ -193,7 +193,7 @@ sops updatekeys secrets/<name>.yaml
 
 ## Monitoring (Gatus)
 
-The `uptime` host runs [Gatus](https://gatus.io). Monitor definitions live next to each host entry in `lib/network.nix`, so a single source of truth covers IP, port, Caddy routing, and uptime checks. `uptime.nix` is just a thin shell that calls `hostsLib.generateGatusEndpoints`.
+The `uptime` host runs [Gatus](https://gatus.io). Monitor definitions live next to each host entry in `lib/network.nix`, so a single source of truth covers IP, port, Caddy routing, and uptime checks. `uptime.nix` is just a thin shell that calls `network.generateGatusEndpoints`.
 
 ### How to add or change a monitor
 
@@ -212,7 +212,7 @@ comment block at the top of `lib/network.nix`.
 For checks that aren't tied to a host (e.g. probing external services), pass them via the `extra` argument in `uptime.nix`:
 
 ```nix
-endpoints = hostsLib.generateGatusEndpoints {
+endpoints = network.generateGatusEndpoints {
   extra = [
     { name = "Internet Access"; url = "tcp://1.1.1.1:53";
       conditions = [ "[CONNECTED] == true" ]; interval = "60s"; }
@@ -397,13 +397,15 @@ hosts/                     # One file per machine
   hutch.nix                # Baremetal NAS + container host (192.168.1.2)
   minihutch.nix            # Baremetal container host, no storage (192.168.1.3)
 hardware/                  # Hardware-specific configs incl. disko layouts
+  disko-layout.nix         # Shared boot-drive layout; <host>-disko.nix files call it
 modules/                   # Reusable NixOS modules
+  server-base.nix          # Shared by hutch + minihutch: boot, SSH, users, Nix settings
   container-host.nix       # Container-host role: LAN bond/bridge + container generation
+  journal-upload.nix       # Ships the journal to the prometheus container (hosts + containers)
   nas.nix                  # NAS role: ZFS, NFS, sanoid, smartd, encrypted rclone->B2
   common-desktop.nix       # Base for desktop machines (GNOME, Tailscale, etc.)
   cloudflare-tunnel.nix    # Cloudflare tunnel service wrapper
   nfs-home-automount.nix   # Smart NFS mount (WiFi/Tailscale aware)
-  keyboard-backlight-timeout.nix  # Framework keyboard backlight
   locale.nix               # Locale/timezone
   luks-tpm.nix             # LUKS root with TPM2 auto-unlock
   btrfs-maintenance.nix    # btrfs scrub + fstrim + store dedup (AC-gated)

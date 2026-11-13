@@ -5,12 +5,7 @@
 # (see hosts/minihutch.nix).
 
 {
-  imports = [
-    ./common.nix
-  ];
-
   networking = {
-    hostName = "tailscale";
     firewall = {
       trustedInterfaces = [ "tailscale0" ];
       checkReversePath = "loose";

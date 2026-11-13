@@ -1,8 +1,8 @@
-{ config, pkgs, sops-nix, gb-grid, lib, ... }:
+{ config, pkgs, gb-grid, lib, ... }:
 
 # GB power grid (Postgres + TimescaleDB + Grafana + BMRS ingester) as a NixOS
 # container on hutch. The gb-grid flake module and package arrive via the
-# container's specialArgs (see hosts/hutch.nix). Decrypts secrets/gb-grid.yaml
+# container's specialArgs (see modules/container-host.nix). Decrypts secrets/gb-grid.yaml
 # with the age key at /var/lib/sops-nix/gb-grid/key.txt on the host,
 # bind-mounted read-only to /var/secrets.
 
@@ -11,19 +11,14 @@ let
 in
 {
   imports = [
-    ./common.nix
-    sops-nix.nixosModules.sops
     gb-grid.nixosModules.default
   ];
 
   # Postgres + Grafana + ingester all come from the gb-grid flake module.
   services.gb-grid.enable = true;
 
-  networking = {
-    hostName = "gb-grid";
-    # Module already opens the Grafana port; add Postgres for LAN access.
-    firewall.allowedTCPPorts = [ 5432 ];
-  };
+  # Module already opens the Grafana port; add Postgres for LAN access.
+  networking.firewall.allowedTCPPorts = [ 5432 ];
 
   # Postgres metrics on :9187 for prometheus. Runs as the local superuser so it
   # uses peer auth over the socket: no password to store.
@@ -36,7 +31,7 @@ in
 
   # The laptop age key, copied out of band from 1Password.
   sops = {
-    defaultSopsFile = ../../secrets/gb-grid.yaml;
+    # Non-default filename: rename the host file to keys.txt to drop this.
     age.keyFile = "/var/secrets/key.txt";
     secrets.postgres_password = {
       owner = "postgres";

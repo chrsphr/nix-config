@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, network, ... }:
 
 # Gokapi file sharing as a NixOS container on hutch, on VLAN 5.
 # Caddy (VLAN 1) is the only permitted ingress; links are random 20-char IDs.
@@ -7,19 +7,14 @@
 # reading the privateUsers note in hosts/hutch.nix.
 
 let
-  hostsLib = import ../../lib/network.nix { inherit lib; };
   # Caddy keeps a static IP, so it can be matched exactly. Prometheus and
   # cloudflared are DHCP now, so match their subnets: VLAN 1 for Prometheus,
   # and VLAN 5 for cloudflared (this container is the only other host there).
-  caddyIP = hostsLib.getIP "caddy";
+  caddyIP = network.getIP "caddy";
   lanCIDR = "192.168.1.0/24";
   vlanCIDR = "192.168.6.0/24";
 in
 {
-  imports = [
-    ./common.nix
-  ];
-
   # Static UID: Gokapi persists its SQLite DB and config in the state
   # directory, and DynamicUser's UID is not stable across container restarts.
   # With privateUsers in play that showed up as "permission denied" on the
@@ -32,7 +27,6 @@ in
   };
 
   networking = {
-    hostName = "gokapi";
     # common.nix opens 22; do NOT add 53842 to allowedTCPPorts. Only Caddy
     # may reach the app port, even inside VLAN 5.
     firewall.extraCommands = ''

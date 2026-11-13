@@ -1,29 +1,20 @@
-{ config, pkgs, sops-nix, lib, ... }:
+{ config, pkgs, lib, network, ... }:
 
 # Gatus uptime monitoring as a NixOS container on minihutch. Decrypts
 # secrets/uptime.yaml with the age key at /var/lib/sops-nix/uptime/keys.txt
 # on the host, bind-mounted read-only to /var/secrets.
 
-let
-  hostsLib = import ../../lib/network.nix { inherit lib; };
-in
 {
   imports = [
-    ./common.nix
     ../../modules/cloudflare-tunnel.nix
-    sops-nix.nixosModules.sops
   ];
 
-  networking = {
-    hostName = "uptime";
-    firewall.allowedTCPPorts = [ 3001 ];
-  };
+  networking.firewall.allowedTCPPorts = [ 3001 ];
 
   sops = {
-    defaultSopsFile = ../../secrets/uptime.yaml;
-    # A copy of the laptop master key — accepted tradeoff.
+    # Decrypted with a copy of the laptop master key — accepted tradeoff.
     # why: docs/notes.md#secrets-under-var
-    age.keyFile = "/var/secrets/keys.txt";
+
     # Persistent path, not /run/secrets. why: docs/notes.md#secrets-under-var
     secrets.cloudflare_tunnel_token.path = "/var/lib/sops/cloudflare_tunnel_token";
   };
@@ -39,7 +30,7 @@ in
         path = "/var/lib/gatus/data.db";
       };
 
-      endpoints = hostsLib.generateGatusEndpoints {
+      endpoints = network.generateGatusEndpoints {
         extra = [
           {
             name = "Internet Access";

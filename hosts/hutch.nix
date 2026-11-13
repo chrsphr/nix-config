@@ -1,17 +1,13 @@
-{ config, pkgs, pkgs-unstable, sops-nix, gb-grid, gb-grid-pkg, lib, ... }:
+{ sops-nix, lib, ... }:
 
 let
-  keys = import ../modules/keys.nix;
-
   # Containers that read the media library from the local ZFS pool. Guarded
   # below so they can't start against an empty dir if the pool didn't import.
   withMediaGuard = [ "immich" "plex" "radarr" "sonarr" "transmission" ];
 in
 {
   imports = [
-    ../modules/locale.nix
-    # Newest ZFS-compatible kernel.
-    ../modules/kernel-pin.nix
+    ../modules/server-base.nix
     # Host-level secrets (decrypted with hutch's own SSH host key).
     sops-nix.nixosModules.sops
     # NAS role: ZFS pool import, NFS, snapshots, encrypted B2 backup
@@ -94,62 +90,5 @@ in
     unitConfig.ConditionPathIsMountPoint = "/mnt/Hutch/Media";
   });
 
-  # Boot loader
-  boot.loader = {
-    systemd-boot.enable = true;
-    # Cap boot entries: the 512M ESP holds ~9 kernel+initrd pairs, and no
-    # nix.gc runs here, so generations would otherwise fill /boot and every
-    # deploy would die copying the new kernel before the builder prunes.
-    systemd-boot.configurationLimit = 5;
-    efi.canTouchEfiVariables = true;
-  };
-
-  # SSH + deploy user for deploy-rs. Keys only — both options stated on
-  # purpose. why: docs/notes.md#hutch
-  services.openssh = {
-    enable = true;
-    openFirewall = true;
-    settings = {
-      PermitRootLogin = "no";
-      PasswordAuthentication = false;
-      KbdInteractiveAuthentication = false;
-    };
-  };
-  users.users.deploy = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    openssh.authorizedKeys.keys = [ keys.chris ];
-  };
-  # chris: interactive login. uid fixed; password set imperatively on the box
-  # on purpose. why: docs/notes.md#hutch
-  users.users.chris = {
-    isNormalUser = true;
-    uid = 1001;
-    extraGroups = [ "wheel" ];
-    openssh.authorizedKeys.keys = [ keys.chris ];
-  };
-  users.users.root.openssh.authorizedKeys.keys = [ keys.chris ];
-  security.sudo.wheelNeedsPassword = false;
-
-  # Glances system telemetry web API (consumed by Homepage dashboard)
-  services.glances = {
-    enable = true;
-    openFirewall = true;
-  };
-
-  # Nix settings
-  nix.settings = {
-    experimental-features = [ "nix-command" "flakes" ];
-    sandbox = false;
-    require-sigs = false;
-  };
-
-  environment.systemPackages = with pkgs; [
-    vim
-    htop
-    git
-  ];
-
-  nixpkgs.config.allowUnfree = true;
   system.stateVersion = "26.05";
 }

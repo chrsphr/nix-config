@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, network, ... }:
 
 # Network Optimizer for UniFi (security audit, SQM, speed tests, monitoring)
 # as a NixOS container on hutch, built from source (pkgs/network-optimizer.nix).
@@ -6,19 +6,11 @@
 
 let
   package = pkgs.callPackage ../../pkgs/network-optimizer.nix { };
-  hostsLib = import ../../lib/network.nix { inherit lib; };
 in
 {
-  imports = [
-    ./common.nix
-  ];
-
-  networking = {
-    hostName = "network-optimizer";
-    # 8042: web UI. 5201: iperf3 server for client speed tests.
-    # 8086: InfluxDB API/UI (one-time onboarding + optional Grafana access).
-    firewall.allowedTCPPorts = [ 8042 5201 8086 ];
-  };
+  # 8042: web UI. 5201: iperf3 server for client speed tests.
+  # 8086: InfluxDB API/UI (one-time onboarding + optional Grafana access).
+  networking.firewall.allowedTCPPorts = [ 8042 5201 8086 ];
 
   # Time-series store for Monitoring; one-time UI onboarding.
   # why: docs/notes.md#network-optimizer
@@ -50,8 +42,8 @@ in
       DOTNET_RUNNING_IN_CONTAINER = "true";
       ASPNETCORE_URLS = "http://*:8042";
       HOME = "/app/data";
-      HOST_IP = hostsLib.getIP "network-optimizer";
-      REVERSE_PROXIED_HOST_NAME = "optm.${hostsLib.domain}";
+      HOST_IP = network.getIP "network-optimizer";
+      REVERSE_PROXIED_HOST_NAME = "optm.${network.domain}";
       Iperf3Server__Enabled = "true";
     };
 

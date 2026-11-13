@@ -876,9 +876,20 @@ The battery-tuning notebook behind hosts/chris-framework.nix:
   automount or printing starts relying on mDNS.
 - **Audio codec power save** (`snd_hda_intel power_save=1`): revert to 0 if
   clicking sounds occur.
+- **Hibernate delay 2h** (was 6h until 2026-11-13): less s2idle drain before
+  the hibernate; raise it again if the slower wake becomes annoying.
+- **scx_lavd --autopower** (2026-11-13, experimental): sched-ext scheduler
+  with its own core ranking, since the kernel provides none on this CPU (see
+  amd_prefcore above). Unmeasured — compare idle and light-load draw against
+  `services.scx.enable = false` and drop it if there is no gain.
+- **NIXOS_OZONE_WL=1**: Electron/Chromium apps run native Wayland, not
+  XWayland.
+- **Bluetooth FastConnectable off** (laptop only): less page-scan duty cycle.
+- **Panel**: 60 Hz with variable refresh, set in GNOME Settings
+  (~/.config/monitors.xml), not in this repo.
 - **Charge cap 90%** (framework_laptop EC): extends cycle life. Bump before a
   trip: `echo 100 | sudo tee /sys/class/power_supply/BAT1/charge_control_end_threshold`.
-- **Suspend-then-hibernate (6h)** — restored 2026-08-20; see
+- **Suspend-then-hibernate (2h)** — restored 2026-08-20; see
   [Suspend-then-hibernate](#suspend-then-hibernate) and
   [2026-07-12 hibernate crash](#2026-07-12-hibernate-crash).
 - **Journal capped 500M**: was 2.1 GB uncapped — steady write amplification on
@@ -890,7 +901,7 @@ The battery-tuning notebook behind hosts/chris-framework.nix:
 #### Suspend-then-hibernate
 
 Desktop and Framework suspend normally, then wake on the RTC alarm to
-hibernate 6h later (`HibernateDelaySec = "6h"`,
+hibernate 2h later (`HibernateDelaySec = "2h"`,
 modules/suspend-then-hibernate.nix). An explicit delay disables systemd's
 battery-estimate auto-hibernation — the documented trade-off for a fixed
 delay.

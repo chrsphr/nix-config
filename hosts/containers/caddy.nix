@@ -1,27 +1,14 @@
-{ config, pkgs, sops-nix, lib, ... }:
+{ config, pkgs, lib, network, ... }:
 
 # Caddy reverse proxy as a NixOS container on minihutch. Decrypts
 # secrets/caddy.yaml with the age key at /var/lib/sops-nix/caddy/keys.txt on
 # the host, bind-mounted read-only to /var/secrets.
 
-let
-  hostsLib = import ../../lib/network.nix { inherit lib; };
-in
 {
-  imports = [
-    ./common.nix
-    sops-nix.nixosModules.sops
-  ];
-
-  networking = {
-    hostName = "caddy";
-    # 9180: Caddy metrics for prometheus (see the :9180 block below).
-    firewall.allowedTCPPorts = [ 80 443 9180 ];
-  };
+  # 9180: Caddy metrics for prometheus (see the :9180 block below).
+  networking.firewall.allowedTCPPorts = [ 80 443 9180 ];
 
   sops = {
-    defaultSopsFile = ../../secrets/caddy.yaml;
-    age.keyFile = "/var/secrets/keys.txt";
     secrets = {
       cloudflare_api_token = {
         owner = "caddy";
@@ -52,7 +39,7 @@ in
         metrics
       }
 
-      *.${hostsLib.domain} {
+      *.${network.domain} {
         tls {
           dns cloudflare {env.CLOUDFLARE_API_TOKEN}
         }
@@ -70,7 +57,7 @@ in
           }
         }
 
-${hostsLib.generateCaddyConfig}
+${network.generateCaddyConfig}
       }
     '';
   };

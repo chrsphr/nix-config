@@ -1,4 +1,4 @@
-{ config, pkgs, sops-nix, lib, ... }:
+{ config, pkgs, lib, ... }:
 
 # Outbound-only Cloudflare Tunnel sidecar on VLAN 5. It forwards
 # share.mcneill.fyi to Gokapi at gokapi.internal:53842 without opening an
@@ -7,16 +7,10 @@
 
 {
   imports = [
-    ./common.nix
     ../../modules/cloudflare-tunnel.nix
-    sops-nix.nixosModules.sops
   ];
 
-  networking.hostName = "cloudflared";
-
   sops = {
-    defaultSopsFile = ../../secrets/cloudflared.yaml;
-    age.keyFile = "/var/secrets/keys.txt";
     secrets.cloudflare_tunnel_token = {
       # Persistent path, not /run/secrets. why: docs/notes.md#secrets-under-var
       path = "/var/lib/sops/cloudflare_tunnel_token";

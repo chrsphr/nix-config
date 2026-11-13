@@ -4,12 +4,6 @@
 # dataset is bind mounted at /mnt/media (see hosts/hutch.nix).
 
 {
-  imports = [
-    ./common.nix
-  ];
-
-  networking.hostName = "sonarr";
-
   services.sonarr = {
     enable = true;
     openFirewall = true;

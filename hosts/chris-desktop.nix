@@ -1,4 +1,4 @@
-{ config, pkgs, pkgs-unstable ? pkgs, ... }:
+{ config, pkgs, pkgs-unstable ? pkgs, network, ... }:
 
 {
   imports = [
@@ -44,7 +44,7 @@
   services.rpcbind.enable = true;
   systemd.tmpfiles.rules = [ "d /mnt/Media 0755 root root -" ];
   fileSystems."/mnt/Media" = {
-    device = "192.168.1.2:/mnt/Hutch/Media";
+    device = "${network.getIP "hutch"}:/mnt/Hutch/Media";
     fsType = "nfs";
     options = [
       "x-systemd.automount"
@@ -77,7 +77,7 @@
   programs.virt-manager.enable = true;
 
   # Desktop-specific user groups
-  users.users.chris.extraGroups = [ "docker" "libvirtd" "cdrom" "arm" ];
+  users.users.chris.extraGroups = [ "docker" "libvirtd" "cdrom" ];
   users.groups = {
     libvirtd.members = [ "chris" ];
     kvm.members = [ "chris" ];

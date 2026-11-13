@@ -1,9 +1,5 @@
-{ config, lib, pkgs, pkgs-unstable, ... }:
+{ config, lib, pkgs, pkgs-unstable, network, ... }:
 
-let
-  # Host inventory, single source of truth for IPs, Caddy, monitoring, SSH.
-  network = import ../lib/network.nix { inherit lib; };
-in
 {
   imports = [
     ./common-terminal.nix
@@ -21,15 +17,19 @@ in
     # the pre-1.122 ripgrep path. Unstable has the fix. Revert once the
     # backport lands: https://github.com/NixOS/nixpkgs/pull/585147
     pkgs-unstable.vscode
+    pkgs-unstable.claude-code
     spotify
     conda
+    # ONE --enable-features list: Chromium keeps only the last occurrence of a
+    # switch, so a second one silently drops the VA-API features. Both the old
+    # (Vaapi*) and current (Accelerated*) feature names are listed.
     (pkgs.symlinkJoin {
       name = "teams-for-linux";
       paths = [ pkgs.teams-for-linux ];
       buildInputs = [ pkgs.makeWrapper ];
       postBuild = ''
         wrapProgram $out/bin/teams-for-linux \
-          --add-flags "--enable-features=VaapiVideoDecoder,VaapiVideoEncoder --enable-gpu-rasterization --enable-native-gpu-memory-buffers --enable-features=UseOzonePlatform --ozone-platform-hint=auto"
+          --add-flags "--enable-features=VaapiVideoDecoder,VaapiVideoEncoder,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoEncoder,UseOzonePlatform,WaylandWindowDecorations --enable-gpu-rasterization --enable-native-gpu-memory-buffers --ozone-platform-hint=auto"
       '';
     })
     google-fonts
@@ -39,7 +39,6 @@ in
     (pkgs-unstable.darktable.override { withAi = true; })
     onnxruntime
     python3
-    gh
     discord
     uv
     clinfo       # `clinfo` to verify OpenCL (Rusticl) GPU detection
@@ -139,11 +138,6 @@ in
   # Personal GitHub public key, referenced by the github.com match block above.
   home.file.".ssh/id_chrsphr.pub".text = ''
     ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO5Kox0nkeljrafIlbuwRKOp+om+ocvpuGOGBBfGyIia GitHub
-  '';
-
-  # Keep a copy of the generated ~/.ssh/config in this repo after each switch.
-  home.activation.writeSshConfigToRepo = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    install -Dm600 "$HOME/.ssh/config" "/home/chris/nix-config/home/ssh-config"
   '';
 
   # Allow Home Manager to manage itself

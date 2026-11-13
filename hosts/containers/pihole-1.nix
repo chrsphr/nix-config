@@ -8,9 +8,6 @@
 
 {
   imports = [
-    ./common.nix
     ./pihole-common.nix
   ];
-
-  networking.hostName = "pihole-1";
 }

@@ -1,4 +1,4 @@
-{ pkgs, options, ... }:
+{ lib, pkgs, options, ... }:
 
 {
   imports = [
@@ -6,7 +6,6 @@
     ../modules/common-desktop.nix
     ../modules/luks-tpm.nix
     ../modules/btrfs-maintenance.nix
-    ../modules/keyboard-backlight-timeout.nix
     ../modules/nfs-home-automount.nix
     ../modules/suspend-then-hibernate.nix
   ];
@@ -69,6 +68,26 @@
   # ppd owns runtime power policy; powertop auto-tune deliberately not enabled.
   services.power-profiles-daemon.enable = true;
 
+  # sched-ext scheduler with its own core ranking: the kernel exposes none on
+  # this hybrid CPU (no ITMT, uniform cpu_capacity), so the default scheduler
+  # can't prefer the efficient cores. --autopower follows the active ppd
+  # profile (powersave / balanced / performance). Experimental: check with
+  # `scxtop` or `cat /sys/kernel/sched_ext/root/ops`; set enable = false to
+  # fall back to the stock scheduler.
+  services.scx = {
+    enable = true;
+    scheduler = "scx_lavd";
+    extraArgs = [ "--autopower" ];
+  };
+
+  # Electron/Chromium apps (Chrome, VS Code, Discord, Beeper) run as native
+  # Wayland clients instead of through XWayland.
+  environment.sessionVariables.NIXOS_OZONE_WL = "1";
+
+  # FastConnectable keeps the adapter page-scanning more often — faster
+  # reconnects for more idle power. Fine on the desktop, not on battery.
+  hardware.bluetooth.settings.General.FastConnectable = lib.mkForce false;
+
   # GNOME's file indexer: CPU + NVMe wakeups for a search feature unused here.
   services.gnome.localsearch.enable = false;
 
@@ -82,8 +101,7 @@
   # history: docs/notes.md#2026-07-27-wifi-powersave-latency
   networking.networkmanager.wifi.powersave = false;
 
-
-  # Plain "suspend" actions are upgraded to suspend-then-hibernate (6h) by
+  # Plain "suspend" actions are upgraded to suspend-then-hibernate (2h) by
   # modules/suspend-then-hibernate.nix. Re-enabled 2026-08-20 on kernel 7.2 —
   # history: docs/notes.md#2026-07-12-hibernate-crash
   services.logind.settings.Login.HandleLidSwitch = "suspend";
@@ -92,13 +110,6 @@
 
   # Skip the systemd-boot menu on cold boot (laptop only — no dual-boot).
   boot.loader.timeout = 0;
-
-  # Keyboard backlight auto-timeout
-  services.keyboard-backlight-timeout = {
-    enable = false;
-    timeout = 30;  # seconds
-    brightnessMax = 100;
-  };
 
   # Fingerprint reader
   services.fprintd.enable = true;

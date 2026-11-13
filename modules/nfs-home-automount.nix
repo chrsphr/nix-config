@@ -1,11 +1,11 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, network, ... }:
 
 # Mounts the home NAS over NFS when on the home WiFi network or when
 # Tailscale is connected. Unmounts when neither condition is true.
 # Designed for portable devices that roam between networks.
 
 let
-  nas = "192.168.1.2";  # hutch
+  nas = network.getIP "hutch";
   mountPoint = "/mnt/Media";
   nasExport = "${nas}:/mnt/Hutch/Media";
   homeSSID = "Rebel Hideout";

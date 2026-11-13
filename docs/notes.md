@@ -748,8 +748,19 @@ Caddy remains the LAN path. Both are in Gokapi's trusted-proxy list, and
 `GOKAPI_USE_CLOUDFLARE=true` makes the tunnel path use Cloudflare's client-IP
 header.
 
-For LAN clients, add a local Pi-hole record for `share.mcneill.fyi` ->
-`192.168.1.239`. The public hostname/DNS is managed on the tunnel side.
+#### Split-horizon DNS and ECH
+
+For LAN clients, the Pi-holes wildcard every `mcneill.fyi` A/AAAA record to
+Caddy (`192.168.1.239`, or its ULA for AAAA). They also answer the zone
+authoritatively via `local=/mcneill.fyi/` in `hosts/containers/pihole-common.nix`.
+
+The authoritative bit matters: Cloudflare publishes `HTTPS` (type 65) records
+for the zone carrying `ech=` and public `ipv4hint=`. If those are forwarded to
+LAN clients, Firefox attempts Encrypted Client Hello against Caddy, which
+cannot decrypt it, and *every* internal name fails with
+`SSL_ERROR_INTERNAL_ERROR_ALERT`. Returning NODATA for the zone's non-address
+types makes clients fall back to plain SNI against Caddy. The public
+hostname/DNS is managed on the tunnel side.
 
 Both VLAN 5 containers take dynamic leases from the `.6`–`.254` pool, so they
 no longer need reservations. Their deterministic `02:01:...` MACs keep the

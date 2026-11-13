@@ -58,7 +58,16 @@ in
       };
       # Wildcard for every mcneill.fyi name (A and AAAA) so per-service UniFi
       # CNAMEs are not needed. The AAAA is Caddy's ULA SLAAC address.
+      #
+      # `local=/mcneill.fyi/` keeps the Pi-holes authoritative for the zone.
+      # Without it, HTTPS/SVCB queries are forwarded upstream and LAN clients
+      # receive Cloudflare's `ech=` and public `ipv4hint=` records for names
+      # that actually resolve to Caddy. Firefox obeys that ECH config, encrypts
+      # its ClientHello with a key Caddy cannot decrypt, and every internal
+      # name fails with SSL_ERROR_INTERNAL_ERROR_ALERT. why:
+      # docs/notes.md#split-horizon-dns-and-ech
       misc.dnsmasq_lines = [
+        "local=/${network.domain}/"
         "address=/${network.domain}/${network.getIP "caddy"}"
         "address=/${network.domain}/fdc0:ffee::c0ff:fea8:1ef"
       ];

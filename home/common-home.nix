@@ -136,8 +136,11 @@
   };
 
   # Personal GitHub public key, referenced by the github.com match block above.
+  # Must match the key currently registered on github.com/chrsphr (the private
+  # half lives in the 1Password agent); a stale pin here means ssh offers a key
+  # GitHub rejects, and every fetch/push fails with "Permission denied".
   home.file.".ssh/id_chrsphr.pub".text = ''
-    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO5Kox0nkeljrafIlbuwRKOp+om+ocvpuGOGBBfGyIia GitHub
+    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK1z+ixouoLpNHXciINsW1Jlvcmnr9E2ekFXCvvjBxfh GitHub
   '';
 
   # Allow Home Manager to manage itself

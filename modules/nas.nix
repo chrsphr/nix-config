@@ -10,11 +10,10 @@ let
   # What goes offsite, as <remote subdir> -> {path, excludes}. Everything here
   # is mirrored, so adding a path costs B2 storage and removing one deletes it
   # from the remote on the next run (subject to the 30-day lifecycle window).
+  # TV and Movies are deliberately not backed up (re-acquirable media).
   backupPaths = let
     plain = path: { inherit path; excludes = []; };
   in {
-    "TV"      = plain "/mnt/Hutch/Media/TV";
-    "Movies"  = plain "/mnt/Hutch/Media/Movies";
     "Photos"  = { path = "/mnt/Hutch/Media/Photos";
                   # Immich regenerates these from originals — don't pay B2 for
                   # ~130G of webp thumbs + transcodes. why: docs/notes.md#immich

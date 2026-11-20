@@ -17,7 +17,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     deploy-rs = {
-      url = "github:serokell/deploy-rs";
+      url = "github:serokell/deploy-rs/v1.0.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     gb-grid = {

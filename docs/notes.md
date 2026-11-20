@@ -23,6 +23,14 @@ immich, plex and chris-desktop consume it.
 platform actually built/deployed from. Evaluating them for every deploy-rs
 platform quadruples `nix flake check`.
 
+#### deploy-rs pinned to v1.0.0
+
+`deploy-rs.url` is the `v1.0.0` tag, not `master`. The `deploy` CLI on the
+personal machines and the `activate` binary deployed to the servers are both
+built from this input, so they must match; a floating rev also skipped the tag
+by a few commits. Bump deliberately (`nix flake update deploy-rs` after moving
+the tag), not via the daily flake-lock PR.
+
 #### opencode version
 
 `overlays/opencode.nix` replaces `pkgs-unstable.opencode` with the prebuilt

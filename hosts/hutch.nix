@@ -12,6 +12,8 @@ in
     sops-nix.nixosModules.sops
     # NAS role: ZFS pool import, NFS, snapshots, encrypted B2 backup
     ../modules/nas.nix
+    # Offsite copy of container state (app DBs, settings) to B2, skipping caches
+    ../modules/container-state-backup.nix
     # LAN bond/bridge + every container with `parent = "hutch"`.
     ../modules/container-host.nix
   ];

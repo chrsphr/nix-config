@@ -3,7 +3,7 @@
 # GB power grid (Postgres + TimescaleDB + Grafana + BMRS ingester) as a NixOS
 # container on hutch. The gb-grid flake module and package arrive via the
 # container's specialArgs (see modules/container-host.nix). Decrypts secrets/gb-grid.yaml
-# with the age key at /var/lib/sops-nix/gb-grid/key.txt on the host,
+# with the age key at /var/lib/sops-nix/gb-grid/keys.txt on the host,
 # bind-mounted read-only to /var/secrets.
 
 let
@@ -29,10 +29,11 @@ in
     openFirewall = true;
   };
 
-  # The laptop age key, copied out of band from 1Password.
+  # Decrypts with the laptop age key at the default
+  # /var/lib/sops-nix/gb-grid/keys.txt on the host (container-host.nix).
+  # It was missing from 2026-08-08 to 2026-11-27, so secrets never decrypted.
+  # why: docs/notes.md#container-one-offs
   sops = {
-    # Non-default filename: rename the host file to keys.txt to drop this.
-    age.keyFile = "/var/secrets/key.txt";
     secrets.postgres_password = {
       owner = "postgres";
     };

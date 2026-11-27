@@ -703,6 +703,13 @@ Minimal metrics + centralized logging without Grafana or Loki
   gb_grid role on each boot; idempotent, so rotating is just
   `sops secrets/gb-grid.yaml` + redeploy. pg_hba overridden to require
   scram-sha-256 from LAN clients.
+  The key (a copy of the laptop key, like immich's) must sit at
+  `/var/lib/sops-nix/gb-grid/keys.txt` on hutch. It was never copied over in the
+  2026-08-08 move. Until 2026-11-27 sops failed in activation (`cannot read
+  keyfile`), the oneshot failed on every start, and `gb_grid` had no password,
+  so LAN logins were impossible. Nothing alerted, because the failed-unit alert
+  skips oneshots. Check `systemctl -M gb-grid status gb-grid-set-password`
+  after a host rebuild.
 - **prometheus — PrivateUsers and PrivateNetwork off**: `prometheus.service`
   defaults to `PrivateUsers=true`, which fails remounting the bind-mounted
   `/nix/store` inside nspawn; `systemd-journal-remote.service` defaults to

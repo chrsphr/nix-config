@@ -12,14 +12,8 @@ let
   # proxy, no python-style launch. why: docs/notes.md#beeper-bridges
   bbctl = "${pkgs-unstable.beeper-bridge-manager}/bin/bbctl";
 
-  # Signal-Server v20261104.0.0 made uploadLength mandatory on
-  # GET /v4/attachments/form/upload, so every outgoing attachment failed with
-  # a 400 ("failed to decode upload attributes"). Fixed upstream in
-  # mautrix/signal#703 after v26.10; drop this once nixpkgs ships v26.11.
-  # why: docs/notes.md#beeper-bridges
-  mautrix-signal = pkgs-unstable.mautrix-signal.overrideAttrs (old: {
-    patches = (old.patches or []) ++ [ ./mautrix-signal-upload-length.patch ];
-  });
+  # v26.11+ includes the uploadLength attachment fix (mautrix/signal#703).
+  mautrix-signal = pkgs-unstable.mautrix-signal;
 
   # Go bridgev2 bridges not in nixpkgs, built from the upstream tag. Bump
   # version + both hashes to upgrade. Without a valid Tag in ldflags the

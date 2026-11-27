@@ -617,6 +617,19 @@ Minimal metrics + centralized logging without Grafana or Loki
   ~2,000 queries/s, Pi-hole rate-limited the UDM, and the UDM answered
   `REFUSED` to the whole LAN. `StartLimitIntervalSec=0` is still set so a long
   outage doesn't trip systemd's burst cap.
+  The wrapper also needs `WatchdogSec=0`. Upstream ships `WatchdogSec=3min`
+  with `NotifyAccess=main`, and the shell is now MainPID, so the uploader's
+  `WATCHDOG=1` pings are silently dropped. From 9d89a92 (2026-11-03) until the
+  fix (2026-11-27), every uploader on the fleet was SIGABRTed every 3 minutes.
+  That meant ~360 restarts/day per machine and two core dumps each time (shell
+  plus uploader): ~330 coredumps/h on hutch and ~240/h on minihutch.
+  `/var/lib/systemd/coredump` sat at its 4.1 GB cap on both hosts, hutch's NVMe
+  took an extra ~600 KiB/s of writes, and shipping broke off every 3 minutes
+  (`Upload … failed: Empty reply from server`). Don't switch to
+  `NotifyAccess=all` instead: during an outage the uploader exits before it
+  pings, so the watchdog would still fire. Check with
+  `systemctl show systemd-journal-upload -p WatchdogUSec -p NRestarts` and
+  `coredumpctl list --since=-1h`.
 
 #### Container one-offs
 

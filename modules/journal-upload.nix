@@ -31,6 +31,14 @@
         ''))
       ];
       RestartSec = lib.mkForce "1s";
+      # The wrapper shell is now MainPID, so under upstream's NotifyAccess=main
+      # the uploader's WATCHDOG=1 pings are dropped and WatchdogSec=3min
+      # SIGABRTs the unit every 3 minutes (both processes dump core: ~330
+      # coredumps/h on hutch from 9d89a92 until this fix). The loop is the
+      # supervisor now. NotifyAccess=all would still fire during an outage,
+      # since the uploader exits before it ever pings.
+      # why: docs/notes.md#prometheus-and-journal-remote
+      WatchdogSec = 0;
     };
   };
 }

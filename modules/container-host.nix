@@ -1,4 +1,4 @@
-{ config, pkgs, pkgs-unstable, sops-nix, gb-grid, gb-grid-pkg, lib, network, ... }:
+{ config, pkgs, pkgs-unstable, sops-nix, gb-grid, gb-grid-pkg, gb-grid-ingest-pkg, lib, network, ... }:
 
 # The container-host role: LAN bond/bridge plus every NixOS container that
 # lib/network.nix names this machine as `parent` of (see README). Per-host
@@ -190,9 +190,9 @@ in
         # container's LAN identity and DHCP lease stay stable across restarts.
         localMacAddress = network.getMAC name;
         autoStart = true;
-        # gb-grid/gb-grid-pkg are only consumed by the gb-grid container —
+        # gb-grid/gb-grid-pkg/gb-grid-ingest-pkg are only consumed by the gb-grid container —
         # harmless elsewhere.
-        specialArgs = { inherit pkgs-unstable gb-grid gb-grid-pkg network; };
+        specialArgs = { inherit pkgs-unstable gb-grid gb-grid-pkg gb-grid-ingest-pkg network; };
         # Every container = the shared base + its own file. hostName defaults
         # to the container name (nixos-containers.nix).
         config.imports = [

@@ -140,11 +140,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786216417,
-        "narHash": "sha256-MGDKzJEd2zvyVP/nuYXu1xiEb503mQ9r3fMBSgoa7kk=",
+        "lastModified": 1795803608,
+        "narHash": "sha256-ymxPtGMTzNRw6qpclLk38CxuyyzKaK6HmY6MjrD4UBE=",
         "owner": "chrsphr",
         "repo": "gb-grid",
-        "rev": "267afa440cb486ad908ce3da1863e7281f1efb4b",
+        "rev": "10e488ced54a100ef437d0575a895f246386cbe2",
         "type": "github"
       },
       "original": {

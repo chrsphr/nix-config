@@ -74,6 +74,10 @@
       specialArgs = {
         inherit sops-nix gb-grid;
         gb-grid-pkg = gb-grid.packages.${system}.default;
+        # Rust ingester. With it set, the gb-grid module runs it for the
+        # scheduler and the constraints timer. The (deprecated) Python package
+        # above is kept only for `gb-grid migrate`.
+        gb-grid-ingest-pkg = gb-grid.packages.${system}.gb-grid-ingest;
       };
     };
 

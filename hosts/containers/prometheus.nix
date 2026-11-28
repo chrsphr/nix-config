@@ -347,7 +347,6 @@ in
   # `journalctl -D /var/log/journal/remote`.
   services.journald.remote = {
     enable = true;
-    listen = "http";
     port = 19532;
     settings.Remote = {
       SplitMode = "host";

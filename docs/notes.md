@@ -920,7 +920,7 @@ The battery-tuning notebook behind hosts/chris-framework.nix:
 - **scx_lavd --autopower** (2026-11-13, experimental): sched-ext scheduler
   with its own core ranking, since the kernel provides none on this CPU (see
   amd_prefcore above). Unmeasured — compare idle and light-load draw against
-  `services.scx.enable = false` and drop it if there is no gain.
+  `services.scx-loader.enable = false` and drop it if there is no gain.
 - **NIXOS_OZONE_WL=1**: Electron/Chromium apps run native Wayland, not
   XWayland.
 - **Bluetooth FastConnectable off** (laptop only): less page-scan duty cycle.

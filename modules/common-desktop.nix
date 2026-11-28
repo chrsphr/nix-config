@@ -34,7 +34,6 @@ in
   # Plymouth boot splash — quiet kernel + initrd so the splash isn't preceded by text.
   boot.plymouth.enable = true;
   boot.consoleLogLevel = 0;
-  boot.initrd.verbose = false;
   boot.kernelParams = [
     "quiet"
     "splash"

@@ -4,7 +4,6 @@
 # hardware/*-disko.nix (partition labelled "luks", opened as cryptroot).
 # runbook: docs/framework-install.md §7 (TPM enrolment)
 {
-  boot.initrd.systemd.enable = true;
   boot.initrd.systemd.tpm2.enable = true;
   boot.initrd.luks.devices.cryptroot = {
     device = "/dev/disk/by-partlabel/luks";

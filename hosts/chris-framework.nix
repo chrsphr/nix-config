@@ -74,10 +74,13 @@
   # profile (powersave / balanced / performance). Experimental: check with
   # `scxtop` or `cat /sys/kernel/sched_ext/root/ops`; set enable = false to
   # fall back to the stock scheduler.
-  services.scx = {
+  services.scx-loader = {
     enable = true;
-    scheduler = "scx_lavd";
-    extraArgs = [ "--autopower" ];
+    config = {
+      default_sched = "scx_lavd";
+      default_mode = "Auto";
+      scheds.scx_lavd.auto_mode = [ "--autopower" ];
+    };
   };
 
   # Electron/Chromium apps (Chrome, VS Code, Discord, Beeper) run as native
